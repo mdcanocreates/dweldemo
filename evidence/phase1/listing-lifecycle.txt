@@ -1,0 +1,3 @@
+listing=79c6f77d-7963-40b2-a167-ac6e3989cb70
+final_status=expired
+events=[{"event_type":"listing.status_changed","payload":{"to":"stale","from":"active"}},{"event_type":"listing.status_changed","payload":{"to":"expired","from":"stale"}}]

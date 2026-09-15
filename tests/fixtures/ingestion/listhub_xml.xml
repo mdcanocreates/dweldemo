@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<listings>
+  <listing>
+    <ListingKey>lh-1</ListingKey>
+    <address>300 ListHub Blvd Apt 5</address>
+    <ListPrice>2200</ListPrice>
+    <Beds>2</Beds>
+    <Baths>1</Baths>
+    <StandardStatus>Active</StandardStatus>
+    <ModificationTimestamp>2026-01-01T00:00:00Z</ModificationTimestamp>
+  </listing>
+  <listing>
+    <ListingKey>lh-2</ListingKey>
+    <address>300 ListHub Blvd Apt 6</address>
+    <ListPrice>2500</ListPrice>
+    <Beds>3</Beds>
+    <Baths>2</Baths>
+    <StandardStatus>Active</StandardStatus>
+    <ModificationTimestamp>2026-01-02T00:00:00Z</ModificationTimestamp>
+  </listing>
+</listings>

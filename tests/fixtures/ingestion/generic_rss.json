@@ -1,0 +1,19 @@
+{
+  "records": [
+    {
+      "external_id": "rss-1",
+      "address": "100 Feed St Apt 1",
+      "rent_amount_cents": 1800,
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "description": "Bright one bed"
+    },
+    {
+      "external_id": "rss-2",
+      "address": "100 Feed St Apt 2",
+      "rent_amount_cents": 2100,
+      "bedrooms": 2,
+      "bathrooms": 1
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+SPEC GAPS — Phase 4 (do not invent silently; recorded here)
+
+1. §18 D-11 — Per-source display RULE CONTENT is gated. Enforcement layer (serializeListingForApi /
+   findDisplayLeaks) ships now. Only TEST_ONLY rules are seeded in tests. No partner attribution /
+   suppression / media-policy content is written as production defaults.
+
+2. §18 D-12 — RESO aggregator selection (MLS Grid / Trestle / Bridge / Spark) is blocked.
+   Built `reso_aggregator_stub` fixture adapter only. Do not bind mls_grid/trestle/bridge/spark
+   until Michael resolves D-12.
+
+3. §6A.2 raw_record — still non-partitioned (Phase 1 gap). Partitioning deferred; unique index
+   includes received_at for landing-zone idempotency checks done in application code on
+   (source_id, external_id, payload_hash).
+
+4. Rejection log — spec names a rejection log without DDL. Implemented as raw_record.transform_error
+   plus domain_event `raw_record.rejected` on the parent sync_run aggregate (aggregate_id is uuid).
+
+5. Credential vault — Secrets Manager is in-process Map stub (putCredential / rotateCredential /
+   dual primary+secondary window). Production swaps to AWS Secrets Manager; source.credential_ref
+   remains a handle only. No additive credential table invented.
+
+6. Push nonce cache — in-memory Map (Redis/ElastiCache in prod per §2.2). No nonce table invented.
+
+7. Media assets — §6A.6 media policies enforced (host/hotlink/none) without inventing a media
+   table (Phase 5 documents owns object storage). Content-hash / hotlink stub only; zero network.
+
+8. Per-source observability — getSourceObservability computes from sync_run / source_listing /
+   credential runway / breaker state. No separate metrics table invented; alerts are returned
+   in the snapshot and via domain_event for quarantine.
+
+9. Temporal full-reconcile workflow — data-plane applyDelistGrace + runKind=full_reconcile
+   implemented in-process (same pattern as Phase 1 hold expiry). Temporal worker deployment
+   remains infrastructure.
+
+10. yardi / entrata / doorloop — listed in taxonomy; not in Phase 4 adapter build order.
+    Interface registry can extend later; not built in this phase.
+
+11. sync_run.error_detail — classified in pii-manifest as free_text/operational; sanitizeErrorDetail
+    must be used before persistence (asserted in credentials-redacted evidence).

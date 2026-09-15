@@ -1,0 +1,4 @@
+accepted=202
+stale=stale_timestamp
+replay=replayed_nonce
+malformed=malformed_body

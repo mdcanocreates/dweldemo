@@ -1,0 +1,11 @@
+{
+  "offeredTo": "f16c6cb9-e9be-429a-86e9-e9983ea896b8",
+  "validOrg": "f16c6cb9-e9be-429a-86e9-e9983ea896b8",
+  "expiredEligible": false,
+  "unverifiedEligible": false,
+  "fixtureOrder": [
+    "expired",
+    "unverified",
+    "valid"
+  ]
+}

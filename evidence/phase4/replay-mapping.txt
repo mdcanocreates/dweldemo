@@ -1,0 +1,4 @@
+before_rent=5000
+after_rent=220000
+mapping=2.0.0
+partner_api_calls=0

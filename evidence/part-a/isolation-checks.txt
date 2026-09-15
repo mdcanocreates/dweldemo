@@ -1,0 +1,70 @@
+=== no org/party context ===
+{
+  "sync_run": 0,
+  "raw_record": 0,
+  "listing_field_provenance": 0,
+  "unit_source_conflict": 0,
+  "placement_queue_entry": 0,
+  "placement_outcome": 0,
+  "screening_order": 0,
+  "screening_report": 0,
+  "screening_rebate": 0,
+  "income_verification": 0,
+  "fraud_signal": 0,
+  "solar_underwriting_decision": 0,
+  "solar_deal_remittance": 0,
+  "document_grant": 0,
+  "document_access_log": 0,
+  "notification": 0,
+  "notification_preference": 0,
+  "renter_profile": 0,
+  "score": 0,
+  "feature_snapshot": 0,
+  "session": 0
+}
+=== org A context ===
+{
+  "sync_run": 1,
+  "raw_record": 1,
+  "listing_field_provenance": 1,
+  "unit_source_conflict": 1,
+  "placement_queue_entry": 1,
+  "placement_outcome": 1,
+  "screening_order": 1,
+  "screening_report": 1,
+  "fraud_signal": 1,
+  "document_grant": 1,
+  "document_access_log": 1,
+  "score": 1,
+  "renter_profile_discoverable": 1,
+  "sync_run_sees_own": 1
+}
+=== org B context ===
+{
+  "sync_run": 1,
+  "sees_orgA_sync": 0,
+  "sees_orgA_outcome": 0
+}
+=== party A context ===
+{
+  "notification": 1,
+  "notification_preference": 1,
+  "renter_profile": 1,
+  "session": 1,
+  "income_verification": 1,
+  "screening_rebate": 1,
+  "feature_snapshot": 1,
+  "score": 1,
+  "screening_order": 1
+}
+=== party B context ===
+{
+  "notification": 1,
+  "sees_partyA_session": 0,
+  "renter_profile": 1
+}
+=== partner org context ===
+{
+  "solar_underwriting_decision": 1,
+  "solar_deal_remittance": 1
+}

@@ -1,0 +1,32 @@
+Phase 3 acceptance criteria checklist (§17)
+
+[x] Unbalanced transaction rejected by deferred trigger
+    evidence: unbalanced-rejected.txt
+[x] Application role UPDATE/DELETE on ledger tables denied
+    evidence: ledger-immutability.txt
+[x] Tier snapshot: change price book after lead creation → retains original tier/version/fee; charge matches
+    evidence: tier-snapshot.txt
+[x] Balance draw-down: concurrent purchases cannot drive balance_cents negative
+    evidence: balance-drawdown-concurrency.txt
+[x] Charge/release ordering: payment failure → not released; post-charge crash → reconciler resolves orphan
+    evidence: charge-release-ordering.txt
+[x] License gate: never offered to expired/unverified org (randomized fixtures)
+    evidence: license-gate.txt
+[x] Reconciliation: seeded Stripe discrepancy → break detected and alerted, not auto-resolved
+    evidence: reconciliation-breaks.txt
+[x] Displayed fee == persisted fee_amount_cents == Stripe charge amount
+    evidence: fee-equality.txt
+[x] lead_purchase_evidence populated at release (session, IP, ToS, payload)
+    evidence: purchase-evidence.txt
+[x] Price book cannot go effective without config.approve dual approval
+    evidence: price-book-dual-approval.txt
+[x] Trial balance and GL detail exports correct totals
+    evidence: accountant-exports.txt
+
+Additional covered:
+[x] payment_event ingestion (stub, no network) — payment-event.txt
+[x] SLA expiry re-offer — sla-reoffer.txt
+
+Test run: 44/44 passed (phase0:8 + phase1:11 + phase2:12 + phase3:13)
+
+See spec-gaps.txt for D-03 / D-05 and schema notes.

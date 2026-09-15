@@ -1,0 +1,21 @@
+{
+  "placementId": "ac3f0693-3421-4e17-a5e7-49eed447e962",
+  "outcomes": [
+    {
+      "horizon_days": 30,
+      "requested_at": "2026-03-31T12:00:00.000Z"
+    },
+    {
+      "horizon_days": 90,
+      "requested_at": "2026-05-30T12:00:00.000Z"
+    },
+    {
+      "horizon_days": 180,
+      "requested_at": "2026-08-28T12:00:00.000Z"
+    },
+    {
+      "horizon_days": 365,
+      "requested_at": "2027-03-01T12:00:00.000Z"
+    }
+  ]
+}

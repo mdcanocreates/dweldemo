@@ -1,0 +1,10 @@
+{
+  "appStatus": "screened",
+  "orderStatus": "complete",
+  "badge": "fully_screened",
+  "archiveCount": 2,
+  "applicationId": "b6008fd0-07c2-429d-af0a-204bde2ad407",
+  "orderId": "08b77973-c06f-4fff-8491-7bc03d2f6c37",
+  "network": "none",
+  "stubs": true
+}

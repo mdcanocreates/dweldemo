@@ -1,0 +1,7 @@
+{
+  "proposedId": "20027185-19d9-45d1-932d-f27501ea078f",
+  "unapprovedNull": true,
+  "approvedSet": true,
+  "resolveSawApprovedBook": true,
+  "effectiveBefore": true
+}

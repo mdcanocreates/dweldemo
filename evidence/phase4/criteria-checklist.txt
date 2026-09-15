@@ -1,0 +1,41 @@
+Phase 4 acceptance criteria checklist (§17 / §6A)
+
+[x] Adapter conformance suite: every adapter passes shared suite on fixtures, no live network
+    evidence: adapter-conformance.txt
+[x] Replay: mapping version change → re-transform historical raw_record → corrected output, zero partner API calls
+    evidence: replay-mapping.txt
+[x] Idempotency: same feed fetched 10× → one source_listing set, records_unchanged, no listing churn
+    evidence: idempotency.txt
+[x] Resolution: same unit from three adapters → one unit_id; supply metrics count once
+    evidence: resolution-three-adapters.txt
+[x] Merge precedence: landlord-direct rent overrides feed; provenance identifies winner
+    evidence: merge-precedence.txt
+[x] Conflict: >10% rent disagreement → unit_source_conflict, holds prior, no auto-resolve
+    evidence: rent-conflict.txt
+[x] Delist: absent from full reconcile → absent_since → delisted after grace → listing expires
+    evidence: delist-reconcile.txt
+[x] Quarantine: 80% inventory drop quarantined NOT applied; alert event; override needs dual approval
+    evidence: quarantine-override.txt
+[x] Currency-scale guard: dollars-where-cents-expected caught by median-shift gate
+    evidence: currency-scale-guard.txt
+[x] Building-level record (one row, 40 units) → ambiguous queue, no phantom unit
+    evidence: building-ambiguous.txt
+[x] Push: valid HMAC accepted; stale timestamp rejected; replayed nonce rejected; malformed → rejection log
+    evidence: push-hmac.txt
+[x] Credential rotation during dual-credential window: zero failed syncs
+    evidence: credential-rotation.txt
+[x] Dry run writes zero rows to listing/property/unit/address (before/after counts)
+    evidence: dry-run-counts.txt
+[x] Display rules: show_exact_address=false + suppressed fields never leak via serializer
+    evidence: display-rules.txt (TEST_ONLY rule content; D-11)
+[x] Credentials absent from logs, traces, and sync_run.error_detail
+    evidence: credentials-redacted.txt
+[x] Org claim: ingestion-created unclaimed org claimable without duplicate org
+    evidence: org-claim.txt
+
+Additional:
+[x] Onboarding test → activate smoke — onboarding.txt
+
+Test run: 61/61 passed (phase0:8 + phase1:11 + phase2:12 + phase3:13 + phase4:17)
+
+See spec-gaps.txt for D-11 / D-12 and schema notes.

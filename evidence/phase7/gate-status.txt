@@ -1,0 +1,20 @@
+GATE STATUS: UNMET
+met=false
+reason=UNMET: insufficient placement history span AND 90-day label coverage below 60% — ML activation blocked; rules v0 continues
+{
+  "placement_span_days": 0,
+  "placement_count": 0,
+  "min_span_days": 183,
+  "horizon_days": 90,
+  "due_count": 0,
+  "responded_count": 0,
+  "label_coverage": 0,
+  "min_label_coverage": 0.6,
+  "as_of": "2026-09-10T02:18:18.801Z"
+}
+active_model=renter_score@rules-v0 kind=rules
+ml_activation_attempted=ml-v1-candidate
+ml_activated=false
+ml_activation_reason=UNMET: insufficient placement history span AND 90-day label coverage below 60% — ML activation blocked; rules v0 continues
+drift_refuse=UNMET: insufficient placement history span AND 90-day label coverage below 60% — ML activation blocked; rules v0 continues
+ML activation is BLOCKED. Rules v0 continues.

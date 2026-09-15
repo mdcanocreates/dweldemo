@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  gates-and-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rbit
+          POSTGRES_PASSWORD: rbit
+          POSTGRES_DB: rbit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rbit -d rbit_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://rbit:rbit@localhost:5432/rbit_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Module boundaries
+        run: npm run lint:boundaries
+
+      - name: Migration safety gate
+        run: npm run ci:migration-safety
+
+      - name: PII manifest gate
+        run: npm run ci:pii-manifest
+
+      - name: Tenancy gate (pass)
+        run: npm run ci:tenancy
+
+      - name: Tenancy gate (fail on deliberate unscoped table)
+        run: |
+          set +e
+          TENANCY_INJECT_VIOLATION=1 npm run ci:tenancy
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "expected tenancy gate to fail"
+            exit 1
+          fi
+          echo "tenancy gate failed as expected"
+
+      - name: OpenAPI drift gate
+        run: npm run ci:openapi-drift
+
+      - name: Acceptance tests (Phase 0)
+        run: npm test
+
+      - name: Upload Phase 0 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-evidence
+          path: evidence/phase0/
+          if-no-files-found: ignore

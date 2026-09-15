@@ -1,0 +1,12 @@
+{
+  "days": 30,
+  "inWindowGrants": 3,
+  "fourth": {
+    "granted": true,
+    "accessId": "cf02be31-8ae0-4560-81ab-5c042d0a7fae",
+    "repull": true,
+    "newReportId": "6b6c4ffa-9921-4fe0-b2c3-ae6a487934f2"
+  },
+  "repullCalled": true,
+  "accessOnOriginal": 3
+}

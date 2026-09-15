@@ -1,0 +1,5 @@
+{
+  "price_book_version": "r3-book-a",
+  "fee_amount_cents": 11500,
+  "rs_tier": "RS-3"
+}

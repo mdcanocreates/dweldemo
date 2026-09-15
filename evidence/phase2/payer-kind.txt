@@ -1,0 +1,3 @@
+amounts=[{"payer_kind":"applicant","amount":2946},{"payer_kind":"landlord","amount":2946},{"payer_kind":"broker","amount":2946},{"payer_kind":"rbit_promotional","amount":2946}]
+source=screening_package.total_cost_cents
+no_payer_branching=true

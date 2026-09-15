@@ -1,0 +1,20 @@
+{
+  "records": [
+    {
+      "external_id": "bd-1",
+      "address": "500 Buildium Ct Unit 1",
+      "rent_amount_cents": 155000,
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "LastUpdatedDateTime": "2026-03-01T00:00:00Z"
+    },
+    {
+      "external_id": "bd-2",
+      "address": "500 Buildium Ct Unit 2",
+      "rent_amount_cents": 190000,
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "LastUpdatedDateTime": "2026-03-02T00:00:00Z"
+    }
+  ]
+}

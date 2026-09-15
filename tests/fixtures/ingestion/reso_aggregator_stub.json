@@ -1,0 +1,22 @@
+{
+  "records": [
+    {
+      "external_id": "reso-agg-1",
+      "address": "700 RESO Aggregator Ln Apt 1",
+      "rent_amount_cents": 200000,
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "ModificationTimestamp": "2026-05-01T00:00:00Z",
+      "StandardStatus": "Active"
+    },
+    {
+      "external_id": "reso-agg-2",
+      "address": "700 RESO Aggregator Ln Apt 2",
+      "rent_amount_cents": 225000,
+      "bedrooms": 3,
+      "bathrooms": 2,
+      "ModificationTimestamp": "2026-05-02T00:00:00Z",
+      "StandardStatus": "Active"
+    }
+  ]
+}

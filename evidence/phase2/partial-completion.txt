@@ -1,0 +1,22 @@
+{
+  "app": "screening_running",
+  "order": "partial",
+  "reports": [
+    {
+      "report_kind": "identity",
+      "status": "complete"
+    },
+    {
+      "report_kind": "criminal",
+      "status": "pending"
+    },
+    {
+      "report_kind": "credit",
+      "status": "complete"
+    },
+    {
+      "report_kind": "risk_insight",
+      "status": "complete"
+    }
+  ]
+}

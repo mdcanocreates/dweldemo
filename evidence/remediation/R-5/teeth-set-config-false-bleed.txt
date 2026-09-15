@@ -1,0 +1,3 @@
+After set_config(..., false) + commit, next txn without context saw application rows=1 leakedOrg1=true
+Production setTenantContext/withTenantContext use is_local=true only (grep src: zero set_config false).
+This test documents the failure mode that session.ts must not reintroduce.

@@ -1,0 +1,3 @@
+leaks=[]
+serialized_keys=id,rent_amount_cents,address,exact_address_suppressed,attribution
+attribution=TEST_ONLY attribution

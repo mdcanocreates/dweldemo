@@ -1,0 +1,23 @@
+{
+  "sl": {
+    "id": "7ac08821-c933-4bef-8e9e-52faa31e8bfa",
+    "resolution_status": "resolved",
+    "unit_id": "a6e99643-a0aa-492a-ad2f-ae5f3c759451"
+  },
+  "listing": {
+    "id": "6e266901-2b58-411f-876f-83586eedff2b",
+    "primary_source_listing_id": "7ac08821-c933-4bef-8e9e-52faa31e8bfa",
+    "rent_amount_cents": 175000,
+    "origin": "manual"
+  },
+  "prov": [
+    {
+      "field_name": "rent_amount_cents",
+      "source_listing_id": "7ac08821-c933-4bef-8e9e-52faa31e8bfa"
+    },
+    {
+      "field_name": "bedrooms",
+      "source_listing_id": "7ac08821-c933-4bef-8e9e-52faa31e8bfa"
+    }
+  ]
+}

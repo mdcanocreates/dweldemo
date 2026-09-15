@@ -1,0 +1,7 @@
+{
+  "tierCount": 12,
+  "approvedNull": true,
+  "mismatches": [],
+  "resolvePriceBookNull": true,
+  "resolveConfigNull": true
+}

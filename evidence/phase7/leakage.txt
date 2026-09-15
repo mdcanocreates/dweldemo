@@ -1,0 +1,17 @@
+PASS: poisoned fixture fails the (broken) pipeline / excluded by PIT
+poisoned fixture correctly excluded by PIT assembly; broken path differs
+{
+  "correct_fraud_flag_count": 0,
+  "correct_placement_count": 0,
+  "broken_fraud_flag_count": 9,
+  "broken_placement_count": 7,
+  "poison_detected_on_broken_path": [
+    "fraud_flag_count source written_at after PIT",
+    "placement_count source written_at after PIT",
+    "assembled features match poison-ignoring-PIT assembly",
+    "fraud_flag_count equals poison value 9",
+    "placement_count equals poison value 7"
+  ]
+}
+correct_fraud_flag_count=0
+correct_placement_count=0

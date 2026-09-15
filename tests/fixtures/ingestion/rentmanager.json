@@ -1,0 +1,20 @@
+{
+  "records": [
+    {
+      "external_id": "rm-1",
+      "address": "600 RentManager Rd Apt A",
+      "rent_amount_cents": 140000,
+      "bedrooms": 0,
+      "bathrooms": 1,
+      "update_date": "2026-04-01T00:00:00Z"
+    },
+    {
+      "external_id": "rm-2",
+      "address": "600 RentManager Rd Apt B",
+      "rent_amount_cents": 165000,
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "update_date": "2026-04-02T00:00:00Z"
+    }
+  ]
+}

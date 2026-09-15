@@ -1,0 +1,10 @@
+{
+  "adverse": {
+    "action": "review_queue",
+    "reviewId": "3c2ec1a8-f4c7-48f8-9dec-c9bd593c9b1f",
+    "status": "screening_running"
+  },
+  "queueLen": 1,
+  "appStatus": "screening_running",
+  "flag": false
+}

@@ -1,0 +1,9 @@
+PASS: 30-day shadow harness implemented
+Real 30-day prod shadow: N/A until Phase 7 gate met
+prod_mode_note=N/A: real 30-day production shadow requires Phase 7 gate (6mo placements + ≥60% 90d labels). Fixture-based distribution comparison may run in CI. ML activation refused.
+fixture_n=200
+fixture_v0_mean=97.84667499999999
+fixture_candidate_mean=96.76227499999997
+fixture_mean_abs_diff=1.0871
+fixture_band_agreement=0.985
+activation_allowed=false

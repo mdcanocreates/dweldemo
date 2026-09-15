@@ -1,0 +1,40 @@
+SPEC GAPS — Phase 5 (do not invent silently; recorded here)
+
+1. §14.2 search_demand_daily — named in prose with dimensions
+   (submarket_id, bed_band, rent_band, date → searches, zero_results, clicks)
+   but no full CREATE TABLE DDL. Implemented from that prose; bed/rent band
+   labeling is application convention (studio/1/2/3/4plus; rent cent bands).
+
+2. §15 reporting mart column sets — core mart names listed without column DDL.
+   Columns derived from source entities (application, placement, lead, ledger,
+   party_features, submarket, listing, search_demand_daily, placement_outcome).
+   fct_solar_deal exists empty until Phase 6.
+
+3. document_access_log.document_id — spec has no FK; left without FK per §0.3.
+   document.org_id nullable per spec (party-owned docs).
+
+4. Document tombstone — no purged_at column in §12.1 DDL. Purge sets
+   scan_status='purged', storage_key=tombstone/{id}, size_bytes=0, retains row id
+   so grants/ledger memo references stay valid. scan_status has no CHECK list
+   in spec, so 'purged' is additive status value only.
+
+5. Object storage — MemoryObjectStore stub (P10). Production S3 SSE-KMS not
+   wired; no live AWS in CI.
+
+6. ESign — existing vendor interface extended with optional completed bytes +
+   audit certificate; Documents.completeESignAndStore stores both as documents.
+   Spec name ESignProvider mapped to existing ESign adapter.
+
+7. Admin “replica” — tests use reporting schema on same DB (P9). No separate
+   Aurora replica process in CI; query interceptor enforces reporting-only
+   except allowlisted single-record lookups.
+
+8. CloudFront/WAF — §3.7 edge controls are infra; app-layer rate limit +
+   scraping_policy implemented. WAF rules live in Terraform (not this phase’s
+   app module).
+
+9. search_event hot-90d → Parquet to S3 — deferred; partitions + rollup only.
+
+10. scraping_policy payload fields unauthenticated_burst_limit /
+    unauthenticated_window_ms — not named in §3.7 (only toggles). Added for
+    testable burst limits; seeded TEST_ONLY via config_version.

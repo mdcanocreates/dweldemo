@@ -1,0 +1,5 @@
+{
+  "id": "a1848f20-2af4-4c8b-a72d-1a34a57565ce",
+  "isSignatureValid": true,
+  "duplicate": false
+}

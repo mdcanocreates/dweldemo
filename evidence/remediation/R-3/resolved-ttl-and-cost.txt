@@ -1,0 +1,7 @@
+{
+  "hold_ttl_ms": 172800000,
+  "magic_token_ttl_ms": 900000,
+  "session_ttl_ms": 2592000000,
+  "elevation_ttl_ms": 900000,
+  "total_cost_cents": 2946
+}

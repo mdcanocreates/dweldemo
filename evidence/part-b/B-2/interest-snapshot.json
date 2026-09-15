@@ -1,0 +1,11 @@
+{
+  "result": {
+    "interestId": "619d48a6-3ba8-4cf5-88f8-39dd9b310bd6",
+    "match_score": 100,
+    "match_model_version": "v0.1"
+  },
+  "row": {
+    "match_score": "100",
+    "match_model_version": "v0.1"
+  }
+}

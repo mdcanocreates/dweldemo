@@ -1,0 +1,30 @@
+export {
+  acceptPlacement,
+  enqueuePlacement,
+  lapseHoldAndPromote,
+  markLeaseSigned,
+  markPlacementFunded,
+  searchDiscoverableRenters,
+  listListingMatches,
+  expressLandlordInterest,
+  assertMinimalSerializer,
+  ALLOWED_RENTER_SEARCH_FILTERS,
+  PlacementConflictError,
+  AllowlistViolationError,
+  type MinimalRenterSearchHit,
+} from './placement.js';
+
+export {
+  computeMatchScore,
+  loadScoringWeights,
+  DEFAULT_SCORING_WEIGHTS,
+  assertWeightsSumToOne,
+  scoreRentAffordability,
+  scoreMoveInWindow,
+  scoreBedroomMatch,
+  scoreBadgeTier,
+  scoreSubmarketMatch,
+  MATCH_MODEL_KEY,
+  MATCH_MODEL_VERSION,
+  type ScoringWeights,
+} from './match-score.js';

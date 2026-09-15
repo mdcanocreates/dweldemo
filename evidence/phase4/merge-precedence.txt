@@ -1,0 +1,3 @@
+rent=200000
+winner_source=9814f271-51fc-41f5-b41f-328837e680d8
+landlord=9814f271-51fc-41f5-b41f-328837e680d8

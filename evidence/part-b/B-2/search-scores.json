@@ -1,0 +1,151 @@
+{
+  "noListingNull": true,
+  "withListing": [
+    {
+      "renter_profile_id": "5470d32a-99c4-40e5-acfa-0910638e2c28",
+      "badge_state": "fully_screened",
+      "score_band": null,
+      "rent_max_cents": 250000,
+      "bedrooms_min": "2.0",
+      "household_size": null,
+      "has_pets": null,
+      "target_submarket_ids": [
+        "3357679b-28bc-49cc-af3c-8c66fb65ddd9"
+      ],
+      "match_score": 100,
+      "match_score_components": [
+        {
+          "dimension": "rent_affordability",
+          "weight": 0.3,
+          "score": 100,
+          "weighted": 30,
+          "explanation": "renter max covers listing rent"
+        },
+        {
+          "dimension": "move_in_window",
+          "weight": 0.2,
+          "score": 100,
+          "weighted": 20,
+          "explanation": "listing available_on within renter window"
+        },
+        {
+          "dimension": "bedroom_match",
+          "weight": 0.15,
+          "score": 100,
+          "weighted": 15,
+          "explanation": "listing bedrooms meet renter minimum"
+        },
+        {
+          "dimension": "badge_tier",
+          "weight": 0.2,
+          "score": 100,
+          "weighted": 20,
+          "explanation": "fully_screened badge"
+        },
+        {
+          "dimension": "submarket_match",
+          "weight": 0.15,
+          "score": 100,
+          "weighted": 15,
+          "explanation": "listing submarket in renter targets"
+        }
+      ]
+    },
+    {
+      "renter_profile_id": "89957c46-4475-480a-bc1d-52901cdbc58c",
+      "badge_state": "unverified",
+      "score_band": null,
+      "rent_max_cents": 100000,
+      "bedrooms_min": "3.0",
+      "household_size": null,
+      "has_pets": null,
+      "target_submarket_ids": [],
+      "match_score": 4,
+      "match_score_components": [
+        {
+          "dimension": "rent_affordability",
+          "weight": 0.3,
+          "score": 0,
+          "weighted": 0,
+          "explanation": "renter max more than 10% below listing rent"
+        },
+        {
+          "dimension": "move_in_window",
+          "weight": 0.2,
+          "score": 0,
+          "weighted": 0,
+          "explanation": "available_on outside renter window by >14 days"
+        },
+        {
+          "dimension": "bedroom_match",
+          "weight": 0.15,
+          "score": 0,
+          "weighted": 0,
+          "explanation": "listing bedrooms below renter minimum"
+        },
+        {
+          "dimension": "badge_tier",
+          "weight": 0.2,
+          "score": 20,
+          "weighted": 4,
+          "explanation": "unverified badge"
+        },
+        {
+          "dimension": "submarket_match",
+          "weight": 0.15,
+          "score": 0,
+          "weighted": 0,
+          "explanation": "submarket data incomplete"
+        }
+      ]
+    }
+  ],
+  "afterConfig": {
+    "renter_profile_id": "89957c46-4475-480a-bc1d-52901cdbc58c",
+    "badge_state": "unverified",
+    "score_band": null,
+    "rent_max_cents": 100000,
+    "bedrooms_min": "3.0",
+    "household_size": null,
+    "has_pets": null,
+    "target_submarket_ids": [],
+    "match_score": 12,
+    "match_score_components": [
+      {
+        "dimension": "rent_affordability",
+        "weight": 0.1,
+        "score": 0,
+        "weighted": 0,
+        "explanation": "renter max more than 10% below listing rent"
+      },
+      {
+        "dimension": "move_in_window",
+        "weight": 0.1,
+        "score": 0,
+        "weighted": 0,
+        "explanation": "available_on outside renter window by >14 days"
+      },
+      {
+        "dimension": "bedroom_match",
+        "weight": 0.1,
+        "score": 0,
+        "weighted": 0,
+        "explanation": "listing bedrooms below renter minimum"
+      },
+      {
+        "dimension": "badge_tier",
+        "weight": 0.6,
+        "score": 20,
+        "weighted": 12,
+        "explanation": "unverified badge"
+      },
+      {
+        "dimension": "submarket_match",
+        "weight": 0.1,
+        "score": 0,
+        "weighted": 0,
+        "explanation": "submarket data incomplete"
+      }
+    ]
+  }
+}

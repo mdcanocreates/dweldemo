@@ -1,0 +1,15 @@
+﻿
+> rbit-backend@0.1.0 test
+> vitest run tests/acceptance/phase3.test.ts -t Balance draw-down
+
+
+ RUN  v3.0.8 C:/Users/MDCan/Desktop/RBIT2
+
+ Γ£ô tests/acceptance/phase3.test.ts (13 tests | 12 skipped) 10445ms
+   Γ£ô Phase 3 acceptance (┬º17) > Balance draw-down: concurrent purchases cannot drive balance negative 1079ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 12 skipped (13)
+   Start at  21:05:51
+   Duration  12.76s (transform 695ms, setup 0ms, collect 1.86s, tests 10.45s, environment 0ms, prepare 151ms)
+

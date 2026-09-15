@@ -1,0 +1,11 @@
+{
+  "originalFee": 14000,
+  "originalTier": "RS-4",
+  "originalVersion": "test-seed-v1",
+  "afterFee": 14000,
+  "afterTier": "RS-4",
+  "afterVersion": "test-seed-v1",
+  "charged": 14000,
+  "stripeAmount": 14000,
+  "displayed": 14000
+}

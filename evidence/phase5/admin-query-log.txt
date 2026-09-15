@@ -1,0 +1,4 @@
+reporting_queries=3
+primary_lookups=1
+forbidden_attempt_logged=true
+dashboard_rows=4

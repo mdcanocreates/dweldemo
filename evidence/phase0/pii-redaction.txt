@@ -1,0 +1,5 @@
+log_lines:
+{"level":30,"time":1789006682682,"request_id":"9200ed5d-9b5e-4dc4-a4c9-74d8c196a418","ssn":"[REDACTED]","email":"[REDACTED]","phone":"[REDACTED]","dob":"[REDACTED]","given_name":"[REDACTED]","family_name":"[REDACTED]","government_id":"[REDACTED]","card_number":"[REDACTED]","note":"applicant SSN [REDACTED_SSN] email [REDACTED_EMAIL]","msg":"intake for [REDACTED_EMAIL] ssn=[REDACTED_SSN]"}
+{"ssn":"[REDACTED]","email":"[REDACTED]","phone":"[REDACTED]","dob":"[REDACTED]","given_name":"[REDACTED]","family_name":"[REDACTED]","government_id":"[REDACTED]","card_number":"[REDACTED]","note":"applicant SSN [REDACTED_SSN] email [REDACTED_EMAIL]"}
+
+needles_found: []

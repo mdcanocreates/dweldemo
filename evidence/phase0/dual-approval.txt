@@ -1,0 +1,11 @@
+{
+  "selfApprovalRejected": true,
+  "secondAdminApproved": {
+    "status": "approved",
+    "bypassed": false
+  },
+  "superAdminBypass": {
+    "status": "approved",
+    "bypassed": true
+  }
+}

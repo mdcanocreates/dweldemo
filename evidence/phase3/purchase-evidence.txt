@@ -1,0 +1,16 @@
+{
+  "session_id": "ed82b600-d015-43e0-be2b-929f07d172a5",
+  "ip": "203.0.113.55",
+  "tos_version": "tos-v9",
+  "payload_released": {
+    "lead_id": "97238887-b473-4c32-bb18-fc034de405b3",
+    "rs_tier": "RS-4",
+    "party_id": "83b4ba40-4786-45a2-9747-8fc7e75523a2",
+    "listing_id": "fd652c5f-7a23-4c2a-8dc9-60702ea2c3f1",
+    "released_at": "2026-06-07T12:00:00.000Z",
+    "contact_grant": true,
+    "application_id": "a957857e-5c05-46d2-8f4e-18de08ac2a0e",
+    "fee_amount_cents": 14000,
+    "report_access_grant": true
+  }
+}

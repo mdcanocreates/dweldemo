@@ -1,0 +1,7 @@
+PASS: disbursement before partner_paid rejected (solar_disbursement_gated)
+PASS: after partner_paid, homeowner disbursement succeeds via shared payout rail
+{
+  "gated_before_partner_paid": true,
+  "final_status": "homeowner_paid",
+  "disbursed_cents": 415000
+}

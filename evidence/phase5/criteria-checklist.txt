@@ -1,0 +1,27 @@
+Phase 5 acceptance criteria checklist (§17)
+
+[x] Signed URL expires ≤5 min; direct bucket access denied; every issuance logged
+    evidence: evidence/phase5/signed-url.txt
+
+[x] Purge job removes expired documents from S3 (stub), retains tombstone, ledger references intact
+    evidence: evidence/phase5/document-purge.txt
+    (+ e-sign adapter wired via completeESignAndStore)
+
+[x] Zero-result searches visible in rollup by submarket, bed band, rent band
+    evidence: evidence/phase5/zero-result-rollup.txt
+
+[x] Admin console issues zero queries against transactional primary except targeted single-record lookups
+    evidence: evidence/phase5/admin-query-log.txt
+    (AdminQueryInterceptor; reporting schema in CI)
+
+[x] Label coverage metric live, reporting actual 30/90-day response rates
+    evidence: evidence/phase5/label-coverage.txt
+
+[x] Expired listing returns correct 410/301/noindex per policy, asserted per case
+    evidence: evidence/phase5/expired-listing-policy.txt
+    (active index · stale noindex · expired 410 · successor 301)
+
+[x] Rate limiting: unauthenticated burst throttled; allow_indexed_crawlers toggle respected
+    evidence: evidence/phase5/rate-limit.txt
+
+Suite: 68 tests passed (61 prior + 7 Phase 5). Spec gaps: evidence/phase5/spec-gaps.txt

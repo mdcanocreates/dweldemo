@@ -1,0 +1,18 @@
+{
+  "views": [
+    {
+      "is_authenticated": false,
+      "viewer_party_id": null
+    },
+    {
+      "is_authenticated": true,
+      "viewer_party_id": "a84dd109-0e95-4703-89e4-72fe59cecfd3"
+    }
+  ],
+  "viewsCount": 2,
+  "events": [
+    {
+      "event_type": "renter_badge_shared"
+    }
+  ]
+}

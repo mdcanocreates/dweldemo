@@ -1,0 +1,15 @@
+{
+  "afterLease": {
+    "rebateId": null,
+    "created": false
+  },
+  "afterFunded": {
+    "rebateId": "accde458-f422-4208-9d87-edb7d70a13c2",
+    "created": true
+  },
+  "second": {
+    "rebateId": "accde458-f422-4208-9d87-edb7d70a13c2",
+    "created": false
+  },
+  "rebateCount": 1
+}

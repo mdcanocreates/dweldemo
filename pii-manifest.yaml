@@ -1,0 +1,219 @@
+# PII-bearing columns. CI fails if a migration adds a column to a listed table
+
+# without a corresponding entry here. Retention durations for identity class
+
+# are gated by §18 D-01 — purge job reads this manifest but TTL values are
+
+# not hardcoded until D-01 resolves.
+
+tables:
+
+  party_identity:
+
+    given_name_enc:
+
+      classification: identity
+
+      retention_class: identity
+
+    family_name_enc:
+
+      classification: identity
+
+      retention_class: identity
+
+    dob_enc:
+
+      classification: identity
+
+      retention_class: identity
+
+    phone_enc:
+
+      classification: identity
+
+      retention_class: identity
+
+    email_enc:
+
+      classification: identity
+
+      retention_class: identity
+
+    email_hmac:
+
+      classification: lookup_token
+
+      retention_class: identity
+
+    phone_hmac:
+
+      classification: lookup_token
+
+      retention_class: identity
+
+    identity_fingerprint:
+
+      classification: vault_alias
+
+      retention_class: identity
+
+  data_encryption_key:
+
+    wrapped_key:
+
+      classification: key_material
+
+      retention_class: identity
+
+  org:
+
+    legal_name:
+
+      classification: org_identity
+
+      retention_class: identity
+
+    display_name:
+
+      classification: org_identity
+
+      retention_class: identity
+
+  address:
+
+    raw_input:
+
+      classification: address
+
+      retention_class: identity
+
+    line1:
+
+      classification: address
+
+      retention_class: identity
+
+    line2:
+
+      classification: address
+
+      retention_class: identity
+
+    city:
+
+      classification: address
+
+      retention_class: identity
+
+    postal_code:
+
+      classification: address
+
+      retention_class: identity
+
+    postal_plus4:
+
+      classification: address
+
+      retention_class: identity
+
+  auth_magic_token:
+
+    email_hmac:
+
+      classification: lookup_token
+
+      retention_class: identity
+
+  notification_suppression:
+
+    address_hmac:
+
+      classification: lookup_token
+
+      retention_class: identity
+
+  landlord_interest:
+
+    message:
+
+      classification: free_text
+
+      retention_class: identity
+
+  source_listing:
+
+    description:
+
+      classification: free_text
+
+      retention_class: identity
+
+  sync_run:
+
+    error_detail:
+
+      classification: free_text
+
+      retention_class: operational
+
+  application:
+
+    device_id:
+
+      classification: device
+
+      retention_class: identity
+
+  # Phase 2 — device_id-like and free-text detail; no SSN columns exist by design (§3.3).
+  # identity_fingerprint remains on party_identity only (vault alias, Path B).
+
+  fraud_signal:
+
+    detail:
+
+      classification: free_text
+
+      retention_class: identity
+
+  # Phase 3 — purchase evidence and broker license identifiers
+
+  lead_purchase_evidence:
+
+    ip:
+
+      classification: network
+
+      retention_class: identity
+
+    user_agent:
+
+      classification: device
+
+      retention_class: identity
+
+    payload_released:
+
+      classification: free_text
+
+      retention_class: identity
+
+  broker_profile:
+
+    license_number:
+
+      classification: org_identity
+
+      retention_class: identity
+
+  # Phase 5 — document access log network fields; document content lives in object store
+
+  document_access_log:
+
+    ip:
+
+      classification: network
+
+      retention_class: identity
+

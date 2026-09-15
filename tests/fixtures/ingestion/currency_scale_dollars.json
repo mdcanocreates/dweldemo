@@ -1,0 +1,34 @@
+{
+  "records": [
+    {
+      "external_id": "scale-1",
+      "address": "1 Scale Guard Ave Apt 1",
+      "rent_amount_cents": 1850,
+      "bedrooms": 1
+    },
+    {
+      "external_id": "scale-2",
+      "address": "1 Scale Guard Ave Apt 2",
+      "rent_amount_cents": 1900,
+      "bedrooms": 1
+    },
+    {
+      "external_id": "scale-3",
+      "address": "1 Scale Guard Ave Apt 3",
+      "rent_amount_cents": 1950,
+      "bedrooms": 2
+    },
+    {
+      "external_id": "scale-4",
+      "address": "1 Scale Guard Ave Apt 4",
+      "rent_amount_cents": 2000,
+      "bedrooms": 2
+    },
+    {
+      "external_id": "scale-5",
+      "address": "1 Scale Guard Ave Apt 5",
+      "rent_amount_cents": 2050,
+      "bedrooms": 2
+    }
+  ]
+}

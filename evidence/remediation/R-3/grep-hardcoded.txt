@@ -1,0 +1,7 @@
+Grep (src/modules) for feeCents:\d+|HOLD_TTL_MS|TOKEN_TTL_MS|totalCostCents:2946|REBATE_EXPIRY|48*60*60
+
+Matches after R-3:
+- src/modules/vendors/stubs.ts: feeCents: 0 (Stripe stub zero-fee path — not RS price book)
+
+No HOLD_TTL_MS / TOKEN_TTL_MS / totalCostCents:2946 / REBATE_EXPIRY remain in src/modules.
+Fee amounts for RS tiers live in migrations/0040_r3_config_seeds.sql + TEST_ONLY tests/helpers/price-book-seed.ts.

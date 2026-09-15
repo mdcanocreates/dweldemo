@@ -1,0 +1,4 @@
+burst_decisions=ok,ok,ok,unauthenticated_burst,unauthenticated_burst
+indexed_crawler_allowed_when_on=true
+indexed_crawler_when_off=indexed_crawler_denied
+generic_automation=generic_automation_denied

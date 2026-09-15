@@ -1,0 +1,22 @@
+{
+  "records": [
+    {
+      "external_id": "af-1",
+      "address": "400 AppFolio Way Apt 10",
+      "rent_amount_cents": 160000,
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "updated_at": "2026-02-01T00:00:00Z",
+      "status": "active"
+    },
+    {
+      "external_id": "af-2",
+      "address": "400 AppFolio Way Apt 11",
+      "rent_amount_cents": 175000,
+      "bedrooms": 2,
+      "bathrooms": 1,
+      "updated_at": "2026-02-02T00:00:00Z",
+      "status": "active"
+    }
+  ]
+}

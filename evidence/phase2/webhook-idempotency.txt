@@ -1,0 +1,7 @@
+{
+  "transitions": 1,
+  "costs": 1,
+  "statusEventCount": 1,
+  "costEntryCount": 1,
+  "webhookRows": 1
+}

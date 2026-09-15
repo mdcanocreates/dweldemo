@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    {
+      "source": "/v1/:path*",
+      "destination": "http://rbit-dev-821417220.us-east-2.elb.amazonaws.com/v1/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "http://rbit-dev-821417220.us-east-2.elb.amazonaws.com/health"
+    },
+    { "source": "/((?!v1/|health$).*)", "destination": "/index.html" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "records": [
+    {
+      "external_id": "push-1",
+      "address": "110 Push Webhook St Apt 3",
+      "rent_amount_cents": 185000,
+      "bedrooms": 1,
+      "bathrooms": 1
+    }
+  ]
+}

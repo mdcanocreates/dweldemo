@@ -1,0 +1,9 @@
+PASS: Equation 2 path; binding_constraint=net_to_rbit_floor
+PASS: Tier 4 reference $5,000 → $4,150
+{
+  "approved_cashback_cents": 415000,
+  "binding_constraint": "net_to_rbit_floor",
+  "equation_2_applied": true,
+  "tier_cap_cents": 500000,
+  "expected_profit_share_cents": 490000
+}

@@ -1,0 +1,7 @@
+PASS: remittance variance writes reconciliation_run break (not silent absorption)
+{
+  "remittance_status": "variance",
+  "variance_cents": -10000,
+  "reconciliation_run_id": "a4d1c254-99c5-47fd-b978-31ae4aea103d",
+  "break_status": "breaks_detected"
+}

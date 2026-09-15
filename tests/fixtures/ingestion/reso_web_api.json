@@ -1,0 +1,14 @@
+{
+  "records": [
+    {
+      "external_id": "reso-1",
+      "address": "800 RESO Web API St Unit 1",
+      "rent_amount_cents": 210000,
+      "bedrooms": 2,
+      "bathrooms": 1,
+      "ModificationTimestamp": "2026-06-01T00:00:00Z",
+      "StandardStatus": "Active",
+      "media_urls": ["https://example.test/photo1.jpg"]
+    }
+  ]
+}

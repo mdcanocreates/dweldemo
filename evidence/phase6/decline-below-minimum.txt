@@ -1,0 +1,7 @@
+PASS: solved cap below minimum viable → declined (not approved at token amount)
+{
+  "status": "declined",
+  "approved_cashback_cents": 0,
+  "decline_reason": "solved_cap_below_minimum_viable",
+  "solved_cap_cents": 415000
+}

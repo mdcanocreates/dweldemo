@@ -1,0 +1,8 @@
+{
+  "updateDenied": true,
+  "deleteDenied": true,
+  "setup": {
+    "txnId": "8a0b0ba1-b085-4d91-ae12-a111006e4ca1",
+    "entryId": "2"
+  }
+}

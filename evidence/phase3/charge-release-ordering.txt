@@ -1,0 +1,16 @@
+{
+  "failPath": {
+    "released": false,
+    "evidenceCount": 0,
+    "status": "offered"
+  },
+  "orphanPath": {
+    "resolved": {
+      "resolvedLeadIds": [
+        "d31d56e0-20c5-4a95-a0ba-e4c0005b80a6",
+        "84f2e563-0c87-413b-b67f-ad8cc2770634"
+      ]
+    },
+    "status": "released"
+  }
+}

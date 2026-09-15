@@ -1,0 +1,4 @@
+{
+  "rejected": true,
+  "message": "ledger imbalance 1000 on txn 0360977f-55be-4af0-b43c-dc24b4e56813"
+}

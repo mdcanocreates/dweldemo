@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<listings>
+  <listing>
+    <id>zillow-1</id>
+    <address>200 Zillow Ave Unit A</address>
+    <price>1950</price>
+    <bedrooms>1</bedrooms>
+    <bathrooms>1</bathrooms>
+    <sqft>650</sqft>
+  </listing>
+  <listing>
+    <id>zillow-2</id>
+    <address>200 Zillow Ave Unit B</address>
+    <price>2400</price>
+    <bedrooms>2</bedrooms>
+    <bathrooms>2</bathrooms>
+    <sqft>900</sqft>
+  </listing>
+</listings>

@@ -1,0 +1,37 @@
+SPEC GAPS — Phase 1 (do not invent silently; recorded here)
+
+1. §4.2 Passwordless authentication — behavior described, no DDL for auth_magic_token or session.
+   Implemented as migrations/0011_auth.sql with columns matching described mechanics
+   (opaque token hash, 15m expiry, single-use, session 30d sliding/device-bound/revocable,
+   elevated_until for re-verification window). Additive schema pending explicit approval.
+
+2. §18 D-13 — Renter discoverability filter allowlist content is gated.
+   Enforcement uses the provisional allowlist from §9.4 verbatim. Final field set needs Jacob sign-off.
+
+3. §18 D-01 — Identity retention TTL duration unset. purge_after left null; pii-manifest
+   retention_class present without durations.
+
+4. §6A.2 raw_record — spec partitions by received_at. Phase 1 uses a simple non-partitioned
+   table for testcontainers simplicity; partitioning deferred.
+
+5. §4.2 email_hmac global dedup — Phase 0 party_identity.email_hmac is keyed per-party DEK,
+   so it cannot serve as a global lookup. Auth uses external_identity_ref(vendor='email')
+   with a platform HMAC of the email as vendor_subject_id. Spec gap / follow-up.
+
+6. Outcome single-tap capture tokens — no capture_token table in §8.4. Implemented as
+   HMAC-signed opaque tokens (no new table). Flag if a persisted nonce table is required.
+
+7. Phase 1 "impersonation · org claim · media pipeline" named in module list: impersonation
+   session table already exists from Phase 0; org claim table exists; media pipeline and
+   write-enabled impersonation workflows are not fully exercised in Phase 1 acceptance
+   (org claim approval path deferred beyond table presence).
+
+8. application.status — no CHECK constraint in §7.7 DDL; values taken from state-machine
+   diagram only. No invented CHECK added.
+
+9. Temporal hold expiry / outcome scheduling workflows — Phase 1 implements the data plane
+   (lapse + promote; schedule four outcome rows) without deploying Temporal workers.
+
+10. PostGIS creates spatial_ref_sys (and related catalog). Allowlisted in GLOBAL_TABLES.json
+    as infrastructure, not an app table. Test image: postgis/postgis:16-3.4 (16-alpine tag
+    does not exist on Docker Hub).

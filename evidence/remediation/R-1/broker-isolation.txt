@@ -1,0 +1,17 @@
+{
+  "brokerA_offers": [
+    {
+      "id": "fcb3a9d6-5913-41b5-aaca-bad66c5aaa44",
+      "broker_org_id": "b84d2c27-3e01-43dd-bc34-946f282ee149"
+    }
+  ],
+  "brokerB_offers": [
+    {
+      "id": "702ba882-772f-4352-8144-aa72bb7f001a",
+      "broker_org_id": "9f1a9afe-8d11-4842-b008-f98ff31d3f4f"
+    }
+  ],
+  "brokerA_leads": 1,
+  "no_org_leads": 0,
+  "no_org_offers": 0
+}

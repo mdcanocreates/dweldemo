@@ -1,0 +1,18 @@
+RBIT backend build status
+Updated: 2026-08-08 — COMPLETE (within §17/§18 constraints)
+
+Phase 0 Foundation     DONE   8/8   (Terraform validate OK; apply needs AWS accounts)
+Phase 1 Core spine     DONE  11/11
+Phase 2 Screening      DONE  12/12
+Phase 3 Broker/ledger  DONE  13/13
+Phase 4 Ingestion      DONE  17/17
+Phase 5 Docs/admin     DONE   7/7
+Phase 6 Solar          DONE   6/6
+Phase 7 Scoring        DONE   7/7   (gate UNMET → rules-v0 active; ML blocked)
+Suite total            81/81
+Static gates           typecheck · boundaries · migration-safety · pii-manifest · openapi-drift PASS
+
+Blocked / escalated (not resolved in code):
+- Terraform apply → Michael (AWS account IDs/credentials)
+- §18: D-01 D-02 D-03 D-05 D-11 D-12 D-13 D-14 D-15 D-16
+- Phase 7 ML activation → unmet label-coverage gate

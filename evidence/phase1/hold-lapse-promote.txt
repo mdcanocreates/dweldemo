@@ -1,0 +1,14 @@
+{
+  "orig": "lapsed",
+  "neu": {
+    "status": "hold",
+    "application_id": "0dd5187d-cba8-4947-a3e8-59835b8510a8"
+  },
+  "events": [
+    "placement.accepted",
+    "placement.accepted",
+    "placement.lapsed",
+    "placement.accepted",
+    "placement_queue.promoted"
+  ]
+}

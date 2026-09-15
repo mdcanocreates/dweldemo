@@ -1,0 +1,934 @@
+module.baseline.data.aws_caller_identity.current: Reading...
+module.application_stack.data.aws_iam_policy_document.ecs_assume: Reading...
+data.aws_caller_identity.current: Reading...
+module.baseline.aws_ecs_cluster.main: Refreshing state... [id=arn:aws:ecs:us-east-2:941612827888:cluster/rbit-dev-cluster]
+module.baseline.aws_vpc.main: Refreshing state... [id=vpc-0fb8b89f8fe6d9749]
+module.baseline.aws_eip.nat: Refreshing state... [id=eipalloc-0c6d07b2c6f45aa2f]
+module.application_stack.data.aws_iam_policy_document.ecs_assume: Read complete after 0s [id=1077804475]
+data.aws_caller_identity.current: Read complete after 0s [id=941612827888]
+module.baseline.data.aws_caller_identity.current: Read complete after 0s [id=941612827888]
+module.baseline.aws_kms_key.pii: Refreshing state... [id=7bef5aa3-6274-40c7-ab8e-61bab2a888fd]
+module.baseline.aws_s3_bucket.documents: Refreshing state... [id=rbit-dev-documents-941612827888]
+module.application_stack.data.aws_ecs_cluster.existing: Reading...
+module.application_stack.data.aws_ecs_cluster.existing: Read complete after 1s [id=arn:aws:ecs:us-east-2:941612827888:cluster/rbit-dev-cluster]
+module.baseline.aws_kms_alias.pii: Refreshing state... [id=alias/rbit-dev-pii]
+module.baseline.aws_cloudwatch_log_group.api: Refreshing state... [id=/rbit/dev/api]
+module.baseline.aws_secretsmanager_secret.db: Refreshing state... [id=arn:aws:secretsmanager:us-east-2:941612827888:secret:rbit-dev/database-QlYPtn]
+module.application_stack.data.aws_iam_policy_document.execution_secrets: Reading...
+module.application_stack.data.aws_iam_policy_document.execution_secrets: Read complete after 0s [id=1781360419]
+module.baseline.aws_internet_gateway.igw: Refreshing state... [id=igw-097e02243e3e4d1b6]
+module.baseline.aws_subnet.public_a: Refreshing state... [id=subnet-01eaca7dc85b8d33d]
+module.application_stack.data.aws_subnets.private: Reading...
+module.baseline.aws_subnet.private_b: Refreshing state... [id=subnet-0ed6d1e20741ac858]
+module.baseline.aws_subnet.private_a: Refreshing state... [id=subnet-0e89925b5e78b82f3]
+module.application_stack.data.aws_subnets.public_existing: Reading...
+module.application_stack.data.aws_vpc.main: Reading...
+module.application_stack.data.aws_internet_gateway.existing: Reading...
+module.baseline.aws_nat_gateway.nat: Refreshing state... [id=nat-0838220155dd6e355]
+module.application_stack.data.aws_subnets.public_existing: Read complete after 2s [id=us-east-2]
+module.application_stack.data.aws_subnets.private: Read complete after 2s [id=us-east-2]
+module.application_stack.data.aws_internet_gateway.existing: Read complete after 2s [id=igw-097e02243e3e4d1b6]
+module.baseline.aws_s3_bucket_public_access_block.documents: Refreshing state... [id=rbit-dev-documents-941612827888]
+module.baseline.aws_s3_bucket_versioning.documents: Refreshing state... [id=rbit-dev-documents-941612827888]
+module.baseline.aws_s3_bucket_server_side_encryption_configuration.documents: Refreshing state... [id=rbit-dev-documents-941612827888]
+module.application_stack.data.aws_iam_policy_document.task_permissions: Reading...
+module.application_stack.data.aws_iam_policy_document.task_permissions: Read complete after 0s [id=1812799851]
+module.application_stack.data.aws_vpc.main: Read complete after 5s [id=vpc-0fb8b89f8fe6d9749]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.application_stack.aws_appautoscaling_policy.cpu will be created
+  + resource "aws_appautoscaling_policy" "cpu" {
+      + alarm_arns         = (known after apply)
+      + arn                = (known after apply)
+      + id                 = (known after apply)
+      + name               = "rbit-dev-cpu"
+      + policy_type        = "TargetTrackingScaling"
+      + resource_id        = "service/rbit-dev-cluster/rbit-dev-api"
+      + scalable_dimension = "ecs:service:DesiredCount"
+      + service_namespace  = "ecs"
+
+      + target_tracking_scaling_policy_configuration {
+          + disable_scale_in = false
+          + target_value     = 70
+
+          + predefined_metric_specification {
+              + predefined_metric_type = "ECSServiceAverageCPUUtilization"
+            }
+        }
+    }
+
+  # module.application_stack.aws_appautoscaling_target.app will be created
+  + resource "aws_appautoscaling_target" "app" {
+      + arn                = (known after apply)
+      + id                 = (known after apply)
+      + max_capacity       = 3
+      + min_capacity       = 1
+      + resource_id        = "service/rbit-dev-cluster/rbit-dev-api"
+      + role_arn           = (known after apply)
+      + scalable_dimension = "ecs:service:DesiredCount"
+      + service_namespace  = "ecs"
+      + tags_all           = (known after apply)
+
+      + suspended_state (known after apply)
+    }
+
+  # module.application_stack.aws_db_subnet_group.aurora will be created
+  + resource "aws_db_subnet_group" "aurora" {
+      + arn                     = (known after apply)
+      + description             = "Managed by Terraform"
+      + id                      = (known after apply)
+      + name                    = "rbit-dev-aurora"
+      + name_prefix             = (known after apply)
+      + subnet_ids              = [
+          + "subnet-0e89925b5e78b82f3",
+          + "subnet-0ed6d1e20741ac858",
+        ]
+      + supported_network_types = (known after apply)
+      + tags                    = {
+          + "Environment" = "dev"
+        }
+      + tags_all                = {
+          + "Environment" = "dev"
+        }
+      + vpc_id                  = (known after apply)
+    }
+
+  # module.application_stack.aws_ecs_service.app will be created
+  + resource "aws_ecs_service" "app" {
+      + availability_zone_rebalancing      = "DISABLED"
+      + cluster                            = "arn:aws:ecs:us-east-2:941612827888:cluster/rbit-dev-cluster"
+      + deployment_maximum_percent         = 200
+      + deployment_minimum_healthy_percent = 50
+      + desired_count                      = 1
+      + enable_ecs_managed_tags            = false
+      + enable_execute_command             = false
+      + iam_role                           = (known after apply)
+      + id                                 = (known after apply)
+      + launch_type                        = "FARGATE"
+      + name                               = "rbit-dev-api"
+      + platform_version                   = (known after apply)
+      + scheduling_strategy                = "REPLICA"
+      + tags                               = {
+          + "Environment" = "dev"
+        }
+      + tags_all                           = {
+          + "Environment" = "dev"
+        }
+      + task_definition                    = (known after apply)
+      + triggers                           = (known after apply)
+      + wait_for_steady_state              = false
+
+      + load_balancer {
+          + container_name   = "api"
+          + container_port   = 3000
+          + target_group_arn = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+
+      + network_configuration {
+          + assign_public_ip = false
+          + security_groups  = (known after apply)
+          + subnets          = [
+              + "subnet-0e89925b5e78b82f3",
+              + "subnet-0ed6d1e20741ac858",
+            ]
+        }
+    }
+
+  # module.application_stack.aws_ecs_task_definition.app will be created
+  + resource "aws_ecs_task_definition" "app" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = (known after apply)
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "rbit-dev-api"
+      + id                       = (known after apply)
+      + memory                   = "1024"
+      + network_mode             = "awsvpc"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = (known after apply)
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "ARM64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # module.application_stack.aws_elasticache_serverless_cache.redis will be created
+  + resource "aws_elasticache_serverless_cache" "redis" {
+      + arn                      = (known after apply)
+      + create_time              = (known after apply)
+      + daily_snapshot_time      = (known after apply)
+      + description              = (known after apply)
+      + endpoint                 = (known after apply)
+      + engine                   = "redis"
+      + full_engine_version      = (known after apply)
+      + id                       = (known after apply)
+      + major_engine_version     = (known after apply)
+      + name                     = "rbit-dev-cache"
+      + reader_endpoint          = (known after apply)
+      + security_group_ids       = [
+          + (known after apply),
+        ]
+      + snapshot_retention_limit = (known after apply)
+      + status                   = (known after apply)
+      + subnet_ids               = [
+          + "subnet-0e89925b5e78b82f3",
+          + "subnet-0ed6d1e20741ac858",
+        ]
+      + tags                     = {
+          + "Environment" = "dev"
+        }
+      + tags_all                 = {
+          + "Environment" = "dev"
+        }
+
+      + cache_usage_limits {
+          + data_storage {
+              + maximum = 5
+              + unit    = "GB"
+            }
+          + ecpu_per_second {
+              + maximum = 1000
+            }
+        }
+    }
+
+  # module.application_stack.aws_elasticache_subnet_group.redis will be created
+  + resource "aws_elasticache_subnet_group" "redis" {
+      + arn         = (known after apply)
+      + description = "Managed by Terraform"
+      + id          = (known after apply)
+      + name        = "rbit-dev-redis"
+      + subnet_ids  = [
+          + "subnet-0e89925b5e78b82f3",
+          + "subnet-0ed6d1e20741ac858",
+        ]
+      + tags_all    = (known after apply)
+      + vpc_id      = (known after apply)
+    }
+
+  # module.application_stack.aws_iam_role.execution will be created
+  + resource "aws_iam_role" "execution" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "rbit-dev-execution"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Environment" = "dev"
+        }
+      + tags_all              = {
+          + "Environment" = "dev"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.application_stack.aws_iam_role.task will be created
+  + resource "aws_iam_role" "task" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "rbit-dev-task"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Environment" = "dev"
+        }
+      + tags_all              = {
+          + "Environment" = "dev"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # module.application_stack.aws_iam_role_policy.execution_secrets will be created
+  + resource "aws_iam_role_policy" "execution_secrets" {
+      + id          = (known after apply)
+      + name        = "rbit-dev-execution-secrets"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = "secretsmanager:GetSecretValue"
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:secretsmanager:us-east-2:941612827888:secret:rds!cluster*",
+                          + "arn:aws:secretsmanager:us-east-2:941612827888:secret:rbit-dev/*",
+                        ]
+                    },
+                  + {
+                      + Action   = [
+                          + "kms:DescribeKey",
+                          + "kms:Decrypt",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:kms:us-east-2:941612827888:key/7bef5aa3-6274-40c7-ab8e-61bab2a888fd"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # module.application_stack.aws_iam_role_policy.task will be created
+  + resource "aws_iam_role_policy" "task" {
+      + id          = (known after apply)
+      + name        = "rbit-dev-task-policy"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "s3:PutObject",
+                          + "s3:GetObject",
+                          + "s3:DeleteObject",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:s3:::rbit-dev-documents-941612827888/*"
+                    },
+                  + {
+                      + Action   = "s3:ListBucket"
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:s3:::rbit-dev-documents-941612827888"
+                    },
+                  + {
+                      + Action   = [
+                          + "kms:GenerateDataKey",
+                          + "kms:Decrypt",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:kms:us-east-2:941612827888:key/7bef5aa3-6274-40c7-ab8e-61bab2a888fd"
+                    },
+                  + {
+                      + Action   = "secretsmanager:GetSecretValue"
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:secretsmanager:us-east-2:941612827888:secret:rbit-dev/*"
+                    },
+                  + {
+                      + Action   = "secretsmanager:GetSecretValue"
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:secretsmanager:us-east-2:941612827888:secret:rds!cluster*"
+                    },
+                  + {
+                      + Action   = [
+                          + "logs:PutLogEvents",
+                          + "logs:CreateLogStream",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:logs:us-east-2:941612827888:log-group:/rbit/dev/*"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # module.application_stack.aws_iam_role_policy_attachment.execution_base will be created
+  + resource "aws_iam_role_policy_attachment" "execution_base" {
+      + id         = (known after apply)
+      + policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      + role       = "rbit-dev-execution"
+    }
+
+  # module.application_stack.aws_lb.main will be created
+  + resource "aws_lb" "main" {
+      + arn                                                          = (known after apply)
+      + arn_suffix                                                   = (known after apply)
+      + client_keep_alive                                            = 3600
+      + desync_mitigation_mode                                       = "defensive"
+      + dns_name                                                     = (known after apply)
+      + drop_invalid_header_fields                                   = false
+      + enable_deletion_protection                                   = false
+      + enable_http2                                                 = true
+      + enable_tls_version_and_cipher_suite_headers                  = false
+      + enable_waf_fail_open                                         = false
+      + enable_xff_client_port                                       = false
+      + enable_zonal_shift                                           = false
+      + enforce_security_group_inbound_rules_on_private_link_traffic = (known after apply)
+      + id                                                           = (known after apply)
+      + idle_timeout                                                 = 60
+      + internal                                                     = false
+      + ip_address_type                                              = (known after apply)
+      + load_balancer_type                                           = "application"
+      + name                                                         = "rbit-dev"
+      + name_prefix                                                  = (known after apply)
+      + preserve_host_header                                         = false
+      + security_groups                                              = (known after apply)
+      + subnets                                                      = (known after apply)
+      + tags                                                         = {
+          + "Environment" = "dev"
+        }
+      + tags_all                                                     = {
+          + "Environment" = "dev"
+        }
+      + vpc_id                                                       = (known after apply)
+      + xff_header_processing_mode                                   = "append"
+      + zone_id                                                      = (known after apply)
+
+      + subnet_mapping (known after apply)
+    }
+
+  # module.application_stack.aws_lb_listener.http will be created
+  + resource "aws_lb_listener" "http" {
+      + arn                                                                   = (known after apply)
+      + id                                                                    = (known after apply)
+      + load_balancer_arn                                                     = (known after apply)
+      + port                                                                  = 80
+      + protocol                                                              = "HTTP"
+      + routing_http_request_x_amzn_mtls_clientcert_header_name               = (known after apply)
+      + routing_http_request_x_amzn_mtls_clientcert_issuer_header_name        = (known after apply)
+      + routing_http_request_x_amzn_mtls_clientcert_leaf_header_name          = (known after apply)
+      + routing_http_request_x_amzn_mtls_clientcert_serial_number_header_name = (known after apply)
+      + routing_http_request_x_amzn_mtls_clientcert_subject_header_name       = (known after apply)
+      + routing_http_request_x_amzn_mtls_clientcert_validity_header_name      = (known after apply)
+      + routing_http_request_x_amzn_tls_cipher_suite_header_name              = (known after apply)
+      + routing_http_request_x_amzn_tls_version_header_name                   = (known after apply)
+      + routing_http_response_access_control_allow_credentials_header_value   = (known after apply)
+      + routing_http_response_access_control_allow_headers_header_value       = (known after apply)
+      + routing_http_response_access_control_allow_methods_header_value       = (known after apply)
+      + routing_http_response_access_control_allow_origin_header_value        = (known after apply)
+      + routing_http_response_access_control_expose_headers_header_value      = (known after apply)
+      + routing_http_response_access_control_max_age_header_value             = (known after apply)
+      + routing_http_response_content_security_policy_header_value            = (known after apply)
+      + routing_http_response_server_enabled                                  = (known after apply)
+      + routing_http_response_strict_transport_security_header_value          = (known after apply)
+      + routing_http_response_x_content_type_options_header_value             = (known after apply)
+      + routing_http_response_x_frame_options_header_value                    = (known after apply)
+      + ssl_policy                                                            = (known after apply)
+      + tags_all                                                              = (known after apply)
+      + tcp_idle_timeout_seconds                                              = (known after apply)
+
+      + default_action {
+          + order            = (known after apply)
+          + target_group_arn = (known after apply)
+          + type             = "forward"
+        }
+
+      + mutual_authentication (known after apply)
+    }
+
+  # module.application_stack.aws_lb_target_group.app will be created
+  + resource "aws_lb_target_group" "app" {
+      + arn                                = (known after apply)
+      + arn_suffix                         = (known after apply)
+      + connection_termination             = (known after apply)
+      + deregistration_delay               = "300"
+      + id                                 = (known after apply)
+      + ip_address_type                    = (known after apply)
+      + lambda_multi_value_headers_enabled = false
+      + load_balancer_arns                 = (known after apply)
+      + load_balancing_algorithm_type      = (known after apply)
+      + load_balancing_anomaly_mitigation  = (known after apply)
+      + load_balancing_cross_zone_enabled  = (known after apply)
+      + name                               = "rbit-dev-app"
+      + name_prefix                        = (known after apply)
+      + port                               = 3000
+      + preserve_client_ip                 = (known after apply)
+      + protocol                           = "HTTP"
+      + protocol_version                   = (known after apply)
+      + proxy_protocol_v2                  = false
+      + slow_start                         = 0
+      + tags                               = {
+          + "Environment" = "dev"
+        }
+      + tags_all                           = {
+          + "Environment" = "dev"
+        }
+      + target_type                        = "ip"
+      + vpc_id                             = "vpc-0fb8b89f8fe6d9749"
+
+      + health_check {
+          + enabled             = true
+          + healthy_threshold   = 2
+          + interval            = 30
+          + matcher             = "200"
+          + path                = "/health"
+          + port                = "traffic-port"
+          + protocol            = "HTTP"
+          + timeout             = 5
+          + unhealthy_threshold = 3
+        }
+
+      + stickiness (known after apply)
+
+      + target_failover (known after apply)
+
+      + target_group_health (known after apply)
+
+      + target_health_state (known after apply)
+    }
+
+  # module.application_stack.aws_rds_cluster.main will be created
+  + resource "aws_rds_cluster" "main" {
+      + allocated_storage                     = (known after apply)
+      + apply_immediately                     = (known after apply)
+      + arn                                   = (known after apply)
+      + availability_zones                    = (known after apply)
+      + backup_retention_period               = 7
+      + ca_certificate_identifier             = (known after apply)
+      + ca_certificate_valid_till             = (known after apply)
+      + cluster_identifier                    = "rbit-dev"
+      + cluster_identifier_prefix             = (known after apply)
+      + cluster_members                       = (known after apply)
+      + cluster_resource_id                   = (known after apply)
+      + cluster_scalability_type              = (known after apply)
+      + copy_tags_to_snapshot                 = false
+      + database_insights_mode                = (known after apply)
+      + database_name                         = "rbit"
+      + db_cluster_parameter_group_name       = (known after apply)
+      + db_subnet_group_name                  = "rbit-dev-aurora"
+      + db_system_id                          = (known after apply)
+      + delete_automated_backups              = true
+      + deletion_protection                   = false
+      + enable_global_write_forwarding        = false
+      + enable_http_endpoint                  = false
+      + enable_local_write_forwarding         = false
+      + enabled_cloudwatch_logs_exports       = [
+          + "postgresql",
+        ]
+      + endpoint                              = (known after apply)
+      + engine                                = "aurora-postgresql"
+      + engine_lifecycle_support              = (known after apply)
+      + engine_mode                           = "provisioned"
+      + engine_version                        = "15.4"
+      + engine_version_actual                 = (known after apply)
+      + hosted_zone_id                        = (known after apply)
+      + iam_roles                             = (known after apply)
+      + id                                    = (known after apply)
+      + kms_key_id                            = "arn:aws:kms:us-east-2:941612827888:key/7bef5aa3-6274-40c7-ab8e-61bab2a888fd"
+      + manage_master_user_password           = true
+      + master_password_wo                    = (write-only attribute)
+      + master_user_secret                    = (known after apply)
+      + master_user_secret_kms_key_id         = (known after apply)
+      + master_username                       = "rbit_admin"
+      + monitoring_interval                   = (known after apply)
+      + monitoring_role_arn                   = (known after apply)
+      + network_type                          = (known after apply)
+      + performance_insights_kms_key_id       = (known after apply)
+      + performance_insights_retention_period = (known after apply)
+      + port                                  = (known after apply)
+      + preferred_backup_window               = "03:00-04:00"
+      + preferred_maintenance_window          = "sun:05:00-sun:06:00"
+      + reader_endpoint                       = (known after apply)
+      + skip_final_snapshot                   = true
+      + storage_encrypted                     = true
+      + storage_type                          = (known after apply)
+      + tags                                  = {
+          + "Environment" = "dev"
+        }
+      + tags_all                              = {
+          + "Environment" = "dev"
+        }
+      + vpc_security_group_ids                = (known after apply)
+
+      + serverlessv2_scaling_configuration {
+          + max_capacity             = 4
+          + min_capacity             = 0.5
+          + seconds_until_auto_pause = (known after apply)
+        }
+    }
+
+  # module.application_stack.aws_rds_cluster_instance.writer will be created
+  + resource "aws_rds_cluster_instance" "writer" {
+      + apply_immediately                     = (known after apply)
+      + arn                                   = (known after apply)
+      + auto_minor_version_upgrade            = true
+      + availability_zone                     = (known after apply)
+      + ca_cert_identifier                    = (known after apply)
+      + cluster_identifier                    = (known after apply)
+      + copy_tags_to_snapshot                 = false
+      + db_parameter_group_name               = (known after apply)
+      + db_subnet_group_name                  = "rbit-dev-aurora"
+      + dbi_resource_id                       = (known after apply)
+      + endpoint                              = (known after apply)
+      + engine                                = "aurora-postgresql"
+      + engine_version                        = "15.4"
+      + engine_version_actual                 = (known after apply)
+      + force_destroy                         = false
+      + id                                    = (known after apply)
+      + identifier                            = "rbit-dev-writer"
+      + identifier_prefix                     = (known after apply)
+      + instance_class                        = "db.serverless"
+      + kms_key_id                            = (known after apply)
+      + monitoring_interval                   = 0
+      + monitoring_role_arn                   = (known after apply)
+      + network_type                          = (known after apply)
+      + performance_insights_enabled          = (known after apply)
+      + performance_insights_kms_key_id       = (known after apply)
+      + performance_insights_retention_period = (known after apply)
+      + port                                  = (known after apply)
+      + preferred_backup_window               = (known after apply)
+      + preferred_maintenance_window          = (known after apply)
+      + promotion_tier                        = 0
+      + publicly_accessible                   = false
+      + storage_encrypted                     = (known after apply)
+      + tags                                  = {
+          + "Environment" = "dev"
+        }
+      + tags_all                              = {
+          + "Environment" = "dev"
+        }
+      + writer                                = (known after apply)
+    }
+
+  # module.application_stack.aws_route.public_igw will be created
+  + resource "aws_route" "public_igw" {
+      + destination_cidr_block = "0.0.0.0/0"
+      + gateway_id             = "igw-097e02243e3e4d1b6"
+      + id                     = (known after apply)
+      + instance_id            = (known after apply)
+      + instance_owner_id      = (known after apply)
+      + network_interface_id   = (known after apply)
+      + origin                 = (known after apply)
+      + route_table_id         = (known after apply)
+      + state                  = (known after apply)
+    }
+
+  # module.application_stack.aws_route_table.public will be created
+  + resource "aws_route_table" "public" {
+      + arn              = (known after apply)
+      + id               = (known after apply)
+      + owner_id         = (known after apply)
+      + propagating_vgws = (known after apply)
+      + route            = (known after apply)
+      + tags             = {
+          + "Environment" = "dev"
+          + "Module"      = "application_stack"
+          + "Name"        = "rbit-dev-public-rt"
+        }
+      + tags_all         = {
+          + "Environment" = "dev"
+          + "Module"      = "application_stack"
+          + "Name"        = "rbit-dev-public-rt"
+        }
+      + vpc_id           = "vpc-0fb8b89f8fe6d9749"
+    }
+
+  # module.application_stack.aws_route_table_association.public_a will be created
+  + resource "aws_route_table_association" "public_a" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = "subnet-01eaca7dc85b8d33d"
+    }
+
+  # module.application_stack.aws_route_table_association.public_b will be created
+  + resource "aws_route_table_association" "public_b" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # module.application_stack.aws_security_group.alb will be created
+  + resource "aws_security_group" "alb" {
+      + arn                    = (known after apply)
+      + description            = "ALB inbound"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 443
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 443
+                # (1 unchanged attribute hidden)
+            },
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 80
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 80
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + name                   = "rbit-dev-alb"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-alb"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-alb"
+        }
+      + vpc_id                 = "vpc-0fb8b89f8fe6d9749"
+    }
+
+  # module.application_stack.aws_security_group.app will be created
+  + resource "aws_security_group" "app" {
+      + arn                    = (known after apply)
+      + description            = "App inbound from ALB"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = []
+              + from_port        = 3000
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = (known after apply)
+              + self             = false
+              + to_port          = 3000
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + name                   = "rbit-dev-app"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-app"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-app"
+        }
+      + vpc_id                 = "vpc-0fb8b89f8fe6d9749"
+    }
+
+  # module.application_stack.aws_security_group.aurora will be created
+  + resource "aws_security_group" "aurora" {
+      + arn                    = (known after apply)
+      + description            = "Aurora inbound from app"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = []
+              + from_port        = 5432
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = (known after apply)
+              + self             = false
+              + to_port          = 5432
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + name                   = "rbit-dev-aurora"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-aurora"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-aurora"
+        }
+      + vpc_id                 = "vpc-0fb8b89f8fe6d9749"
+    }
+
+  # module.application_stack.aws_security_group.redis will be created
+  + resource "aws_security_group" "redis" {
+      + arn                    = (known after apply)
+      + description            = "Redis inbound from app"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = []
+              + from_port        = 6379
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = (known after apply)
+              + self             = false
+              + to_port          = 6379
+                # (1 unchanged attribute hidden)
+            },
+        ]
+      + name                   = "rbit-dev-redis"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-redis"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "Name"        = "rbit-dev-redis"
+        }
+      + vpc_id                 = "vpc-0fb8b89f8fe6d9749"
+    }
+
+  # module.application_stack.aws_subnet.public_b will be created
+  + resource "aws_subnet" "public_b" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-2b"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.10.144.0/20"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = true
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "terraform"
+          + "Module"      = "application_stack"
+          + "Name"        = "rbit-dev-public-b"
+        }
+      + tags_all                                       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "terraform"
+          + "Module"      = "application_stack"
+          + "Name"        = "rbit-dev-public-b"
+        }
+      + vpc_id                                         = "vpc-0fb8b89f8fe6d9749"
+    }
+
+Plan: 26 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + alb_dns_name           = (known after apply)
+  + aurora_endpoint        = (known after apply)
+  + aurora_reader_endpoint = (known after apply)
+  + aurora_secret_arn      = (sensitive value)
+  + documents_bucket       = "rbit-dev-documents-941612827888"
+  + ecs_cluster_name       = "rbit-dev-cluster"
+  + kms_key_arn            = "arn:aws:kms:us-east-2:941612827888:key/7bef5aa3-6274-40c7-ab8e-61bab2a888fd"
+  + redis_endpoint         = (known after apply)
+  + task_role_arn          = (known after apply)
+  + vpc_id                 = "vpc-0fb8b89f8fe6d9749"
+
+─────────────────────────────────────────────────────────────────────────────
+
+Saved the plan to: app-stack-plan.out
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "app-stack-plan.out"

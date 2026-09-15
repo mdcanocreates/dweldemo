@@ -1,0 +1,6 @@
+
+> rbit-backend@0.1.0 ci:tenancy
+> tsx ci/gates/tenancy.ts
+
+tenancy-gate: FAIL (expected) — deliberate_unscoped detected
+deliberate_unscoped: RLS not enabled and not in GLOBAL_TABLES

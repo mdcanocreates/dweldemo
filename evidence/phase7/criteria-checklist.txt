@@ -1,0 +1,9 @@
+Phase 7 acceptance criteria
+[x] Leakage test: poisoned fixture fails the pipeline — PASS
+[x] Offline/online parity across 1000 fixtures — PASS
+[x] 30-day shadow harness + fixture distribution; prod 30d N/A until gate — PASS
+[x] Historical score recomputable from feature_snapshot + model_version — PASS
+[x] Gate UNMET; ML activation blocked; rules v0 active — PASS
+
+NOTE: Phase 7 did NOT ship a trained production ML model.
+Training pipeline plumbing + inactive ml-v1-candidate stub only.

@@ -1,0 +1,5 @@
+ttl_cap_seconds=300
+issuance_log_count=1
+direct_bucket_denied=true
+expired_url_rejected=true
+document_id=819b78b1-2ac2-4cfe-a05d-537361be30ec

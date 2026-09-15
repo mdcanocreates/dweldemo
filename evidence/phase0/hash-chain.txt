@@ -1,0 +1,10 @@
+{
+  "verifyClean": {
+    "ok": true
+  },
+  "verifyTampered": {
+    "ok": false,
+    "brokenAtSeq": "501",
+    "reason": "row_hash mismatch"
+  }
+}

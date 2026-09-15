@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<RETSReply>
+  <property>
+    <id>rets-1</id>
+    <address>900 RETS Legacy Ave Apt 1</address>
+    <rent>1700</rent>
+    <bedrooms>1</bedrooms>
+    <bathrooms>1</bathrooms>
+    <status>Active</status>
+  </property>
+</RETSReply>

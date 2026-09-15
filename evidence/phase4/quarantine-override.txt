@@ -1,0 +1,5 @@
+quarantined=true
+reason=delist_share_0.80_exceeds_0.3
+active_unstamped=10
+self_approve_blocked=true
+override=succeeded

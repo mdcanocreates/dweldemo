@@ -1,0 +1,12 @@
+{
+  "succeeded": 1,
+  "failed": 4,
+  "balance": 0,
+  "feeAmountCents": 14000,
+  "rejectCodes": [
+    "INSUFFICIENT_BALANCE",
+    "INSUFFICIENT_BALANCE",
+    "INSUFFICIENT_BALANCE",
+    "INSUFFICIENT_BALANCE"
+  ]
+}

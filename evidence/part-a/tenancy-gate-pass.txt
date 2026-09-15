@@ -1,0 +1,6 @@
+
+> rbit-backend@0.1.0 ci:tenancy
+> tsx ci/gates/tenancy.ts
+
+tenancy-gate: PASS
+checked 110 tables; allowlist size 57

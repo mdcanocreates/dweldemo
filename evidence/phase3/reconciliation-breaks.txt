@@ -1,0 +1,18 @@
+{
+  "run": {
+    "runId": "afbc8ed6-2ffc-466b-95b3-bfe6d295e98f",
+    "matchedCount": 1,
+    "unmatchedCount": 1,
+    "amountMismatchCount": 0,
+    "status": "breaks_detected",
+    "breaks": [
+      {
+        "breakKind": "unmatched_stripe",
+        "stripeObjectId": "ch_injected_discrepancy",
+        "stripeAmountCents": 7777
+      }
+    ]
+  },
+  "alerted": true,
+  "autoResolved": false
+}

@@ -1,0 +1,4 @@
+{
+  "prechecked": "prechecked",
+  "full": "fully_screened"
+}

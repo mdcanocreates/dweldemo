@@ -1,0 +1,8 @@
+[
+  {
+    "vendor": "stub_income",
+    "day": "2026-06-10",
+    "total_cents": 30,
+    "entry_count": 1
+  }
+]

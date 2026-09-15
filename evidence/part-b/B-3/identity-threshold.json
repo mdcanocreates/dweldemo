@@ -1,0 +1,20 @@
+{
+  "caught": "We could not proceed with your application at this time. Please contact support if you need help.",
+  "archives": {
+    "n": 0,
+    "events": [
+      {
+        "event_type": "application_prescreen_failed",
+        "payload": {
+          "signal_id": "712462f1-e0b6-4ca9-8c76-addb8d09321e",
+          "applicant_message": "We could not proceed with your application at this time. Please contact support if you need help."
+        }
+      }
+    ],
+    "signals": [
+      {
+        "signal_kind": "device_velocity"
+      }
+    ]
+  }
+}

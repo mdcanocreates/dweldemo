@@ -1,0 +1,28 @@
+Phase 0 acceptance (§17) — criterion-by-criterion
+
+[x] psql RLS enabled + policy on every non-allowlisted table
+    evidence: evidence/phase0/rls-psql.txt + phase0.test.ts
+
+[x] CI tenancy gate fails on deliberate unscoped table, then passes
+    evidence: evidence/phase0/tenancy-gate.txt
+
+[x] Synthetic PII request → zero PII values in logs
+    evidence: evidence/phase0/pii-redaction.txt
+
+[x] Crypto-shred: identity unreadable, party_features intact, FKs valid
+    evidence: evidence/phase0/crypto-shred.txt
+
+[x] Hash-chain verifier: 1000 rows pass; tampered row fails
+    evidence: evidence/phase0/hash-chain.txt
+
+[x] Dual approval: requester cannot self-approve; super admin bypasses
+    evidence: evidence/phase0/dual-approval.txt
+
+[x] domain_event for every state transition in seeded fixture
+    evidence: evidence/phase0/domain-events.txt
+
+[~] Terraform applies cleanly to all three accounts
+    VALIDATED: terraform validate succeeds for dev/staging/prod
+    APPLY BLOCKED: no AWS credentials / account IDs for rbit-dev|staging|prod
+    evidence: evidence/phase0/terraform.txt
+    Escalate to Michael for account bootstrap + apply.

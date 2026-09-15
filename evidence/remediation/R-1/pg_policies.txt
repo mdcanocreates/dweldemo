@@ -1,0 +1,27 @@
+[
+  {
+    "tablename": "lead",
+    "policyname": "lead_tenant_insert",
+    "qual": null
+  },
+  {
+    "tablename": "lead",
+    "policyname": "lead_tenant_isolation",
+    "qual": "((current_setting('rbit.bypass_rls'::text, true) = 'on'::text) OR (EXISTS ( SELECT 1\n   FROM lead_offer o\n  WHERE ((o.lead_id = lead.id) AND (o.broker_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))))"
+  },
+  {
+    "tablename": "lead_offer",
+    "policyname": "lead_offer_tenant_isolation",
+    "qual": "((broker_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "lead_purchase_evidence",
+    "policyname": "lead_purchase_evidence_tenant_isolation",
+    "qual": "((current_setting('rbit.bypass_rls'::text, true) = 'on'::text) OR (EXISTS ( SELECT 1\n   FROM lead_offer o\n  WHERE ((o.lead_id = lead_purchase_evidence.lead_id) AND (o.broker_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) AND (o.response = 'accepted'::text)))))"
+  },
+  {
+    "tablename": "screening_report_access",
+    "policyname": "screening_report_access_tenant_isolation",
+    "qual": "((granted_to_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  }
+]

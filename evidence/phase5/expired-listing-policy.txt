@@ -1,0 +1,5 @@
+active={"httpStatus":200,"robots":"index","canonicalUrl":"https://www.rbit.example/listings/unit/2bc61dc7-4628-4f86-8d53-b23494e00fca?listing=d0d6de64-63b7-4788-bdfa-539957d86e5e","reason":"active"}
+stale={"httpStatus":200,"robots":"noindex","canonicalUrl":"https://www.rbit.example/listings/unit/ba08ae6a-f14c-4a13-b71a-2aca4007bf3f?listing=2a98598f-5d6a-495f-882a-b2f90cf4eeb8","reason":"stale_noindex"}
+gone={"httpStatus":410,"robots":"noindex","canonicalUrl":"https://www.rbit.example/submarkets/8c5480a7-9ae2-44ec-8b4a-a5896ec29e2f","reason":"expired_gone"}
+successor={"httpStatus":301,"robots":"noindex","canonicalUrl":"https://www.rbit.example/listings/unit/c79353be-8f99-4f53-8a1a-9217cdeb2373?listing=2effc1e2-7220-40b0-b6d3-10309dc41882","redirectTo":"https://www.rbit.example/listings/unit/c79353be-8f99-4f53-8a1a-9217cdeb2373?listing=2effc1e2-7220-40b0-b6d3-10309dc41882","reason":"expired_successor"}
+structured=@type:RealEstateListing

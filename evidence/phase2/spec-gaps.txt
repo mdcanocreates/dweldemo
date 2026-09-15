@@ -1,0 +1,20 @@
+SPEC GAPS — Phase 2
+
+1. D-14 — Vault vendor (Skyflow vs Basis Theory) unresolved.
+   Implemented VaultTokenizer interface + StubVaultTokenizer only.
+
+2. D-16 — Plaid MSA unresolved.
+   IncomeVerification interface + stub; no live Plaid adapter assumed.
+
+3. D-02 — Report portability window unresolved.
+   Value seeded as TEST_ONLY in config_version (screening_policy.report_portability_days).
+   Production path requires approved config; no code literal.
+
+4. D-15 — risk_insight_auto_adverse_action_enabled stays false.
+   Decline driven by Risk Insight routes to review queue.
+
+5. Temporal — in-process saga simulator (src/infra/workflows) until Temporal
+   is deployed on Fargate. Same for SQS (src/infra/queue in-process).
+
+6. vendor_cost_entry — temporary append-only cost attribution store.
+   Phase 3 ledger will journal screening COGS into the real double-entry ledger.

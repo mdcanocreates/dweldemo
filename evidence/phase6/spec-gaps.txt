@@ -1,0 +1,36 @@
+SPEC GAPS — Phase 6 (do not invent silently; recorded here)
+
+1. §11.2 chart of accounts omits expense:solar_cashback, but §13.5 money flow
+   requires it. Seeded in migration 0033 (additive account). Flagged — chart
+   table in §11.2 should list it.
+
+2. §13.4 lifecycle shows declined → closed, but solar_deal status CHECK does
+   not include 'closed'. Declined is treated as terminal; no invented status.
+
+3. Tenancy gate keys on column name org_id; solar DDL uses partner_org_id.
+   Tables listed in GLOBAL_TABLES; RLS still enforced on partner_org_id via
+   rbit.current_org_id. Spec gap: rename or dual-column not done per §0.3.
+
+4. solar_underwriting_decision.config_version_id points at solar_underwriting
+   config only; solar_tiers version id is persisted inside input_snapshot
+   (tiers_config_version_id) for full reproducibility. Spec has a single FK.
+
+5. model_registry created in Phase 6 for solar_underwriting registration
+   (§13.3). Full scoring feature store / training pipeline remains Phase 7.
+
+6. Shared payout rail — PaymentRail.createPayoutDestination / createPayout
+   added to vendor interface + stub. Screening rebate and solar homeowner
+   share payments/payout-rail.ts. No separate solar Stripe integration.
+
+7. Installed cost basis ($2.40/W) is loaded from config and recorded in
+   explanation/input_snapshot (installed_cost_cents). Profit share math uses
+   gross_project_cost × pool_bps × share_bps per §13.1 commercial terms.
+   Cost basis does not alter the share formula (no alternate formula in spec).
+
+8. Minimum viable cashback — named in §13.3 prose, not a numbered §13.1
+   reference param. Seeded in solar_underwriting config as
+   minimum_viable_cashback_cents (TEST_ONLY default $500; raised in decline test).
+
+9. Temporal workflows for post-approval horizon (install, remittance,
+   disbursement) — module APIs are synchronous; Temporal saga wiring can
+   wrap these call sites later without schema changes.

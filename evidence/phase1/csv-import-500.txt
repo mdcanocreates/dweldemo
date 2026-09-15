@@ -1,0 +1,16 @@
+{
+  "syncRunId": "af8c0e63-9d39-4fed-93fd-1abf6e765bd5",
+  "counts": {
+    "fetched": 500,
+    "new": 500,
+    "changed": 0,
+    "unchanged": 0,
+    "rejected": 1,
+    "ambiguous": 1,
+    "resolved": 498,
+    "unresolvable": 0,
+    "absent": 0,
+    "wouldCreate": 0
+  },
+  "accounted": 500
+}

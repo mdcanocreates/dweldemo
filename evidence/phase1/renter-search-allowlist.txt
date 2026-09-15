@@ -1,0 +1,26 @@
+{
+  "hits": [
+    {
+      "renter_profile_id": "eb446594-3b62-4cc0-942a-d9bea944940b",
+      "badge_state": "prechecked",
+      "score_band": "B",
+      "rent_max_cents": 200000,
+      "bedrooms_min": null,
+      "household_size": null,
+      "has_pets": null,
+      "target_submarket_ids": [],
+      "match_score": null,
+      "match_score_components": null
+    }
+  ],
+  "logged": {
+    "action": "renter_search.executed",
+    "after_state": {
+      "filters": {
+        "badge_state": "prechecked",
+        "rent_max_cents": 250000
+      },
+      "listing_id": null
+    }
+  }
+}

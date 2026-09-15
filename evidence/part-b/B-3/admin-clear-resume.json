@@ -1,0 +1,12 @@
+{
+  "applicationId": "85e17432-c81e-40da-925d-5b9db496e381",
+  "resumed": {
+    "applicationId": "85e17432-c81e-40da-925d-5b9db496e381",
+    "orderId": "8b2e4de3-2a03-4f32-9a30-94b040bec4a3",
+    "workflowId": "screening-8b2e4de3-2a03-4f32-9a30-94b040bec4a3",
+    "status": "screening_running",
+    "badgeState": "unverified"
+  },
+  "admin": "a568dbd7-1f40-4cbe-825f-436469474072",
+  "archives": 2
+}

@@ -1,0 +1,21 @@
+PASS: Solar and dwel share one party, one ledger, one document store, one audit log
+PASS: zero duplicated party/ledger/document/audit tables
+{
+  "shared_tables": [
+    "party",
+    "ledger_account",
+    "document",
+    "domain_event"
+  ],
+  "solar_specific": [
+    "solar_deal",
+    "solar_deal_remittance",
+    "solar_partner_remittance",
+    "solar_remittance_statement",
+    "solar_remittance_statement_line",
+    "solar_underwriting_decision"
+  ],
+  "duplicated": [],
+  "model_registry_kind": "rules",
+  "solar_partner_in_org_check": true
+}

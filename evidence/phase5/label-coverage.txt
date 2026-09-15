@@ -1,0 +1,20 @@
+[
+  {
+    "horizon_days": 30,
+    "due_count": 1,
+    "responded_count": 1,
+    "response_rate": 1
+  },
+  {
+    "horizon_days": 90,
+    "due_count": 1,
+    "responded_count": 0,
+    "response_rate": 0
+  },
+  {
+    "horizon_days": 180,
+    "due_count": 1,
+    "responded_count": 0,
+    "response_rate": 0
+  }
+]

@@ -1,0 +1,4 @@
+probe_table=application
+txnA org1 commit → txnB no org → application rows=0
+setTenantContext uses set_config(..., is_local=true)
+listing_public_active_read exists but does not apply to application

@@ -1,0 +1,11 @@
+{
+  "records": [
+    {
+      "external_id": "bldg-1",
+      "address": "50 Building Level Ave",
+      "rent_amount_cents": 200000,
+      "unit_count": 40,
+      "bedrooms": 1
+    }
+  ]
+}

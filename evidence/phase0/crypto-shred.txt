@@ -1,0 +1,11 @@
+{
+  "partyId": "a809e59a-9688-4a4d-81fe-7732f8ed8dd6",
+  "beforeEmail": "shred@example.com",
+  "featuresIntact": true,
+  "purgedAt": "2026-09-10T02:18:02.730Z",
+  "events": [
+    "party.created",
+    "party.identity_written",
+    "party.crypto_shredded"
+  ]
+}

@@ -1,0 +1,23 @@
+BEFORE allowlist size: 82 entries (see git history / audit GLOBAL_TABLES)
+AFTER allowlist size: 74 entries
+
+REMOVED (now RLS'd):
+- lead — EXISTS policy on lead_offer.broker_org_id
+- lead_offer — broker_org_id policy
+- lead_purchase_evidence — EXISTS on accepted lead_offer.broker_org_id
+- screening_report_access — granted_to_org_id policy
+- solar_deal — already had partner_org_id RLS; removed from allowlist
+- solar_partner_remittance — already had partner_org_id RLS; removed from allowlist
+
+RETAINED with justification: see allowlist-classification.md (legitimately global + ambiguous left untouched)
+
+AMBIGUOUS LEFT UNTOUCHED (reported, not fixed):
+sync_run, raw_record, listing_field_provenance, unit_source_conflict,
+auth_magic_token, session, renter_profile, score, feature_snapshot,
+placement_queue_entry, placement_outcome, notification*, screening_order,
+screening_report, income_verification, screening_rebate, fraud_signal,
+vendor_*, vendor_cost_entry, screening_saga_state, lead_offer_saga_state,
+document_grant, document_access_log, solar_underwriting_decision,
+solar_deal_remittance
+
+DESCRIPTION updated to: "reference data only — no counterparty scope, no PII"

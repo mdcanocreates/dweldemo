@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample RSS Listings</title>
+    <item>
+      <guid>rss-1</guid>
+      <address>100 Feed St Apt 1</address>
+      <rent>1800</rent>
+      <bedrooms>1</bedrooms>
+      <bathrooms>1</bathrooms>
+      <description>Bright one bed</description>
+    </item>
+    <item>
+      <guid>rss-2</guid>
+      <address>100 Feed St Apt 2</address>
+      <rent>2100</rent>
+      <bedrooms>2</bedrooms>
+      <bathrooms>1</bathrooms>
+    </item>
+  </channel>
+</rss>

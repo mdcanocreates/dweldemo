@@ -1,0 +1,8 @@
+{
+  "totalDebits": 1236500,
+  "totalCredits": 1236500,
+  "glDebits": 39500,
+  "glCredits": 39500,
+  "tbCsvLines": 16,
+  "glCsvLines": 7
+}

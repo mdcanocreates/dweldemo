@@ -1,0 +1,6 @@
+PASS: replay input_snapshot through engine_version + config reproduces approved_cashback_cents
+approved_cashback_cents=415000
+replayed=415000
+engine_version=rules-v1
+config_version_id=43cb76e0-e86f-4dfa-b7c4-c11cb1d2f1d7
+insert_only_decision_rows=2

@@ -1,0 +1,16 @@
+[
+  {
+    "submarket_id": "e42b3606-e769-476e-b153-44cdda87cc9f",
+    "bed_band": "1",
+    "rent_band": "1000-1499",
+    "searches": 1,
+    "zero_results": 1
+  },
+  {
+    "submarket_id": "e42b3606-e769-476e-b153-44cdda87cc9f",
+    "bed_band": "2",
+    "rent_band": "2000-2499",
+    "searches": 2,
+    "zero_results": 1
+  }
+]

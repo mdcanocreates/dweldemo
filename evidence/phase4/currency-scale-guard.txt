@@ -1,0 +1,2 @@
+quarantined=true
+reason=median_rent_shift_0.99_currency_scale_suspect

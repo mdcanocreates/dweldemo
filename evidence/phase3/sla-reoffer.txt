@@ -1,0 +1,55 @@
+{
+  "first": {
+    "offerId": "2b47a816-a123-4d0f-8ede-b0a6bf96cd63",
+    "brokerOrgId": "ec341ee9-3561-4920-89cf-ee91906138d2",
+    "routedToAdmin": false,
+    "candidates": [
+      {
+        "orgId": "ec341ee9-3561-4920-89cf-ee91906138d2",
+        "priority": 200,
+        "closeRate": 0,
+        "leakageRate": 1,
+        "medianResponseSeconds": 9007199254740991,
+        "lastOfferedAt": null,
+        "openLeads": 0,
+        "maxOpenLeads": 10,
+        "rankReasons": [
+          "license_ok",
+          "coverage_ok",
+          "capacity_ok"
+        ]
+      },
+      {
+        "orgId": "71da276f-ad69-4a00-bf38-ba86d67680c3",
+        "priority": 100,
+        "closeRate": 0,
+        "leakageRate": 1,
+        "medianResponseSeconds": 9007199254740991,
+        "lastOfferedAt": null,
+        "openLeads": 0,
+        "maxOpenLeads": 10,
+        "rankReasons": [
+          "license_ok",
+          "coverage_ok",
+          "capacity_ok"
+        ]
+      }
+    ]
+  },
+  "adv": {
+    "expired": true,
+    "reoffered": true
+  },
+  "offers": [
+    {
+      "broker_org_id": "ec341ee9-3561-4920-89cf-ee91906138d2",
+      "response": "expired"
+    },
+    {
+      "broker_org_id": "71da276f-ad69-4a00-bf38-ba86d67680c3",
+      "response": null
+    }
+  ],
+  "b1": "ec341ee9-3561-4920-89cf-ee91906138d2",
+  "b2": "71da276f-ad69-4a00-bf38-ba86d67680c3"
+}

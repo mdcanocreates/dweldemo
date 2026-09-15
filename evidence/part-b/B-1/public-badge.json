@@ -1,0 +1,20 @@
+{
+  "badge_state": "fully_screened",
+  "score_band": "A",
+  "income_band": 3,
+  "verification_components": [
+    "identity"
+  ],
+  "move_in_window": {
+    "earliest": null,
+    "latest": null
+  },
+  "submarket_names": [],
+  "household_size": 2,
+  "has_pets": false,
+  "cta": {
+    "label": "List your property on dwel →",
+    "href": "https://dwel.app/landlord/signup"
+  },
+  "cache_control_max_age_seconds": 60
+}

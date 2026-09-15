@@ -1,0 +1,122 @@
+[
+  {
+    "tablename": "document_access_log",
+    "policyname": "document_access_log_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM document d\n  WHERE ((d.id = document_access_log.document_id) AND ((d.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) OR (d.owner_party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid))))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "document_grant",
+    "policyname": "document_grant_tenant_isolation",
+    "qual": "((grantee_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) OR (grantee_party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "feature_snapshot",
+    "policyname": "feature_snapshot_party_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "fraud_signal",
+    "policyname": "fraud_signal_tenant_isolation",
+    "qual": "(((party_id IS NOT NULL) AND (party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid)) OR (EXISTS ( SELECT 1\n   FROM application a\n  WHERE ((a.id = fraud_signal.application_id) AND (a.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "income_verification",
+    "policyname": "income_verification_party_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "listing_field_provenance",
+    "policyname": "listing_field_provenance_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM listing l\n  WHERE ((l.id = listing_field_provenance.listing_id) AND (l.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "notification",
+    "policyname": "notification_party_isolation",
+    "qual": "((recipient_party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "notification_preference",
+    "policyname": "notification_preference_party_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "placement_outcome",
+    "policyname": "placement_outcome_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM placement p\n  WHERE ((p.id = placement_outcome.placement_id) AND (p.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "placement_queue_entry",
+    "policyname": "placement_queue_entry_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM listing l\n  WHERE ((l.id = placement_queue_entry.listing_id) AND (l.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "raw_record",
+    "policyname": "raw_record_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM source s\n  WHERE ((s.id = raw_record.source_id) AND (s.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "renter_profile",
+    "policyname": "renter_profile_badge_token_read",
+    "qual": "((badge_share_enabled = true) AND (badge_share_token IS NOT NULL) AND (badge_share_token = NULLIF(current_setting('rbit.badge_share_token'::text, true), ''::text)))"
+  },
+  {
+    "tablename": "renter_profile",
+    "policyname": "renter_profile_badge_view_increment",
+    "qual": "((badge_share_enabled = true) AND (badge_share_token IS NOT NULL) AND (badge_share_token = NULLIF(current_setting('rbit.badge_share_token'::text, true), ''::text)))"
+  },
+  {
+    "tablename": "renter_profile",
+    "policyname": "renter_profile_discoverable_read",
+    "qual": "((is_discoverable = true) AND (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text) IS NOT NULL))"
+  },
+  {
+    "tablename": "renter_profile",
+    "policyname": "renter_profile_owner",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "score",
+    "policyname": "score_party_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (EXISTS ( SELECT 1\n   FROM application a\n  WHERE ((a.id = score.application_id) AND (a.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "screening_order",
+    "policyname": "screening_order_tenant_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (payer_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) OR (EXISTS ( SELECT 1\n   FROM application a\n  WHERE ((a.id = screening_order.application_id) AND (a.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "screening_rebate",
+    "policyname": "screening_rebate_party_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "screening_report",
+    "policyname": "screening_report_tenant_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (EXISTS ( SELECT 1\n   FROM screening_report_access sra\n  WHERE ((sra.report_id = screening_report.id) AND (sra.revoked_at IS NULL) AND (sra.granted_to_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (EXISTS ( SELECT 1\n   FROM screening_order so\n  WHERE ((so.id = screening_report.screening_order_id) AND ((so.payer_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid) OR (so.party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid))))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "session",
+    "policyname": "session_party_isolation",
+    "qual": "((party_id = (NULLIF(current_setting('rbit.current_party_id'::text, true), ''::text))::uuid) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "solar_deal_remittance",
+    "policyname": "solar_deal_remittance_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM solar_deal d\n  WHERE ((d.id = solar_deal_remittance.solar_deal_id) AND (d.partner_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "solar_underwriting_decision",
+    "policyname": "solar_underwriting_decision_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM solar_deal d\n  WHERE ((d.id = solar_underwriting_decision.solar_deal_id) AND (d.partner_org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "sync_run",
+    "policyname": "sync_run_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM source s\n  WHERE ((s.id = sync_run.source_id) AND (s.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  },
+  {
+    "tablename": "unit_source_conflict",
+    "policyname": "unit_source_conflict_tenant_isolation",
+    "qual": "((EXISTS ( SELECT 1\n   FROM listing l\n  WHERE ((l.unit_id = unit_source_conflict.unit_id) AND (l.org_id = (NULLIF(current_setting('rbit.current_org_id'::text, true), ''::text))::uuid)))) OR (current_setting('rbit.bypass_rls'::text, true) = 'on'::text))"
+  }
+]

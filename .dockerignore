@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+terraform
+terraform-app-stack*.txt
+evidence
+tests
+*.md
+.env
+.env.*

@@ -1,0 +1,3 @@
+certn_vendor=certn_stub
+alternate_vendor=alternate_screening
+call_site=runTestApplicationPipeline

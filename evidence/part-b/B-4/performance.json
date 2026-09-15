@@ -1,0 +1,27 @@
+{
+  "perf": {
+    "leads_offered": 10,
+    "leads_accepted": 5,
+    "acceptance_rate": 0.5,
+    "placements_closed": 2,
+    "close_rate": 0.4,
+    "median_response_seconds": 120,
+    "leakage_rate": 0.1,
+    "dispute_count": 1,
+    "ev_per_lead": 20000,
+    "window_days": 90,
+    "rank_in_submarket": 0,
+    "best_performing_submarket": "abaef93e-41e5-473b-b0f0-7220401736e4",
+    "trend": {
+      "window_days": 90,
+      "leads_offered": 8,
+      "leads_accepted": 3,
+      "placements_closed": 1,
+      "close_rate": 0.25,
+      "median_response_seconds": 200,
+      "leakage_rate": 0.2,
+      "dispute_count": 0
+    }
+  },
+  "log": 3
+}

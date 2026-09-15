@@ -1,0 +1,7 @@
+[x] Reproducibility: replay input_snapshot → exact approved_cashback_cents
+[x] Equation 2 path; explanation names binding_constraint=net_to_rbit_floor
+[x] Tier 4 reference $5,000 → $4,150
+[x] Decline path: solved cap below minimum viable → declined
+[x] Disbursement gated on partner_paid
+[x] Remittance variance → reconciliation break (not silent absorption)
+[x] Shared spine schema inspection — no duplicated tables

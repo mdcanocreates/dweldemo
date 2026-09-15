@@ -1,0 +1,2 @@
+FAIL 1 violation(s)
+src\_deliberate_set_rbit.ts:1: SET rbit.* without LOCAL — export const x = `SET rbit.current_org_id = 'bad'`;

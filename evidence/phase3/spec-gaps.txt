@@ -1,0 +1,40 @@
+SPEC GAPS — Phase 3
+
+1. D-03 — Broker-of-record licensing coverage by state unresolved.
+   Implemented LICENSE GATE MECHANISM only:
+     - license_verified_at IS NOT NULL
+     - license_expires_at not passed
+     - broker_coverage for listing submarket
+     - org active, credit_tier != suspended
+   No launch-market state allowlist constants in production code.
+   Test fixtures seed license_state / coverage per org; state lists not invented.
+
+2. D-05 — Lead fee revenue recognition timing unresolved.
+   Both booking paths implemented, selectable by config_version:
+     namespace ledger_policy, key lead_fee_recognition = 'immediate' | 'deferred'
+   - immediate: cr revenue:lead_fee at purchase draw-down
+   - deferred: cr liability:unearned_revenue at purchase; recognize to revenue on release
+   Default for tests via seeded config only — no production business default in code literals.
+
+3. lead_offer_saga_state — not in §10 DDL.
+   In-process Temporal-style SLA saga persistence (same pattern as Phase 2
+   screening_saga_state). Flagged rather than inventing columns on lead_offer.
+
+4. revenue:screening_passthrough — referenced in §11.3 standard entries but absent
+   from §11.2 chart of accounts. Not seeded. Screening passthrough journaling deferred.
+
+5. vendor_cost_entry → ledger bridge is optional helper
+   (ledger.journalVendorCostEntry). Not auto-wired into screening pipeline;
+   call site can journal COGS when desired. Phase 2 append-only cost table remains.
+
+6. Unique constraint on ledger_account uses coalesce expressions in §11.1 —
+   implemented as unique index (Postgres cannot put coalesce in table UNIQUE).
+
+7. Accountant exports beyond trial balance / GL detail (revenue by vertical,
+   payout register, screening COGS by vendor, Stripe-to-ledger report) are
+   partially covered: trial balance + GL detail + reconciliation_run.
+   Remaining CSV shapes can land when admin console (Phase 5) needs them.
+
+8. payment_event processing beyond ingest + signature check is minimal;
+   funding/purchase flows call PaymentRail directly. Webhook→ledger projection
+   can deepen without schema changes.

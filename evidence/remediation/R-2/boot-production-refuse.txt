@@ -1,0 +1,1 @@
+Production boot blocked: config namespace 'retention' version 'provisional-d01' lacks approved_by_party_id (§18 D-01). Dual approval required.

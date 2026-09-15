@@ -1,0 +1,21 @@
+SPEC GAPS — Phase 7 (do not invent silently; recorded here)
+
+1. Cohort normalization (§8.2) submarket|bedband|rentband|window keys require
+   live listing/submarket join at score time. Phase 7 persists cohort_key with
+   global|fallback when thin/absent; full cohort resolver deferred to when
+   scoring is wired into application submit paths with listing context.
+
+2. ml-v1-candidate is a deterministic shadow stub (weight transform of v0),
+   not a gradient-boosted model trained on production labels. Spec §8.5 v1
+   training is gated; stub exists so shadow/replay/activation paths are real.
+
+3. Real 30-day production shadow requires gate met + traffic. Harness is
+   implemented; evidence documents N/A until gate. Fixture distribution
+   comparison runs in CI.
+
+4. Label coverage for gate uses placement_outcome due rows with
+   source is distinct from no_response as responded. Spec target ≥60%
+   at 90d; non-response recorded separately per §8.4.
+
+5. score UPDATE/DELETE revoked for app roles in 0037 (insert-only §8.1).
+   feature_snapshot likewise append-oriented.

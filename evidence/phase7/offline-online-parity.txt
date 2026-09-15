@@ -1,0 +1,4 @@
+PASS: offline/online parity across 1000 fixtures
+n=1000
+identical=1000
+mismatches=0

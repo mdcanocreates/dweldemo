@@ -1,0 +1,7 @@
+PASS: historical score recomputable from feature_snapshot + model_version
+score_id=dd669fcb-6b1f-46ad-aa1c-1dddbc198310
+model_version=rules-v0
+stored_raw_score=100
+replayed_raw_score=100
+ml_candidate_raw=99
+ml_candidate_replay=99

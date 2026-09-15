@@ -1,0 +1,42 @@
+§17 Phase 1 criteria — evidence map (2026-08-08)
+
+[x] Concurrency: 50 parallel accepts → 1 placement, 49 typed rejections
+    evidence: concurrency-50.txt ; test: phase1.test.ts
+
+[x] Hold expiry: lapse → unit frees → queue head promoted → events
+    evidence: hold-lapse-promote.txt
+
+[x] Address fixtures → one unit_id
+    evidence: address-normalize.txt
+
+[x] Listing lifecycle active → stale@14d → expired@21d via clock
+    evidence: listing-lifecycle.txt
+
+[x] Manual listing → source_listing + merged listing + provenance; no bypass
+    evidence: manual-ingest.txt (ingestManualListing → pipeline only)
+
+[x] CSV import 500 rows: counts, ambiguous routed, zero silent drops
+    evidence: csv-import-500.txt
+
+[x] Placement signed → four placement_outcome rows with correct dates
+    evidence: placement-outcomes-schedule.txt
+
+[x] Outcome capture single-tap without login
+    evidence: outcome-capture-single-tap.txt
+
+[x] Passwordless: single-use, 15-min, enumeration-resistant, rate limits
+    evidence: passwordless-auth.txt
+
+[x] Renter search rejects non-allowlist keys
+    evidence: renter-search-allowlist.txt
+
+[x] minimal discoverability: zero identity fields in serializer
+    evidence: renter-search-allowlist.txt
+
+[x] Every renter search persists filters to admin_action_log
+    evidence: renter-search-allowlist.txt
+
+Partial / deferred (see spec-gaps.txt):
+- Impersonation write path, org-claim approval UX, media pipeline
+- Temporal workers (data plane only)
+- raw_record partitioning

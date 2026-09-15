@@ -1,0 +1,4 @@
+outcomeId=418aabc6-6ad5-477b-a561-2f074c14e94d
+payment_status=current
+source=landlord_attest
+note=captured_via_signed_token_without_login
