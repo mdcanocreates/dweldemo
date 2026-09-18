@@ -9,7 +9,7 @@ export type PortalNavLink = {
 };
 
 /**
- * Shared dark §DESIGN sidebar shell for landlord + broker portals (QF-1).
+ * Shared portal shell: dark sidebar + light cream main (Replit N-4 / QF-1).
  */
 export function PortalShell({
   navLabel,
@@ -79,7 +79,7 @@ export function PortalShell({
             Menu
           </button>
           <div className="landlord-top-copy">
-            <p className="landlord-nav-label">{topEyebrow}</p>
+            {topEyebrow ? <p className="landlord-nav-label">{topEyebrow}</p> : null}
             <p className="landlord-top-title">{topTitle}</p>
           </div>
           <button type="button" className="btn btn-soft" onClick={() => void logout()}>

@@ -68,7 +68,11 @@ export default function App() {
         <Route path="listings/:id/edit" element={<LandlordEditListingPage />} />
         <Route path="listings/:id/applicants" element={<LandlordApplicantsPage />} />
         <Route path="settings" element={<LandlordSettingsPage />} />
-        <Route path="settings/self-execution" element={<LandlordSelfExecutionPage />} />
+        <Route path="settings/license-verification" element={<LandlordSelfExecutionPage />} />
+        <Route
+          path="settings/self-execution"
+          element={<Navigate to="/landlord/settings/license-verification" replace />}
+        />
         <Route path="settings/payments" element={<LandlordPaymentsPage />} />
         <Route path="applications" element={<Navigate to="/landlord/listings" replace />} />
         <Route path="portfolio" element={<Navigate to="/landlord/listings" replace />} />
@@ -91,7 +95,11 @@ export default function App() {
         <Route path="orgs" element={<AdminOrgsPage />} />
         <Route path="config/consent" element={<AdminConsentPage />} />
         <Route path="integrations/certn" element={<AdminCertnPage />} />
-        <Route path="reviews/self-execution" element={<AdminSelfExecutionPage />} />
+        <Route path="reviews/license-verification" element={<AdminSelfExecutionPage />} />
+        <Route
+          path="reviews/self-execution"
+          element={<Navigate to="/admin/reviews/license-verification" replace />}
+        />
         <Route path="config/flags" element={<AdminFlagsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
       </Route>

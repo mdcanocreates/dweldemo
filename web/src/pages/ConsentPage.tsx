@@ -22,7 +22,7 @@ export function ConsentPage() {
   useEffect(() => {
     if (loading) return;
     if (!user && nyPath2Standalone) {
-      navigate('/onboard');
+      navigate('/');
       return;
     }
     void (async () => {
@@ -100,10 +100,7 @@ export function ConsentPage() {
             placeholder="4242 4242 4242 4242"
             onChange={(e) => setCardOk(e.target.value.replace(/\s/g, '').length >= 15)}
           />
-          <span className="hint">
-            interim_v1: charges go through the Stripe payment rail stub until Elements + publishable
-            key are wired in deploy env.
-          </span>
+          <span className="hint">Use a test card in this sandbox environment.</span>
         </div>
         <button
           type="button"

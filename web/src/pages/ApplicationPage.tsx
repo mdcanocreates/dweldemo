@@ -222,11 +222,14 @@ export function ApplicationPage() {
               {busy === 'submit' ? 'Submitting…' : 'Submit screening'}
             </button>
             {screeningNote && (
-              <div className={`callout ${screeningNote.kind === 'warn' ? 'warn' : ''}`} style={{ marginTop: '0.85rem' }}>
-                <strong>
+              <div
+                className={screeningNote.kind === 'warn' ? 'callout-attention' : 'callout-info'}
+                style={{ marginTop: '0.85rem' }}
+              >
+                <strong className="callout-title">
                   {screeningNote.kind === 'warn' ? 'Screening unavailable' : 'Screening submitted'}
                 </strong>
-                {screeningNote.text}
+                <div className="callout-body">{screeningNote.text}</div>
               </div>
             )}
           </div>

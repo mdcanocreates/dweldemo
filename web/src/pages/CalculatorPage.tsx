@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../auth';
 import { Shell } from '../components/Shell';
 import { moneyFromDollars } from '../format';
 
@@ -15,6 +17,10 @@ const DEFAULTS = {
 };
 
 export function CalculatorPage() {
+  const { user, loading } = useAuth();
+  const landlord = Boolean(user?.landlordOrgId);
+  const broker = Boolean(user?.brokerOrgId);
+
   const [monthlyRent, setMonthlyRent] = useState(DEFAULTS.monthlyRent);
   const [unitCount, setUnitCount] = useState(DEFAULTS.unitCount);
   const [turnoverYears, setTurnoverYears] = useState(DEFAULTS.turnoverYears);
@@ -47,6 +53,18 @@ export function CalculatorPage() {
     capRatePercent,
   ]);
 
+  if (loading) {
+    return (
+      <Shell>
+        <p className="muted">Loading…</p>
+      </Shell>
+    );
+  }
+
+  if (!user || (!landlord && !broker)) {
+    return <Navigate to="/sign-in" replace />;
+  }
+
   return (
     <Shell>
       <div className="stack">
@@ -59,9 +77,10 @@ export function CalculatorPage() {
         </div>
 
         <div className="callout">
-          <strong>Assumptions are editable</strong>
-          Prefills are illustrative starting points from internal modeling (including a mid-tier
-          listing fee and a 20% renter incentive). They are not contractual pricing.
+          <strong className="callout-title">Assumptions are editable.</strong>
+          <div className="callout-body">
+            Default values are illustrative and are not contractual pricing.
+          </div>
         </div>
 
         <div className="calc-layout">
@@ -111,29 +130,29 @@ export function CalculatorPage() {
           </div>
 
           <div className="math">
-            <h3>Formula steps</h3>
+            <h3>Results</h3>
             <div className="math-row">
-              <span>traditional_turnover_cost</span>
+              <span>Traditional turnover cost</span>
               <span>{moneyFromDollars(math.traditional)}</span>
             </div>
             <div className="math-row">
-              <span>dwel_turnover_cost</span>
+              <span>dwel.20 turnover cost</span>
               <span>{moneyFromDollars(math.dwelCost)}</span>
             </div>
             <div className="math-row">
-              <span>savings_per_turnover</span>
+              <span>Savings per turnover</span>
               <span>{moneyFromDollars(math.savings)}</span>
             </div>
             <div className="math-row">
-              <span>annual_turnovers</span>
+              <span>Annual turnovers</span>
               <span>{math.annualTurnovers.toFixed(2)}</span>
             </div>
             <div className="math-row">
-              <span>annual_noi_gain</span>
+              <span>Annual NOI gain</span>
               <span>{moneyFromDollars(math.annualNoi)}</span>
             </div>
             <div className="math-row">
-              <span>property_value_created</span>
+              <span>Property value created</span>
               <span>{moneyFromDollars(math.valueCreated)}</span>
             </div>
           </div>

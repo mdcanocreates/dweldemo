@@ -2,26 +2,29 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
 import { PortalShell } from '../components/PortalShell';
 import { EmptyState, ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
+import { displayName } from '../displayNames';
+import { useDelayedPending } from '../hooks/useDelayedPending';
 
 const BROKER_NAV = [
   { to: '/broker', label: 'Overview', end: true },
   { to: '/broker/dashboard', label: 'Dashboard' },
   { to: '/broker/leads', label: 'Leads' },
   { to: '/broker/settings/payments', label: 'Payments' },
-  { to: '/broker/listings', label: 'Listings' },
+  { to: '/calculator', label: 'NOI calculator' },
 ];
 
 function BrokerFrame({ children }: { children: ReactNode }) {
   return (
     <PortalShell
       navLabel="Broker desk"
-      topEyebrow="Broker workspace"
+      topEyebrow=""
       topTitle="Broker portal"
       footTitle="dwel.20 for brokers"
-      footBody="Track leads, performance, and Connect payouts."
+      footBody="Track leads, performance, and payouts."
       links={BROKER_NAV}
     >
       {children}
@@ -31,12 +34,9 @@ function BrokerFrame({ children }: { children: ReactNode }) {
 
 export function BrokerGuard() {
   const { user, loading } = useAuth();
+  const showInline = useDelayedPending(loading, 400);
   if (loading) {
-    return (
-      <Shell>
-        <p>Checking sign-in…</p>
-      </Shell>
-    );
+    return <Shell>{showInline ? <InlineSpinner label="Checking sign-in…" /> : null}</Shell>;
   }
   if (!user) return <Navigate to="/sign-in?role=broker" replace />;
   if (!user.brokerOrgId) {
@@ -76,35 +76,80 @@ export function BrokerOverviewPage() {
     };
   }, []);
 
+  const connectDone =
+    data &&
+    (data.connect.status === 'complete' ||
+      data.connect.status === 'enabled' ||
+      data.connect.status === 'active');
+  const connectStarted = Boolean(data?.connect.account_id);
+  const payoutsOn = Boolean(data?.broker_payouts_enabled);
+
   return (
     <div className="stack">
-      <h1>Broker overview</h1>
+      <h1>Get started</h1>
+      <p className="muted">Complete these steps to activate your brokerage on dwel.20.</p>
       {error && <ErrorState title="Overview unavailable">{error}</ErrorState>}
       {data && (
-        <div className="panel stack">
-          <p>
-            Prepaid balance: <strong>{moneyFromCents(data.balance_cents)}</strong>
-          </p>
-          <p className="muted">
-            Connect: {data.connect.status}
-            {data.connect.account_id ? ` · ${data.connect.account_id}` : ''}
-          </p>
-          {!data.broker_payouts_enabled && (
-            <div className="callout warn">
-              <strong>Payouts available once licensing is finalized.</strong>
-              You can still complete Stripe Connect onboarding before payouts are turned on for this
-              org.
+        <div className="panel stack onboarding-checklist">
+          <div className="checklist-row done">
+            <span className="checklist-mark" aria-hidden>
+              ✓
+            </span>
+            <div>
+              <strong>Account created</strong>
+              <p className="muted">Your broker organization is linked.</p>
             </div>
-          )}
-          <div className="callout">
-            <strong>Funding & lead purchase</strong>
-            Real-money funding and lead purchase remain gated on BOR / licensing (
-            {data.funding.reason}).
           </div>
-          <p>
-            <Link to="/broker/dashboard">Open performance dashboard →</Link>
+
+          <div className={`checklist-row ${connectDone ? 'done' : connectStarted ? 'active' : 'todo'}`}>
+            <span className="checklist-mark" aria-hidden>
+              {connectDone ? '✓' : connectStarted ? '…' : '○'}
+            </span>
+            <div className="stack" style={{ gap: '0.5rem', flex: 1 }}>
+              <div>
+                <strong>Payouts onboarding</strong>
+                <p className="muted">Connect your bank account so you can receive payouts.</p>
+              </div>
+              {!connectDone && (
+                <Link className="btn btn-primary" to="/broker/settings/payments" style={{ alignSelf: 'start' }}>
+                  {connectStarted ? 'Continue payouts setup' : 'Set up payouts'}
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <div className={`checklist-row ${payoutsOn ? 'done' : 'todo'}`}>
+            <span className="checklist-mark" aria-hidden>
+              {payoutsOn ? '✓' : '○'}
+            </span>
+            <div>
+              <strong>License verification</strong>
+              <p className="muted">
+                {payoutsOn
+                  ? 'Licensing is cleared for this brokerage.'
+                  : "We're reviewing your license — you'll get an email when payouts are enabled."}
+              </p>
+            </div>
+          </div>
+
+          <div className={`checklist-row ${payoutsOn ? 'done' : 'todo'}`}>
+            <span className="checklist-mark" aria-hidden>
+              {payoutsOn ? '✓' : '○'}
+            </span>
+            <div>
+              <strong>Payouts activation</strong>
+              <p className="muted">
+                {payoutsOn
+                  ? 'Payouts are enabled.'
+                  : 'Turns on automatically once licensing clears — no extra action needed.'}
+              </p>
+            </div>
+          </div>
+
+          <p style={{ marginTop: '0.5rem' }}>
+            Prepaid balance: <strong>{moneyFromCents(data.balance_cents)}</strong>
             {' · '}
-            <Link to="/broker/settings/payments">Payment settings →</Link>
+            <Link to="/broker/dashboard">Dashboard</Link>
           </p>
         </div>
       )}
@@ -162,7 +207,17 @@ export function BrokerDashboardPage() {
         </label>
       </div>
       {error && <ErrorState title="Dashboard error">{error}</ErrorState>}
-      {perf && (
+      {perf &&
+        perf.leads_offered === 0 &&
+        perf.leads_accepted === 0 &&
+        perf.placements_closed === 0 && (
+          <EmptyState title="Your dashboard">
+            Performance metrics will appear here once your brokerage is active and leads are flowing.{' '}
+            <Link to="/broker">Complete onboarding →</Link>
+          </EmptyState>
+        )}
+      {perf &&
+        (perf.leads_offered > 0 || perf.leads_accepted > 0 || perf.placements_closed > 0) && (
         <div className="stat-grid">
           <div className="stat">
             <p className="ll-stat-label">Leads offered</p>
@@ -198,8 +253,8 @@ export function BrokerDashboardPage() {
         <div className="panel" style={{ overflowX: 'auto' }}>
           <h2>Submarket breakdown</h2>
           {subs.submarkets.length === 0 ? (
-            <EmptyState title="No submarket rows yet">
-              Metrics appear after coverage and lead activity land in broker_performance_submarket.
+            <EmptyState title="No submarket metrics yet">
+              Submarket metrics will appear here once you have active coverage.
             </EmptyState>
           ) : (
             <table className="table">
@@ -269,7 +324,6 @@ export function BrokerLeadsPage() {
   return (
     <div className="stack">
       <h1>Lead history</h1>
-      <p className="muted">Server-paginated from live lead_offer records (25 / page).</p>
       <div className="filter-bar">
         <div className="field">
           <label htmlFor="lead-status">Status</label>
@@ -310,8 +364,8 @@ export function BrokerLeadsPage() {
       </div>
       {error && <ErrorState title="Leads error">{error}</ErrorState>}
       {data && data.items.length === 0 && (
-        <EmptyState title="No leads in this window">
-          Offered leads for your brokerage will appear here from real lead_offer rows.
+        <EmptyState title="No leads yet">
+          Leads matched to your brokerage will appear here once your coverage areas are active.
         </EmptyState>
       )}
       {data && data.items.length > 0 && (
@@ -334,8 +388,8 @@ export function BrokerLeadsPage() {
                   <td>{row.rs_tier}</td>
                   <td>{moneyFromCents(row.fee_amount_cents)}</td>
                   <td>{new Date(row.offered_at).toLocaleDateString()}</td>
-                  <td>{row.status}</td>
-                  <td>{row.resolution}</td>
+                  <td>{displayName(row.status)}</td>
+                  <td>{displayName(row.resolution)}</td>
                 </tr>
               ))}
             </tbody>
@@ -372,6 +426,7 @@ export function ConnectPaymentsPage({ audience }: { audience: 'broker' | 'landlo
   const [status, setStatus] = useState<Awaited<ReturnType<typeof api.connectAccount>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const showPaymentFrog = useDelayedPending(busy, 400);
 
   async function reload() {
     setStatus(await api.connectAccount());
@@ -420,31 +475,58 @@ export function ConnectPaymentsPage({ audience }: { audience: 'broker' | 'landlo
 
   return (
     <div className="stack" style={{ maxWidth: '36rem' }}>
-      <p className="section-eyebrow">Stripe Connect</p>
+      {showPaymentFrog && <FrogPageLoader />}
+      <p className="section-eyebrow">Payments</p>
       <h1>Payment settings</h1>
       <p className="muted">
         {audience === 'broker'
-          ? 'Connect Express for your brokerage. Onboarding is allowed even when payouts are disabled.'
-          : 'Connect Express for your landlord organization.'}
+          ? 'Set up payouts for your brokerage. You can finish bank setup even before licensing clears.'
+          : 'Set up payouts for your landlord organization.'}
       </p>
       {search.get('connect') === 'return' && (
         <div className="callout">Returned from Stripe — status refreshed below.</div>
       )}
       {status && (
         <div className="panel stack">
-          <p>
-            Status: <strong>{status.status}</strong>
-          </p>
-          {status.account_id && <p className="hint">Account {status.account_id}</p>}
-          <p className="hint">
-            Charges {status.charges_enabled ? 'on' : 'off'} · Payouts capability{' '}
-            {status.payouts_enabled ? 'on' : 'off'} · Details{' '}
-            {status.details_submitted ? 'submitted' : 'incomplete'}
-          </p>
+          <div className="status-grid">
+            <div className="status-item">
+              <span
+                className={`status-dot ${status.charges_enabled ? 'on' : 'off'}`}
+                aria-hidden
+              />
+              <div>
+                <strong>Charges</strong>
+                <p className="muted">{status.charges_enabled ? 'Active' : 'Not active'}</p>
+              </div>
+            </div>
+            <div className="status-item">
+              <span
+                className={`status-dot ${status.payouts_enabled ? 'on' : 'off'}`}
+                aria-hidden
+              />
+              <div>
+                <strong>Payouts</strong>
+                <p className="muted">{status.payouts_enabled ? 'Active' : 'Not active'}</p>
+              </div>
+            </div>
+            <div className="status-item">
+              <span
+                className={`status-dot ${status.details_submitted ? 'on' : 'off'}`}
+                aria-hidden
+              />
+              <div>
+                <strong>Account details</strong>
+                <p className="muted">{status.details_submitted ? 'Complete' : 'Incomplete'}</p>
+              </div>
+            </div>
+          </div>
           {audience === 'broker' && !status.broker_payouts_enabled && (
-            <div className="callout warn">
-              <strong>Payouts available once licensing is finalized.</strong>
-              Money-movement UI stays hidden until this org flag is enabled (per-org, not global).
+            <div className="callout-info">
+              <strong className="callout-title">Licensing review in progress</strong>
+              <div className="callout-body">
+                Payouts unlock for this brokerage after your license is verified. You&apos;ll get an
+                email when they&apos;re enabled.
+              </div>
             </div>
           )}
           {status.status === 'none' || status.status === 'pending' || status.status === 'restricted' ? (
@@ -453,7 +535,7 @@ export function ConnectPaymentsPage({ audience }: { audience: 'broker' | 'landlo
             </button>
           ) : (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void openDashboard()}>
-              {busy ? 'Opening…' : 'Open Stripe Express dashboard'}
+              {busy ? 'Opening…' : 'Open payouts dashboard'}
             </button>
           )}
           <button type="button" className="btn btn-soft" onClick={() => void reload()}>
@@ -474,9 +556,8 @@ export function BrokerListingsPage() {
   return (
     <div className="stack">
       <h1>Listings</h1>
-      <EmptyState title="Coverage listings not wired as a live feed yet">
-        Browse the public marketplace for active inventory. Broker-specific coverage feeds will
-        attach when assignment APIs are exposed over HTTP.
+      <EmptyState title="No listings assigned yet">
+        Listings in your coverage area will appear here.
       </EmptyState>
     </div>
   );

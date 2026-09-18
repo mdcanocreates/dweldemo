@@ -2,7 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
 import { api, ApiError, getMemorySessionId } from '../api';
 import { useAuth } from '../auth';
+import { InlineSpinner } from '../components/FrogPageLoader';
 import { EmptyState, ErrorState, Shell } from '../components/Shell';
+import { useDelayedPending } from '../hooks/useDelayedPending';
 
 function isPlatformAdmin(roles: Array<{ role: string }>): boolean {
   return roles.some((r) => r.role === 'rbit_admin' || r.role === 'rbit_super_admin');
@@ -23,7 +25,7 @@ function AdminFrame({ children }: { children: ReactNode }) {
             <NavLink to="/admin/orgs">Orgs</NavLink>
             <NavLink to="/admin/config/consent">Consent</NavLink>
             <NavLink to="/admin/integrations/certn">Certn</NavLink>
-            <NavLink to="/admin/reviews/self-execution">Self-execution</NavLink>
+            <NavLink to="/admin/reviews/license-verification">License verification</NavLink>
             <NavLink to="/admin/config/flags">Flags</NavLink>
             <NavLink to="/admin/audit">Audit</NavLink>
           </nav>
@@ -37,12 +39,9 @@ function AdminFrame({ children }: { children: ReactNode }) {
 
 export function AdminGuard() {
   const { user, loading } = useAuth();
+  const showInline = useDelayedPending(loading, 400);
   if (loading) {
-    return (
-      <Shell>
-        <p>Checking sign-in…</p>
-      </Shell>
-    );
+    return <Shell>{showInline ? <InlineSpinner label="Checking access…" /> : null}</Shell>;
   }
   if (!user) return <Navigate to="/sign-in" replace />;
   if (!isPlatformAdmin(user.roles)) {
@@ -374,7 +373,7 @@ export function AdminSelfExecutionPage() {
 
   return (
     <div className="stack">
-      <h1>Self-execution review</h1>
+      <h1>License verification review</h1>
       {error && <ErrorState title="Review error">{error}</ErrorState>}
       <select value={status} onChange={(e) => setStatus(e.target.value)}>
         <option value="pending">pending</option>
@@ -399,7 +398,7 @@ export function AdminSelfExecutionPage() {
               className="btn btn-primary"
               onClick={() => {
                 const ok = window.confirm(
-                  'Verify this self-execution evidence?\n\nWARNING: interim_v1 — state-specific license rules are not fully encoded. Proceed only with manual diligence.',
+                  'Verify this license evidence?\n\nState-specific license rules still need manual diligence. Proceed only if you have reviewed the documents.',
                 );
                 if (!ok) return;
                 void (async () => {
@@ -415,7 +414,7 @@ export function AdminSelfExecutionPage() {
                 })();
               }}
             >
-              Verify (interim_v1)
+              Verify
             </button>
             <button
               type="button"

@@ -56,9 +56,10 @@ export function SignInPage() {
 
   return (
     <Shell>
-      <div className="stack" style={{ maxWidth: '28rem' }}>
+      <div className="stack" style={{ maxWidth: '28rem', margin: '0 auto' }}>
+        <p className="section-eyebrow">dwel.20 access</p>
         <h1>Sign in</h1>
-        <p>Passwordless email link. No passwords stored on dwel.20.</p>
+        <p className="muted">Passwordless email link. No passwords stored on dwel.20.</p>
         <form className="panel form-grid" onSubmit={(e) => void requestLink(e)}>
           <label>
             Work email
@@ -76,23 +77,25 @@ export function SignInPage() {
         </form>
         {message && (
           <div className="callout">
-            <strong>Check your email</strong>
-            {message}
+            <strong className="callout-title">Check your email</strong>
+            <div className="callout-body">{message}</div>
           </div>
         )}
         {redeemToken && (
           <div className="callout">
-            <strong>Continue on this device</strong>
-            Email delivery is not configured in this environment, so you can finish sign-in here.
-            <div style={{ marginTop: '0.75rem' }}>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={() => void completeRedeem(redeemToken)}
-              >
-                Continue
-              </button>
+            <strong className="callout-title">Continue on this device</strong>
+            <div className="callout-body">
+              Email delivery is not configured in this environment, so you can finish sign-in here.
+              <div style={{ marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() => void completeRedeem(redeemToken)}
+                >
+                  Continue
+                </button>
+              </div>
             </div>
           </div>
         )}

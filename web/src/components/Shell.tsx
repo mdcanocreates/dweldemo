@@ -27,7 +27,6 @@ export function PublicNav() {
       { to: '/listings', label: 'Find a home' },
       { to: '/landlords', label: 'For landlords' },
       { to: '/brokers', label: 'For brokers' },
-      { to: '/calculator', label: 'NOI calculator' },
       { to: '/sign-in', label: 'Sign in' },
     );
   } else {
@@ -38,7 +37,8 @@ export function PublicNav() {
     if (landlord) links.push({ to: '/landlord', label: 'Landlord portal' });
     if (broker) links.push({ to: '/broker', label: 'Broker portal' });
     if (admin) links.push({ to: '/admin', label: 'Admin' });
-    links.push({ to: '/calculator', label: 'NOI calculator' });
+    // NOI calculator is landlord/broker only — never public or tenant top nav
+    if (landlord || broker) links.push({ to: '/calculator', label: 'NOI calculator' });
   }
 
   return (
@@ -71,9 +71,18 @@ export function PublicNav() {
   );
 }
 
-export function Shell({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
+export function Shell({
+  children,
+  footer,
+  lockViewport,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  /** Pin shell to viewport — used by landing hero+chat so the body never grows. */
+  lockViewport?: boolean;
+}) {
   return (
-    <div className="shell">
+    <div className={`shell dwel-cube-bg ${lockViewport ? 'shell-lock' : ''}`}>
       <PublicNav />
       <main className="page">{children}</main>
       <footer className="footer">
@@ -85,18 +94,18 @@ export function Shell({ children, footer }: { children: ReactNode; footer?: Reac
 
 export function EmptyState({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="callout">
-      <strong>{title}</strong>
-      {children}
+    <div className="callout" role="status">
+      <strong className="callout-title">{title}</strong>
+      <div className="callout-body">{children}</div>
     </div>
   );
 }
 
 export function ErrorState({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="callout warn">
-      <strong>{title}</strong>
-      {children}
+    <div className="callout-attention" role="alert">
+      <strong className="callout-title">{title}</strong>
+      <div className="callout-body">{children}</div>
     </div>
   );
 }

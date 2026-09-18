@@ -8,9 +8,12 @@ import {
 } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { InlineSpinner } from '../components/FrogPageLoader';
 import { PortalShell } from '../components/PortalShell';
 import { EmptyState, ErrorState, Shell } from '../components/Shell';
-import { formatBedsBaths, moneyFromCents } from '../format';
+import { formatBedsBaths, formatPersonName, moneyFromCents } from '../format';
+import { displayName, hasScreeningResults, screeningPhase } from '../displayNames';
+import { useDelayedPending } from '../hooks/useDelayedPending';
 import { ConnectPaymentsPage } from './BrokerPortal';
 
 const US_STATES = [
@@ -25,9 +28,22 @@ const LANDLORD_NAV = [
   { to: '/landlord/listings/new', label: 'New listing' },
   { to: '/landlord/settings', label: 'Settings' },
   { to: '/landlord/settings/payments', label: 'Payments' },
-  { to: '/landlord/settings/self-execution', label: 'Self-execution' },
+  { to: '/landlord/settings/license-verification', label: 'Direct licensing' },
   { to: '/calculator', label: 'NOI calculator' },
 ];
+
+function MatchScoreBadge({ value }: { value: number }) {
+  const tier = value >= 80 ? 'match-high' : value >= 50 ? 'match-mid' : 'match-low';
+  return (
+    <span
+      className={`match-score-badge ${tier}`}
+      title="Match Score — based on income, timeline, and household fit"
+    >
+      <span className="match-score-label">Match Score</span>
+      <span className="match-score-value">{value}</span>
+    </span>
+  );
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -46,7 +62,7 @@ function LandlordFrame({ children }: { children: ReactNode }) {
   return (
     <PortalShell
       navLabel="Workspace"
-      topEyebrow="Owner workspace"
+      topEyebrow=""
       topTitle="Landlord portal"
       footTitle="dwel.20 for owners"
       footBody="Fill your next vacancy with a better signal."
@@ -59,12 +75,9 @@ function LandlordFrame({ children }: { children: ReactNode }) {
 
 export function LandlordGuard() {
   const { user, loading } = useAuth();
+  const showInline = useDelayedPending(loading, 400);
   if (loading) {
-    return (
-      <Shell>
-        <p>Checking sign-in…</p>
-      </Shell>
-    );
+    return <Shell>{showInline ? <InlineSpinner label="Checking sign-in…" /> : null}</Shell>;
   }
   if (!user) return <Navigate to="/sign-in?role=landlord" replace />;
   if (!user.landlordOrgId) {
@@ -158,7 +171,7 @@ export function LandlordOverviewPage() {
     <div className="stack">
       <p className="section-eyebrow">Overview</p>
       <h1>Portfolio pulse</h1>
-      <p className="muted">Live vacancy and applicant signal — no fabricated stats.</p>
+      <p className="muted">Live vacancy and applicant activity.</p>
       {error && <ErrorState title="Overview unavailable">{error}</ErrorState>}
       {!listings && !error && <p>Loading…</p>}
       {listings && (
@@ -182,13 +195,15 @@ export function LandlordOverviewPage() {
             </div>
           </div>
           {needsAttention > 0 && (
-            <div className="callout warn">
-              <strong>
+            <div className="callout-attention">
+              <strong className="callout-title">
                 {needsAttention === 1
                   ? 'One listing needs attention'
                   : `${needsAttention} listings need attention`}
               </strong>
-              Active units with applicants waiting for review.
+              <div className="callout-body">
+                Review applicants waiting on your active listings.
+              </div>
             </div>
           )}
           <div className="panel stack">
@@ -205,25 +220,11 @@ export function LandlordOverviewPage() {
                     <Link to={`/landlord/listings/${a.listing_id}/applicants`}>
                       <span className="overview-app-id">
                         {a.approved && a.name
-                          ? a.name
+                          ? formatPersonName(a.name)
                           : `Applicant · ${a.application_id.slice(0, 8)}`}
                       </span>
                       <span className="muted">{a.listing_label}</span>
-                      {a.match_score_value != null && (
-                        <span
-                          className={`match-score-badge ${
-                            a.match_score_value >= 80
-                              ? 'match-high'
-                              : a.match_score_value >= 50
-                                ? 'match-mid'
-                                : 'match-low'
-                          }`}
-                          title={a.match_score_version ?? 'rules_based_v1'}
-                        >
-                          {a.match_score_value}
-                          <span className="match-score-tag">rules_based_v1</span>
-                        </span>
-                      )}
+                      {a.match_score_value != null && <MatchScoreBadge value={a.match_score_value} />}
                     </Link>
                   </li>
                 ))}
@@ -477,7 +478,7 @@ function ListingFormFields(props: {
         </label>
       </div>
       <div className="field">
-        <label htmlFor="ll-amenities">Amenities (comma-separated)</label>
+        <label htmlFor="ll-amenities">Amenities (e.g. parking, laundry, AC)</label>
         <input
           id="ll-amenities"
           value={props.amenities}
@@ -585,7 +586,7 @@ export function LandlordNewListingPage() {
             accept="image/*"
             onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
           />
-          <span className="hint">Uploaded via S3 after create. Prefer JPEG/PNG under 5MB.</span>
+          <span className="hint">JPEG or PNG, up to 5 MB.</span>
         </div>
         <button type="submit" className="btn btn-primary" disabled={busy}>
           {busy ? 'Creating…' : 'Create listing'}
@@ -782,8 +783,8 @@ export function LandlordApplicantsPage() {
       <p className="section-eyebrow">Qualified pipeline</p>
       <h1>Applicants</h1>
       <p className="muted">
-        Contact details stay masked until you approve. Screening mode:{' '}
-        <strong>{data?.screening_mode ?? '…'}</strong>
+        Contact details stay hidden until you approve — and you can approve only after screening
+        results are in.
       </p>
       {error && <ErrorState title="Applicants error">{error}</ErrorState>}
       {!data && !error && <p>Loading…</p>}
@@ -793,48 +794,40 @@ export function LandlordApplicantsPage() {
       {data && data.applicants.length > 0 && (
         <div className="applicant-grid">
           {data.applicants.map((a) => {
-            const manual =
+            const phase = screeningPhase(a.status);
+            const resultsReady = hasScreeningResults(a.screening_summary);
+            const canApprove =
+              phase === 'ready' && resultsReady && a.status !== 'declined' && a.status !== 'approved';
+            const needsScreeningRequest =
               data.screening_mode === 'manual_review' &&
-              a.status === 'awaiting_landlord_interest';
-            const postScreen = a.status === 'screening_complete' || a.status === 'awaiting_consent';
+              (a.status === 'awaiting_landlord_interest' || phase === 'pre');
+            const screeningBusy = phase === 'in_progress' || (phase === 'ready' && !resultsReady);
             const approved = a.status === 'approved' && a.contact;
             return (
               <article key={a.application_id} className="panel stack applicant-card">
                 <div className="row-between">
                   <div>
-                    <p className="section-eyebrow">{a.status}</p>
-                    <h2>{approved ? `${a.contact!.given_name ?? ''} ${a.contact!.family_name ?? ''}`.trim() || 'Applicant' : 'Applicant'}</h2>
+                    <p className="section-eyebrow">{displayName(a.status)}</p>
+                    <h2>
+                      {approved
+                        ? formatPersonName(a.contact!.given_name, a.contact!.family_name)
+                        : 'Applicant'}
+                    </h2>
                     <p className="muted">Applied {new Date(a.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="applicant-score-col">
-                    {a.match_score_value != null && (
-                      <span
-                        className={`match-score-badge ${
-                          a.match_score_value >= 80
-                            ? 'match-high'
-                            : a.match_score_value >= 50
-                              ? 'match-mid'
-                              : 'match-low'
-                        }`}
-                        title="Transparent weighted formula — not a trained model"
-                      >
-                        {a.match_score_value}
-                        <span className="match-score-tag">
-                          {a.match_score_version ?? 'rules_based_v1'}
-                        </span>
-                      </span>
-                    )}
-                    <span className="score-band">{a.score_band}</span>
+                    {a.match_score_value != null && <MatchScoreBadge value={a.match_score_value} />}
+                    <span className="score-band">{displayName(a.score_band)}</span>
                   </div>
                 </div>
                 <div className="stat-grid">
                   <div className="stat">
                     <p className="ll-stat-label">Income band</p>
-                    <p>{a.income_band}</p>
+                    <p>{displayName(a.income_band)}</p>
                   </div>
                   <div className="stat">
                     <p className="ll-stat-label">Move-in</p>
-                    <p>{a.move_in_urgency ?? '—'}</p>
+                    <p>{displayName(a.move_in_urgency)}</p>
                   </div>
                   <div className="stat">
                     <p className="ll-stat-label">Household</p>
@@ -848,27 +841,35 @@ export function LandlordApplicantsPage() {
                 <div className="stat-grid">
                   {(['credit', 'criminal', 'eviction', 'identity'] as const).map((k) => (
                     <div key={k} className="stat">
-                      <p className="ll-stat-label">{k}</p>
-                      <p>{a.screening_summary[k]}</p>
+                      <p className="ll-stat-label">{displayName(k)}</p>
+                      <p>{displayName(a.screening_summary[k])}</p>
                     </div>
                   ))}
                 </div>
+                {screeningBusy && !approved && (
+                  <div className="callout-info">
+                    <strong className="callout-title">Screening in progress</strong>
+                    <div className="callout-body">
+                      You can approve once results are in.
+                    </div>
+                  </div>
+                )}
                 {approved && a.contact && (
                   <div className="callout">
                     <p>
                       {a.contact.email} · {a.contact.phone_e164}
                     </p>
                     <p className="hint">
-                      Contact revealed on {new Date(a.contact.revealed_at).toLocaleString()}
+                      Contact shared on {new Date(a.contact.revealed_at).toLocaleString()}
                     </p>
                     <p className="hint">
-                      Next steps: coordinate lease execution with your broker or directly if you hold
-                      a license in this state.
+                      Next: work with your broker on the lease, or execute it yourself if you hold a
+                      license in this state.
                     </p>
                   </div>
                 )}
                 <div className="ll-actions">
-                  {manual && (
+                  {needsScreeningRequest && (
                     <>
                       <button
                         type="button"
@@ -888,30 +889,54 @@ export function LandlordApplicantsPage() {
                       </button>
                     </>
                   )}
-                  {(postScreen || a.status === 'screening_complete') && !approved && a.status !== 'declined' && (
+                  {!needsScreeningRequest && !approved && a.status !== 'declined' && (
                     <>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={busyId === a.application_id}
-                        onClick={() => void decide(a.application_id, 'approve')}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        disabled={busyId === a.application_id}
-                        onClick={() => void decide(a.application_id, 'decline')}
-                      >
-                        Decline
-                      </button>
+                      {canApprove ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={busyId === a.application_id}
+                          onClick={() => void decide(a.application_id, 'approve')}
+                        >
+                          Approve
+                        </button>
+                      ) : screeningBusy || phase === 'ready' ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled
+                          title="Screening in progress"
+                        >
+                          Approve
+                        </button>
+                      ) : phase === 'pre' ? (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={busyId === a.application_id}
+                          onClick={() => void decide(a.application_id, 'request_screening')}
+                        >
+                          Request screening
+                        </button>
+                      ) : null}
+                      {(canApprove || screeningBusy || phase === 'ready') && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={busyId === a.application_id}
+                          onClick={() => void decide(a.application_id, 'decline')}
+                        >
+                          Decline
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
-                {(postScreen || a.status === 'screening_complete') && a.status !== 'declined' && a.status !== 'approved' && (
+                {(canApprove || phase === 'ready') &&
+                  a.status !== 'declined' &&
+                  a.status !== 'approved' && (
                   <div className="field">
-                    <label htmlFor={`more-${a.application_id}`}>Request more info (interim_v1)</label>
+                    <label htmlFor={`more-${a.application_id}`}>Request more info</label>
                     <textarea
                       id={`more-${a.application_id}`}
                       rows={2}
@@ -1004,10 +1029,10 @@ export function LandlordSettingsPage() {
         {saved && <p className="hint">Saved. Persists for this organization.</p>}
       </div>
       <p>
-        <Link to="/landlord/settings/payments">Payment settings (Stripe Connect) →</Link>
+        <Link to="/landlord/settings/payments">Payment settings →</Link>
       </p>
       <p>
-        <Link to="/landlord/settings/self-execution">Self-execution evidence →</Link>
+        <Link to="/landlord/settings/license-verification">Direct licensing →</Link>
       </p>
       {error && <ErrorState title="Settings error">{error}</ErrorState>}
     </div>
@@ -1044,7 +1069,7 @@ export function LandlordSelfExecutionPage() {
         if (!cancelled) setStatus(s);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : 'Could not load self-execution status.');
+          setError(err instanceof ApiError ? err.message : 'Could not load license verification status.');
         }
       }
     })();
@@ -1083,14 +1108,14 @@ export function LandlordSelfExecutionPage() {
 
   return (
     <div className="stack" style={{ maxWidth: '40rem' }}>
-      <p className="section-eyebrow">interim_v1</p>
-      <h1>Self-execution evidence</h1>
+      <h1>License verification</h1>
       <p className="muted">
-        Manual verification only. Pending blocks re-submission; rejected allows another attempt.
+        If you hold a real estate license in your listing state, submit your credentials to execute
+        leases directly.
       </p>
       {status?.admin_banner && (
-        <div className="callout warn">
-          <strong>⚠ {status.admin_banner}</strong>
+        <div className="callout-info">
+          <strong className="callout-title">{status.admin_banner}</strong>
         </div>
       )}
       {status?.submission && (
@@ -1099,7 +1124,6 @@ export function LandlordSelfExecutionPage() {
             Latest status: <strong>{status.submission.status}</strong> ·{' '}
             {status.submission.license_type} · {status.submission.license_state}
           </p>
-          <p className="hint">Tag: {status.submission.compliance_tag}</p>
           {status.submission.reviewer_notes && <p>{status.submission.reviewer_notes}</p>}
         </div>
       )}
@@ -1161,7 +1185,7 @@ export function LandlordSelfExecutionPage() {
           A submission is already pending. You can resubmit if it is rejected.
         </EmptyState>
       )}
-      {error && <ErrorState title="Self-execution error">{error}</ErrorState>}
+      {error && <ErrorState title="License verification error">{error}</ErrorState>}
     </div>
   );
 }

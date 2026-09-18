@@ -67,10 +67,10 @@ export type ApplicantListItem = {
   household_size: number | null;
   has_pets: boolean | null;
   screening_summary: {
-    credit: 'clear' | 'records' | 'unknown';
-    criminal: 'clear' | 'records' | 'unknown';
-    eviction: 'clear' | 'records' | 'unknown';
-    identity: 'verified' | 'not' | 'unknown';
+    credit: string;
+    criminal: string;
+    eviction: string;
+    identity: string;
   };
   contact: null | {
     given_name: string | null;
@@ -81,6 +81,17 @@ export type ApplicantListItem = {
   };
 };
 
+function mapReportStatus(kind: string, status: string): string {
+  if (status === 'pending') return 'pending';
+  if (status === 'failed') return kind === 'identity' ? 'not' : 'records';
+  if (status === 'complete') return kind === 'identity' ? 'verified' : 'clear';
+  return 'unknown';
+}
+
+/**
+ * Contact is returned only when approved AND contact_revealed_at is set.
+ * Reveal is written exclusively in decideOnApplicant on explicit approve — never on GET/render.
+ */
 export async function listListingApplicants(
   client: DbClient,
   input: { listingId: string; orgId: string },
@@ -115,6 +126,43 @@ export async function listListingApplicants(
     [input.listingId, input.orgId],
   );
 
+  const appIds = rows.map((r) => r.id);
+  const summaryByApp = new Map<string, ApplicantListItem['screening_summary']>();
+  for (const id of appIds) {
+    summaryByApp.set(id, {
+      credit: 'unknown',
+      criminal: 'unknown',
+      eviction: 'unknown',
+      identity: 'unknown',
+    });
+  }
+  if (appIds.length) {
+    const { rows: reports } = await client.query<{
+      application_id: string;
+      report_kind: string;
+      status: string;
+    }>(
+      `select distinct on (so.application_id, sr.report_kind)
+              so.application_id::text as application_id,
+              sr.report_kind,
+              sr.status
+       from screening_order so
+       join screening_report sr on sr.screening_order_id = so.id
+       where so.application_id = any($1::uuid[])
+       order by so.application_id, sr.report_kind, so.created_at desc, sr.issued_at desc nulls last`,
+      [appIds],
+    );
+    for (const r of reports) {
+      const sum = summaryByApp.get(r.application_id);
+      if (!sum) continue;
+      const mapped = mapReportStatus(r.report_kind, r.status);
+      if (r.report_kind === 'credit') sum.credit = mapped;
+      else if (r.report_kind === 'criminal') sum.criminal = mapped;
+      else if (r.report_kind === 'risk_insight') sum.eviction = mapped;
+      else if (r.report_kind === 'identity') sum.identity = mapped;
+    }
+  }
+
   return rows.map((r) => {
     const revealed = Boolean(r.contact_revealed_at);
     const approved = r.status === 'approved' || r.status === 'decisioned';
@@ -130,12 +178,7 @@ export async function listListingApplicants(
       move_in_urgency: r.move_in_urgency,
       household_size: r.household_size,
       has_pets: r.has_pets,
-      screening_summary: {
-        credit: 'unknown',
-        criminal: 'unknown',
-        eviction: 'unknown',
-        identity: 'unknown',
-      },
+      screening_summary: summaryByApp.get(r.id)!,
       contact: showContact
         ? {
             given_name: r.given_name,
@@ -192,7 +235,33 @@ export async function decideOnApplicant(
   let decisionRow: 'approved' | 'declined' | 'interested' | 'withdrawn' | null = null;
 
   if (input.decision === 'approve') {
+    // P0: approval (and contact reveal) only after screening finishes with real results.
+    const ready = app.status === 'screening_complete' || app.status === 'screened';
+    if (!ready) {
+      throw new AppError(
+        'Screening must complete before you can approve and reveal contact info.',
+        'screening_required',
+        409,
+      );
+    }
+    const { rows: reports } = await client.query<{ status: string }>(
+      `select sr.status
+       from screening_order so
+       join screening_report sr on sr.screening_order_id = so.id
+       where so.application_id = $1
+         and sr.status in ('complete', 'failed')
+       limit 1`,
+      [app.id],
+    );
+    if (!reports[0]) {
+      throw new AppError(
+        'Screening results are not available yet. Approve unlocks once at least one check reports.',
+        'screening_results_pending',
+        409,
+      );
+    }
     nextStatus = 'approved';
+    // Contact reveal is an explicit side-effect of approve — not of page load.
     revealedAt = new Date();
     decisionRow = 'approved';
   } else if (input.decision === 'decline') {

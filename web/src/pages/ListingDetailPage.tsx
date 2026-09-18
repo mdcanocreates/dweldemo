@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
+import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
+import { useDelayedPending } from '../hooks/useDelayedPending';
 
 export function ListingDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [listing, setListing] = useState<Listing | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const showInline = useDelayedPending(loading && !listing && !error, 400);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const data = await api.getListing(id);
@@ -23,6 +28,8 @@ export function ListingDetailPage() {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : 'Listing unavailable');
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -40,11 +47,7 @@ export function ListingDetailPage() {
   }
 
   if (!listing) {
-    return (
-      <Shell>
-        <div className="skeleton" style={{ height: '20rem' }} />
-      </Shell>
-    );
+    return <Shell>{showInline ? <InlineSpinner label="Loading this home…" /> : null}</Shell>;
   }
 
   const title = formatAddress(listing);
@@ -101,11 +104,7 @@ export function ListingDetailPage() {
         <aside className="card" style={{ padding: '1.25rem', alignSelf: 'start' }}>
           <p className="section-eyebrow">Interest</p>
           <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
-            Estimated cashback {moneyFromCents(listing.cashback_cents ?? 0)}{' '}
-            <span className="font-mono" style={{ fontSize: '0.7rem' }}>
-              interim_v1
-            </span>{' '}
-            — not from RS-tier config; display estimate only.
+            Estimated cashback {moneyFromCents(listing.cashback_cents ?? 0)}.
           </p>
           <button
             type="button"

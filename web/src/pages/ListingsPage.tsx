@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
+import { FrogPageLoader } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
-
-const CITY_PILLS = ['All', 'Columbus', 'New York', 'Austin', 'Boston', 'Miami'];
+import { useDelayedPending } from '../hooks/useDelayedPending';
 
 function ListingCard({ listing }: { listing: Listing }) {
   const title = formatAddress(listing);
@@ -14,12 +14,7 @@ function ListingCard({ listing }: { listing: Listing }) {
     <Link to={`/listings/${listing.id}`} className="listing-card" data-testid={`card-listing-${listing.id}`}>
       <div className="media">
         {img ? <img src={img} alt={title} /> : <div style={{ width: '100%', height: '100%' }} />}
-        <span className="badge-cash">
-          {moneyFromCents(cash)} back
-          <span className="font-mono" style={{ display: 'block', fontSize: '0.55rem', opacity: 0.85 }}>
-            interim_v1
-          </span>
-        </span>
+        <span className="badge-cash">{moneyFromCents(cash)} back</span>
         {listing.property_type && (
           <span className="badge-type">{titleCaseType(listing.property_type)}</span>
         )}
@@ -38,18 +33,22 @@ export function ListingsPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [searchPending, setSearchPending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [city, setCity] = useState('All');
   const [query, setQuery] = useState('');
+  const [queryApplied, setQueryApplied] = useState('');
   const [beds, setBeds] = useState('');
   const [baths, setBaths] = useState('');
   const [propertyType, setPropertyType] = useState('');
   const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('cashback');
   const limit = 20;
+  const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setInitialLoading(true);
       try {
         const data = await api.listListings(limit, 0);
         if (!cancelled) {
@@ -62,6 +61,8 @@ export function ListingsPage() {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : 'Listings could not be loaded.');
         }
+      } finally {
+        if (!cancelled) setInitialLoading(false);
       }
     })();
     return () => {
@@ -69,14 +70,27 @@ export function ListingsPage() {
     };
   }, []);
 
+  async function runSearch() {
+    setQueryApplied(query);
+    setSearchPending(true);
+    try {
+      const data = await api.listListings(limit, 0);
+      setListings(data.listings);
+      setTotal(data.pagination.total);
+      setOffset(data.listings.length);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Search failed.');
+    } finally {
+      setSearchPending(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     if (!listings) return null;
     let rows = [...listings];
-    if (city !== 'All') {
-      rows = rows.filter((l) => (l.address.city ?? '').toLowerCase() === city.toLowerCase());
-    }
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
+    if (queryApplied.trim()) {
+      const q = queryApplied.trim().toLowerCase();
       rows = rows.filter((l) => formatAddress(l).toLowerCase().includes(q));
     }
     if (beds) {
@@ -98,7 +112,7 @@ export function ListingsPage() {
       return (b.cashback_cents ?? 0) - (a.cashback_cents ?? 0);
     });
     return rows;
-  }, [listings, city, query, beds, baths, propertyType, sort]);
+  }, [listings, queryApplied, beds, baths, propertyType, sort]);
 
   async function loadMore() {
     if (loadingMore || !listings) return;
@@ -115,10 +129,19 @@ export function ListingsPage() {
     }
   }
 
+  const matchCount = filtered?.length ?? 0;
+  const matchLabel =
+    listings === null
+      ? null
+      : matchCount === 1
+        ? '1 home matches your search'
+        : `${matchCount} homes match your search`;
+
   return (
     <Shell>
+      {showFrog && <FrogPageLoader />}
       <div className="dwel-cube-bg listings-page-wash">
-        <p className="section-eyebrow">{total} fresh matches today</p>
+        {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
         <h1 className="section-title">Find a home</h1>
         <div className="search-row">
           <div className="field" style={{ margin: 0 }}>
@@ -130,21 +153,15 @@ export function ListingsPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <button type="button" className="btn btn-primary" style={{ alignSelf: 'end' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ alignSelf: 'end' }}
+            onClick={() => void runSearch()}
+            disabled={searchPending}
+          >
             Search homes
           </button>
-        </div>
-        <div className="pill-row">
-          {CITY_PILLS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={`pill ${city === c ? 'active' : ''}`}
-              onClick={() => setCity(c)}
-            >
-              {c}
-            </button>
-          ))}
         </div>
         <div className="filter-bar">
           <div className="field">
