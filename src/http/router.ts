@@ -71,6 +71,13 @@ import {
   handleAdminPutConsent,
   handleAdminSetFlag,
 } from './admin-handlers.js';
+import {
+  handleInternalGetApplication,
+  handleInternalGetApplicationIntake,
+  handleInternalHealth,
+  handleInternalListApplications,
+  handleInternalListPartnerReviews,
+} from './internal-handlers.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -99,6 +106,32 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
     if (method === 'POST' && path === '/v1/auth/logout') {
       await handleAuthLogout(req, res, deps);
+      return true;
+    }
+
+    // Control Center staff APIs (service token) — not customer session auth
+    if (method === 'GET' && path === '/internal/v1/health') {
+      await handleInternalHealth(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/internal/v1/applications') {
+      await handleInternalListApplications(req, res, deps);
+      return true;
+    }
+    const internalAppIntake = path.match(
+      /^\/internal\/v1\/applications\/([0-9a-f-]{36})\/intake$/i,
+    );
+    if (method === 'GET' && internalAppIntake) {
+      await handleInternalGetApplicationIntake(req, res, deps, internalAppIntake[1]!);
+      return true;
+    }
+    const internalApp = path.match(/^\/internal\/v1\/applications\/([0-9a-f-]{36})$/i);
+    if (method === 'GET' && internalApp) {
+      await handleInternalGetApplication(req, res, deps, internalApp[1]!);
+      return true;
+    }
+    if (method === 'GET' && path === '/internal/v1/partner-reviews') {
+      await handleInternalListPartnerReviews(req, res, deps);
       return true;
     }
 
