@@ -263,7 +263,6 @@ export async function getApplicationWorkItemDetail(
     screening_authorized_at: Date | null;
     expires_at: Date | null;
     device_id: string | null;
-    is_demo: boolean | null;
     intake_snapshot: unknown;
     contact_revealed_at: Date | null;
     match_score_value: number | null;
@@ -295,7 +294,6 @@ export async function getApplicationWorkItemDetail(
        a.intake_snapshot,
        a.contact_revealed_at,
        a.match_score_value,
-       coalesce(a.is_demo, false) as is_demo,
        rp.given_name,
        rp.family_name,
        rp.email,
@@ -349,7 +347,6 @@ export async function getApplicationWorkItemDetail(
       device_id: row.device_id,
       contact_revealed_at: row.contact_revealed_at ? iso(row.contact_revealed_at) : null,
       match_score_value: row.match_score_value,
-      is_demo: row.is_demo,
       created_at: iso(row.created_at),
     },
     renterProfile: {
