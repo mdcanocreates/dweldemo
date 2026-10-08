@@ -15,6 +15,7 @@ import {
   handleListListings,
   handleRecordConsent,
   handleSubmitScreening,
+  handleCompleteDemoScreening,
   type HttpHandlerDeps,
 } from './handlers.js';
 import {
@@ -31,11 +32,24 @@ import {
   handleLandlordUploadListingPhoto,
 } from './portal-handlers.js';
 import {
+  handleBrokerAddNote,
+  handleBrokerApplicationDetail,
   handleBrokerLeads,
   handleBrokerOverview,
   handleBrokerPerformance,
+  handleBrokerPortfolioApplicants,
+  handleBrokerPortfolioListings,
+  handleBrokerPortfolioOverview,
+  handleBrokerProviderDetail,
+  handleBrokerProviders,
+  handleBrokerRequestScreening,
+  handleBrokerSetRecommendation,
   handleBrokerSubmarkets,
 } from './broker-handlers.js';
+import {
+  handleAcceptBrokerTerms,
+  handleGetBrokerTerms,
+} from './broker-terms-handlers.js';
 import {
   handleConnectCreateAccount,
   handleConnectDashboardLink,
@@ -54,6 +68,9 @@ import {
   handleNyScreeningChoiceStatus,
   handleNyUploadReport,
   handlePayAndConsent,
+  handleScreeningEligibility,
+  handleRequestAccountDeletion,
+  handleGetAccountDeletionRequest,
   handleUpsertRenterIntake,
   handleUpsertRenterProfile,
 } from './renter-handlers.js';
@@ -71,12 +88,21 @@ import {
   handleAdminPutConsent,
   handleAdminSetFlag,
 } from './admin-handlers.js';
+import { handleInternalPreviewAccess, handleInternalPreviewSetRole } from './preview-handlers.js';
 import {
+  handleInternalCaseAction,
   handleInternalGetApplication,
   handleInternalGetApplicationIntake,
+  handleInternalGetCase,
+  handleInternalGetParty,
   handleInternalHealth,
   handleInternalListApplications,
+  handleInternalListCaseEvents,
+  handleInternalListCases,
   handleInternalListPartnerReviews,
+  handleInternalListParties,
+  handleInternalScreeningResult,
+  handleInternalScreeningStatus,
 } from './internal-handlers.js';
 
 const UUID_RE =
@@ -135,6 +161,91 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       return true;
     }
 
+    // Control Center contract: cases / parties / screening-status / actions
+    if (method === 'GET' && path === '/internal/v1/cases') {
+      await handleInternalListCases(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/internal/v1/parties') {
+      await handleInternalListParties(req, res, deps);
+      return true;
+    }
+    const internalParty = path.match(
+      /^\/internal\/v1\/parties\/([0-9a-f-]{36})$/i,
+    );
+    if (method === 'GET' && internalParty) {
+      await handleInternalGetParty(req, res, deps, internalParty[1]!);
+      return true;
+    }
+    const internalCaseAction = path.match(
+      /^\/internal\/v1\/cases\/([^/]+)\/actions\/([a-z0-9_-]+)$/i,
+    );
+    if (method === 'POST' && internalCaseAction) {
+      await handleInternalCaseAction(
+        req,
+        res,
+        deps,
+        decodeURIComponent(internalCaseAction[1]!),
+        internalCaseAction[2]!,
+      );
+      return true;
+    }
+    const internalCaseEvents = path.match(
+      /^\/internal\/v1\/cases\/([^/]+)\/events$/i,
+    );
+    if (method === 'GET' && internalCaseEvents) {
+      await handleInternalListCaseEvents(
+        req,
+        res,
+        deps,
+        decodeURIComponent(internalCaseEvents[1]!),
+      );
+      return true;
+    }
+    const internalScreeningStatus = path.match(
+      /^\/internal\/v1\/cases\/([^/]+)\/screening-status$/i,
+    );
+    if (method === 'GET' && internalScreeningStatus) {
+      await handleInternalScreeningStatus(
+        req,
+        res,
+        deps,
+        decodeURIComponent(internalScreeningStatus[1]!),
+      );
+      return true;
+    }
+    const internalScreeningResult = path.match(
+      /^\/internal\/v1\/cases\/([^/]+)\/screening-result$/i,
+    );
+    if (method === 'GET' && internalScreeningResult) {
+      await handleInternalScreeningResult(
+        req,
+        res,
+        deps,
+        decodeURIComponent(internalScreeningResult[1]!),
+      );
+      return true;
+    }
+    const internalCase = path.match(/^\/internal\/v1\/cases\/([^/]+)$/i);
+    if (method === 'GET' && internalCase) {
+      await handleInternalGetCase(
+        req,
+        res,
+        deps,
+        decodeURIComponent(internalCase[1]!),
+      );
+      return true;
+    }
+
+    if (method === 'GET' && path === '/v1/internal/preview') {
+      await handleInternalPreviewAccess(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/internal/preview') {
+      await handleInternalPreviewSetRole(req, res, deps);
+      return true;
+    }
+
     if (method === 'GET' && path === '/v1/renter/profile') {
       await handleGetRenterProfile(req, res, deps);
       return true;
@@ -151,6 +262,15 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleUpsertRenterIntake(req, res, deps);
       return true;
     }
+    if (method === 'POST' && path === '/v1/renter/account/deletion-request') {
+      await handleRequestAccountDeletion(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/renter/account/deletion-request') {
+      await handleGetAccountDeletionRequest(req, res, deps);
+      return true;
+    }
+
     if (method === 'GET' && path === '/v1/renter/applications') {
       await handleListMyApplications(req, res, deps);
       return true;
@@ -291,6 +411,73 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleBrokerSubmarkets(req, res, deps);
       return true;
     }
+    if (method === 'GET' && path === '/v1/broker/portfolio') {
+      await handleBrokerPortfolioOverview(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/broker/providers') {
+      await handleBrokerProviders(req, res, deps);
+      return true;
+    }
+    {
+      const m = path.match(/^\/v1\/broker\/providers\/([^/]+)$/);
+      if (method === 'GET' && m) {
+        await handleBrokerProviderDetail(req, res, deps, decodeURIComponent(m[1]!));
+        return true;
+      }
+    }
+    if (method === 'GET' && path === '/v1/broker/portfolio/listings') {
+      await handleBrokerPortfolioListings(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/broker/portfolio/applicants') {
+      await handleBrokerPortfolioApplicants(req, res, deps);
+      return true;
+    }
+    {
+      const m = path.match(
+        /^\/v1\/broker\/applications\/([0-9a-f-]{36})$/i,
+      );
+      if (method === 'GET' && m) {
+        await handleBrokerApplicationDetail(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/broker\/applications\/([0-9a-f-]{36})\/request-screening$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleBrokerRequestScreening(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/broker\/applications\/([0-9a-f-]{36})\/notes$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleBrokerAddNote(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/broker\/applications\/([0-9a-f-]{36})\/recommendation$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleBrokerSetRecommendation(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    if (method === 'GET' && path === '/v1/broker/terms') {
+      await handleGetBrokerTerms(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/broker/terms') {
+      await handleAcceptBrokerTerms(req, res, deps);
+      return true;
+    }
 
     if (method === 'GET' && path === '/v1/stripe/connect/account') {
       await handleConnectGetAccount(req, res, deps);
@@ -331,7 +518,7 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
 
     const appMatch = path.match(
-      /^\/v1\/applications\/([0-9a-f-]{36})(?:\/(consent|submit-screening|pay-consent))?$/i,
+      /^\/v1\/applications\/([0-9a-f-]{36})(?:\/(consent|submit-screening|pay-consent|complete-demo-screening|screening-eligibility))?$/i,
     );
     if (appMatch) {
       const applicationId = appMatch[1]!;
@@ -345,6 +532,10 @@ export function createApiRouter(deps: HttpHandlerDeps) {
         await handleGetApplication(req, res, deps, applicationId);
         return true;
       }
+      if (method === 'GET' && action === 'screening-eligibility') {
+        await handleScreeningEligibility(req, res, deps, applicationId);
+        return true;
+      }
       if (method === 'POST' && action === 'consent') {
         await handleRecordConsent(req, res, deps, applicationId);
         return true;
@@ -355,6 +546,10 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       }
       if (method === 'POST' && action === 'submit-screening') {
         await handleSubmitScreening(req, res, deps, applicationId);
+        return true;
+      }
+      if (method === 'POST' && action === 'complete-demo-screening') {
+        await handleCompleteDemoScreening(req, res, deps, applicationId);
         return true;
       }
     }

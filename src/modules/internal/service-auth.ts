@@ -1,10 +1,18 @@
 /**
  * Control Center → Dwel service auth.
  * Bearer DWEL_INTERNAL_SERVICE_TOKEN (min 16 chars); timing-safe compare.
+ * Optional CC service assertion (JWT/HMAC) when configured.
  */
 
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
+import {
+  assertionRequired,
+  configuredAssertion,
+  extractAssertionToken,
+  verifyAssertionJwt,
+  type ServiceAssertionClaims,
+} from './assertion.js';
 
 export function extractBearer(req: IncomingMessage): string | null {
   const h = req.headers.authorization;
@@ -27,7 +35,7 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export type ServiceAuthResult =
-  | { ok: true }
+  | { ok: true; assertion: ServiceAssertionClaims | null }
   | { ok: false; status: 401 | 503; error: string; message?: string };
 
 export function requireInternalService(req: IncomingMessage): ServiceAuthResult {
@@ -44,5 +52,33 @@ export function requireInternalService(req: IncomingMessage): ServiceAuthResult 
   if (!bearer || !safeEqual(bearer, expected)) {
     return { ok: false, status: 401, error: 'unauthenticated' };
   }
-  return { ok: true };
+
+  const assertCfg = configuredAssertion();
+  if (!assertCfg) {
+    return { ok: true, assertion: null };
+  }
+
+  const token = extractAssertionToken(req);
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      error: 'assertion_required',
+      message: 'X-RBIT-Service-Assertion required when assertion verification is configured',
+    };
+  }
+
+  try {
+    const assertion = verifyAssertionJwt(token, assertCfg);
+    return { ok: true, assertion };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'assertion invalid';
+    const error =
+      err && typeof err === 'object' && 'code' in err && typeof (err as { code: unknown }).code === 'string'
+        ? (err as { code: string }).code
+        : 'assertion_invalid';
+    return { ok: false, status: 401, error, message };
+  }
 }
+
+export { assertionRequired, type ServiceAssertionClaims };

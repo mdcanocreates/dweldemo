@@ -21,12 +21,18 @@ export type WorkItem = {
   sourceId: string;
   kind: string;
   displayName: string | null;
+  /** Shared contract allows null when no human-readable summary exists. */
   summary: string | null;
   state: WorkItemState;
   sourceStatus: string;
+  /** Staff assignment lives in Control Center — always null from Dwel. */
+  ownerId: string | null;
+  ownerLabel: string | null;
   createdAt: string;
   updatedAt: string;
+  lastActivityAt: string | null;
   requiresAttention: boolean;
+  slaDueAt: string | null;
   version: string;
   regionLabel: string | null;
   metaLabel: string | null;
@@ -151,9 +157,13 @@ function toApplicationWorkItem(row: ApplicationListRow): WorkItem {
     summary: summaryParts.join(' · ') || null,
     state: mapApplicationStatusToWorkState(sourceStatus),
     sourceStatus,
+    ownerId: null,
+    ownerLabel: null,
     createdAt: iso(row.created_at),
     updatedAt: iso(updated),
+    lastActivityAt: iso(updated),
     requiresAttention: applicationRequiresAttention(sourceStatus),
+    slaDueAt: null,
     version: iso(updated),
     regionLabel,
     metaLabel: row.org_display_name ?? null,
@@ -454,15 +464,19 @@ export async function listPartnerReviewWorkItems(
         'self-execution',
       ]
         .filter(Boolean)
-        .join(' · '),
+        .join(' · ') || null,
       state: mapSelfExecutionStatusToWorkState(sourceStatus),
       sourceStatus,
+      ownerId: null,
+      ownerLabel: null,
       createdAt,
       updatedAt,
+      lastActivityAt: updatedAt,
       requiresAttention: sourceStatus === 'pending',
+      slaDueAt: null,
       version: updatedAt,
       regionLabel: licenseState,
-      metaLabel: row.compliance_tag ? String(row.compliance_tag) : 'interim_v1',
+      metaLabel: row.compliance_tag ? String(row.compliance_tag) : null,
     };
   });
 
