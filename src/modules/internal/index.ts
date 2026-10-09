@@ -44,3 +44,9 @@ export {
   findIdempotentResponse,
   storeIdempotentResponse,
 } from './idempotency.js';
+export {
+  listBrokers,
+  listListings,
+  type CcBroker,
+  type CcListing,
+} from './directory.js';

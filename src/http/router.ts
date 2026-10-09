@@ -97,8 +97,10 @@ import {
   handleInternalGetParty,
   handleInternalHealth,
   handleInternalListApplications,
+  handleInternalListBrokers,
   handleInternalListCaseEvents,
   handleInternalListCases,
+  handleInternalListListings,
   handleInternalListPartnerReviews,
   handleInternalListParties,
   handleInternalScreeningResult,
@@ -158,6 +160,14 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
     if (method === 'GET' && path === '/internal/v1/partner-reviews') {
       await handleInternalListPartnerReviews(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/internal/v1/brokers') {
+      await handleInternalListBrokers(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/internal/v1/listings') {
+      await handleInternalListListings(req, res, deps);
       return true;
     }
 

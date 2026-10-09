@@ -17,8 +17,10 @@ import {
   getScreeningStatus,
   hasScope,
   listApplicationWorkItems,
+  listBrokers,
   listCaseEvents,
   listCases,
+  listListings,
   listPartnerReviewWorkItems,
   listParties,
   pingDb,
@@ -314,6 +316,51 @@ export async function handleInternalScreeningResult(
       message:
         'screening report bodies are not exposed via Control Center internal API; use screening-status (status-only)',
     });
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleInternalListBrokers(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: InternalHandlerDeps,
+): Promise<void> {
+  try {
+    if (requireService(req, res) === false) return;
+    const q = parseQuery(req.url ?? '');
+    const limitRaw = q.get('limit');
+    const limit = limitRaw != null ? Number(limitRaw) : 50;
+    const result = await withSystemBypass(deps.pool, (c) =>
+      listBrokers(c, {
+        limit: Number.isFinite(limit) ? limit : 50,
+        q: q.get('q'),
+      }),
+    );
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleInternalListListings(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: InternalHandlerDeps,
+): Promise<void> {
+  try {
+    if (requireService(req, res) === false) return;
+    const q = parseQuery(req.url ?? '');
+    const limitRaw = q.get('limit');
+    const limit = limitRaw != null ? Number(limitRaw) : 50;
+    const result = await withSystemBypass(deps.pool, (c) =>
+      listListings(c, {
+        limit: Number.isFinite(limit) ? limit : 50,
+        q: q.get('q'),
+        status: q.get('status'),
+      }),
+    );
+    sendJson(res, 200, result);
   } catch (err) {
     sendError(res, err);
   }
