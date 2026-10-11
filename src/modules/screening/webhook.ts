@@ -4,7 +4,7 @@ import { getJobQueue } from '../../infra/queue/index.js';
 import { emitDomainEvent } from '../audit/index.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { AppError } from '../shared/errors.js';
-import { verifyCertnWebhookSignature } from '../vendors/certn.js';
+import { verifyCertnWebhookSignature } from '../vendors/index.js';
 import { recordVendorCost } from './archive.js';
 import { recomputeBadge } from './badge.js';
 import { transitionOrderStatus } from './order.js';

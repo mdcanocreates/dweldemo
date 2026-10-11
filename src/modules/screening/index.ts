@@ -91,3 +91,13 @@ export {
   assertScreeningConsentRecorded,
   type RecordScreeningConsentInput,
 } from './consent.js';
+
+export {
+  findReusableScreening,
+  type ReusableScreening,
+} from './reuse.js';
+
+export {
+  completeDemoScreening,
+  assertDemoApplication,
+} from './demo-complete.js';

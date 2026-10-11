@@ -322,7 +322,9 @@ describe('Phase 1 / Certn vertical slice', () => {
     try {
       const client = await appPool.connect();
       try {
-        await client.query(`select set_config('rbit.current_party_id', $1, false)`, [
+        // Transaction-local GUCs only (is_local=true) — never session-scoped false.
+        await client.query('begin');
+        await client.query(`select set_config('rbit.current_party_id', $1, true)`, [
           (
             await withBypass(db.pool, async (c) => {
               const { rows } = await c.query<{ party_id: string }>(
@@ -333,7 +335,7 @@ describe('Phase 1 / Certn vertical slice', () => {
             })
           ),
         ]);
-        await client.query(`select set_config('rbit.current_org_id', $1, false)`, [
+        await client.query(`select set_config('rbit.current_org_id', $1, true)`, [
           seeded.listingA.orgId,
         ]);
         const { rows } = await client.query(
@@ -341,6 +343,7 @@ describe('Phase 1 / Certn vertical slice', () => {
           [createB.body.application_id],
         );
         expect(rows.length).toBe(0);
+        await client.query('rollback');
       } finally {
         client.release();
       }

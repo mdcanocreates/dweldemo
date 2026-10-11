@@ -3,7 +3,12 @@ import type { DbClient } from '../../db/pool.js';
 import { InProcessSagaRunner, type SagaActivity } from '../../infra/workflows/index.js';
 import { emitDomainEvent } from '../audit/index.js';
 import { assertScreeningConsentRecorded, recordScreeningConsent } from './consent.js';
-import { getVendorRegistry } from '../vendors/index.js';
+import {
+  getVendorRegistry,
+  DemoTenantScreening,
+  type TenantScreening,
+} from '../vendors/index.js';
+import { isDemoModeEnabled } from '../demo/index.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { AppError } from '../shared/errors.js';
 import {
@@ -21,6 +26,27 @@ import { runPrescreen } from './prescreen.js';
 import { DEVICE_PRESCREEN_GENERIC_MESSAGE } from './device-prescreen.js';
 import { setReportExpiryFromConfig } from './reports.js';
 import { refreshOrderAndApplication } from './webhook.js';
+
+/**
+ * Per-order screening vendor resolution.
+ * DemoTenantScreening ONLY when DWEL_DEMO_ENABLED and application.is_demo.
+ * Normal applications never silently fall through to demo.
+ */
+export async function resolveTenantScreeningForOrder(
+  client: DbClient,
+  order: { application_id: string | null },
+): Promise<TenantScreening> {
+  if (isDemoModeEnabled() && order.application_id) {
+    const { rows } = await client.query<{ is_demo: boolean }>(
+      `select coalesce(is_demo, false) as is_demo from application where id = $1`,
+      [order.application_id],
+    );
+    if (rows[0]?.is_demo) {
+      return new DemoTenantScreening();
+    }
+  }
+  return getVendorRegistry().tenantScreening();
+}
 
 export type PipelineInput = {
   partyId: string;
@@ -438,7 +464,9 @@ export function createScreeningSagaRunner(): InProcessSagaRunner {
     if (!order) return { failed: true };
 
     const pkg = await getActivePackage(client);
-    const screening = getVendorRegistry().tenantScreening();
+    // Demo apps use DemoTenantScreening only when DWEL_DEMO_ENABLED + is_demo.
+    // Normal apps keep the boot registry (Certn sandbox or unavailable) — never silent demo fallback.
+    const screening = await resolveTenantScreeningForOrder(client, order);
     const correlationId = randomUUID();
 
     await archiveVendorRequest(client, {

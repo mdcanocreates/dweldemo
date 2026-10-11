@@ -5,7 +5,7 @@
 
 import type { DbClient } from '../../db/pool.js';
 import { AppError } from '../shared/errors.js';
-import { listSelfExecutionReviews } from '../admin/ops.js';
+import { listSelfExecutionReviews } from '../admin/index.js';
 
 export type WorkItemState =
   | 'new'

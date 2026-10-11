@@ -1,11 +1,17 @@
 import type { DbClient } from '../../db/pool.js';
 import { postLedgerTransaction } from '../ledger/index.js';
-import { recordScreeningConsent } from '../screening/consent.js';
+import {
+  recordScreeningConsent,
+  grantReportAccess,
+  findReusableScreening,
+} from '../screening/index.js';
 import { AppError } from '../shared/errors.js';
 import { getVendorRegistry } from '../vendors/index.js';
-import { recordApplicantPurchasedReport } from '../renter/ny-report.js';
-import { screeningFeeForState } from '../renter/screening-fee.js';
-import { getRenterProfile } from '../renter/profile.js';
+import {
+  recordApplicantPurchasedReport,
+  screeningFeeForState,
+  getRenterProfile,
+} from '../renter/index.js';
 
 /**
  * Atomic screening fee charge + FCRA consent.
@@ -34,18 +40,27 @@ export async function payAndRecordConsent(
      * When set, server must verify PI succeeded before consent (not yet implemented).
      */
     paymentIntentId?: string | null;
+    /**
+     * Internal preview only — uses PaymentRail stub, never live Stripe/Certn/SES.
+     * Ownership must already be resolved to preview_party_id by the HTTP layer.
+     */
+    preview?: boolean;
   },
 ): Promise<{
   consent_id: string;
   disclosure_version: string;
   fee_cents: number;
-  charge_id: string;
-  ledger_transaction_id: string;
+  charge_id: string | null;
+  ledger_transaction_id: string | null;
   status: string;
+  preview: boolean;
+  reused_existing_report: boolean;
+  reuse_reason: string | null;
 }> {
   void input.paymentConfirmed; // never authoritative
+  const preview = Boolean(input.preview);
 
-  if (input.paymentIntentId) {
+  if (input.paymentIntentId && !preview) {
     // Placeholder until real Stripe verification lands in Part I.
     throw new AppError(
       'payment_intent verification not yet enabled — DEV uses PaymentRail charge only',
@@ -58,8 +73,9 @@ export async function payAndRecordConsent(
     id: string;
     status: string;
     party_id: string;
+    org_id: string;
   }>(
-    `select id, status, party_id from application where id = $1 for update`,
+    `select id, status, party_id, org_id from application where id = $1 for update`,
     [input.applicationId],
   );
   const app = apps[0];
@@ -70,63 +86,113 @@ export async function payAndRecordConsent(
 
   const profile = await getRenterProfile(client, input.partyId);
   const fee = await screeningFeeForState(client, profile?.preferred_state ?? null);
-
-  // Server-side charge is the payment verification (stub in DEV).
-  const rail = getVendorRegistry().paymentRail();
-  const charge = await rail.createCharge({
-    amountCents: fee.amount_cents,
-    currency: 'usd',
-    idempotencyKey: `screening_fee:${input.applicationId}`,
-    metadata: {
-      application_id: input.applicationId,
-      party_id: input.partyId,
-      kind: 'applicant_screening_fee',
-    },
+  const reuse = await findReusableScreening(client, {
+    partyId: input.partyId,
+    applicationId: input.applicationId,
+    feeCentsIfNew: fee.amount_cents,
   });
-  if (charge.status === 'failed') {
-    throw new AppError(
-      charge.failureCode ?? 'payment failed',
-      'payment_failed',
-      402,
-    );
+
+  let chargeId: string | null = null;
+  let ledgerTransactionId: string | null = null;
+  let feeCharged = fee.amount_cents;
+
+  let sharedExistingReport = false;
+  if (reuse.reusable) {
+    feeCharged = 0;
+    if (reuse.report_id) {
+      const grant = await grantReportAccess(client, {
+        reportId: reuse.report_id,
+        grantedToOrgId: app.org_id,
+        actorPartyId: input.partyId,
+        applicationId: input.applicationId,
+      });
+      // Successful share of a live report — do not open a second Certn order.
+      sharedExistingReport = grant.granted === true && grant.repull === false;
+    }
+  } else {
+    // Server-side charge is the payment verification (stub in DEV / preview).
+    const rail = getVendorRegistry().paymentRail();
+    const charge = await rail.createCharge({
+      amountCents: fee.amount_cents,
+      currency: 'usd',
+      idempotencyKey: preview
+        ? `preview_screening_fee:${input.applicationId}`
+        : `screening_fee:${input.applicationId}`,
+      metadata: {
+        application_id: input.applicationId,
+        party_id: input.partyId,
+        kind: 'applicant_screening_fee',
+        preview: preview ? 'true' : 'false',
+        external_side_effects: 'false',
+      },
+    });
+    if (charge.status === 'failed') {
+      throw new AppError(
+        charge.failureCode ?? 'payment failed',
+        'payment_failed',
+        402,
+      );
+    }
+    chargeId = charge.chargeId;
+
+    const ledger = await postLedgerTransaction(client, {
+      kind: 'applicant_screening_fee',
+      idempotencyKey: preview
+        ? `ledger:preview_screening_fee:${input.applicationId}`
+        : `ledger:screening_fee:${input.applicationId}`,
+      memo: preview
+        ? `preview applicant_screening_fee ${fee.amount_cents}c (no live Stripe)`
+        : `applicant_screening_fee ${fee.amount_cents}c → rbit_screening_revenue`,
+      lines: [
+        {
+          accountCode: 'asset:cash:stripe',
+          direction: 'dr',
+          amountCents: fee.amount_cents,
+          counterpartyPartyId: input.partyId,
+        },
+        {
+          accountCode: 'revenue:rbit_screening_revenue',
+          direction: 'cr',
+          amountCents: fee.amount_cents,
+        },
+      ],
+    });
+    ledgerTransactionId = ledger.transactionId;
   }
 
-  const ledger = await postLedgerTransaction(client, {
-    kind: 'applicant_screening_fee',
-    idempotencyKey: `ledger:screening_fee:${input.applicationId}`,
-    memo: `applicant_screening_fee ${fee.amount_cents}c → rbit_screening_revenue`,
-    lines: [
-      {
-        accountCode: 'asset:cash:stripe',
-        direction: 'dr',
-        amountCents: fee.amount_cents,
-        counterpartyPartyId: input.partyId,
-      },
-      {
-        accountCode: 'revenue:rbit_screening_revenue',
-        direction: 'cr',
-        amountCents: fee.amount_cents,
-      },
-    ],
-  });
-
+  // Consent is always application-scoped — reuse never skips authorization.
   const consent = await recordScreeningConsent(client, {
     applicationId: input.applicationId,
     consentIp: input.consentIp,
     consentUserAgent: input.consentUserAgent,
   });
 
-  // Move into awaiting_consent → screening_authorized path marker for tracker UX.
-  // Keep draft/awaiting_landlord_interest semantics: after paid consent, mark awaiting_landlord_interest
-  // if still draft so G-3 can show "Waiting for landlord review".
-  if (app.status === 'draft') {
+  // Case B share complete: authorized screening result available without new vendor order.
+  if (sharedExistingReport) {
+    await client.query(
+      `update application
+       set status = 'screening_complete',
+           screening_authorized_at = coalesce(screening_authorized_at, now()),
+           screened_at = coalesce(screened_at, now())
+       where id = $1
+         and status in ('awaiting_consent', 'screening_authorized', 'draft')`,
+      [input.applicationId],
+    );
+  } else if (app.status === 'awaiting_consent') {
+    // Case A: ready for provider submit (new Certn/demo order).
+    await client.query(
+      `update application set status = 'screening_authorized' where id = $1 and status = 'awaiting_consent'`,
+      [input.applicationId],
+    );
+  }
+  if (!sharedExistingReport && app.status === 'draft') {
     await client.query(
       `update application set status = 'awaiting_landlord_interest' where id = $1 and status = 'draft'`,
       [input.applicationId],
     );
   }
 
-  if (input.nyPath2 || profile?.preferred_state === 'NY') {
+  if (!preview && !reuse.reusable && (input.nyPath2 || profile?.preferred_state === 'NY')) {
     await recordApplicantPurchasedReport(client, {
       partyId: input.partyId,
       stateJurisdiction: profile?.preferred_state ?? 'NY',
@@ -141,9 +207,12 @@ export async function payAndRecordConsent(
   return {
     consent_id: consent.consentId,
     disclosure_version: consent.disclosureVersion,
-    fee_cents: fee.amount_cents,
-    charge_id: charge.chargeId,
-    ledger_transaction_id: ledger.transactionId,
+    fee_cents: feeCharged,
+    charge_id: chargeId,
+    ledger_transaction_id: ledgerTransactionId,
     status: after[0]!.status,
+    preview,
+    reused_existing_report: reuse.reusable,
+    reuse_reason: reuse.reusable ? reuse.reason : null,
   };
 }

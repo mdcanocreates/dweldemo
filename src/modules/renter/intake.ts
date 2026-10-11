@@ -1,6 +1,6 @@
 import type { DbClient } from '../../db/pool.js';
 import { AppError } from '../shared/errors.js';
-import { computeAndStoreRulesMatchScore } from '../matching/rules-match-score.js';
+import { computeAndStoreRulesMatchScore } from '../matching/index.js';
 import { getRenterProfile } from './profile.js';
 
 export type IntakePayload = {
@@ -14,6 +14,7 @@ export type IntakePayload = {
   employer_phone?: string | null;
   employment_length_months?: number | null;
   monthly_gross_income_cents?: number | null;
+  preferred_lease_term_months?: number | null;
   occupants?: unknown[];
   pets?: unknown[];
   emergency_contact?: unknown | null;
@@ -37,18 +38,26 @@ export async function upsertRenterIntake(
   partyId: string,
   input: IntakePayload,
 ): Promise<Record<string, unknown>> {
+  const leaseTerm =
+    input.preferred_lease_term_months != null &&
+    Number.isFinite(input.preferred_lease_term_months) &&
+    input.preferred_lease_term_months > 0
+      ? Math.trunc(input.preferred_lease_term_months)
+      : null;
+
   await client.query(
     `insert into renter_application_intake (
        party_id, current_address_line1, current_address_city, current_address_state,
        current_address_postal, current_address_move_in, employer_name, job_title,
        employer_phone, employment_length_months, monthly_gross_income_cents,
+       preferred_lease_term_months,
        occupants, pets, emergency_contact, vehicle, completed_at, updated_at
      ) values (
-       $1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11,
-       coalesce($12::jsonb, '[]'::jsonb),
+       $1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11,$12,
        coalesce($13::jsonb, '[]'::jsonb),
-       $14::jsonb, $15::jsonb,
-       case when $16 then now() else null end,
+       coalesce($14::jsonb, '[]'::jsonb),
+       $15::jsonb, $16::jsonb,
+       case when $17 then now() else null end,
        now()
      )
      on conflict (party_id) do update set
@@ -62,12 +71,13 @@ export async function upsertRenterIntake(
        employer_phone = coalesce(excluded.employer_phone, renter_application_intake.employer_phone),
        employment_length_months = coalesce(excluded.employment_length_months, renter_application_intake.employment_length_months),
        monthly_gross_income_cents = coalesce(excluded.monthly_gross_income_cents, renter_application_intake.monthly_gross_income_cents),
+       preferred_lease_term_months = coalesce(excluded.preferred_lease_term_months, renter_application_intake.preferred_lease_term_months),
        occupants = coalesce(excluded.occupants, renter_application_intake.occupants),
        pets = coalesce(excluded.pets, renter_application_intake.pets),
        emergency_contact = coalesce(excluded.emergency_contact, renter_application_intake.emergency_contact),
        vehicle = coalesce(excluded.vehicle, renter_application_intake.vehicle),
        completed_at = case
-         when $16 then now()
+         when $17 then now()
          else renter_application_intake.completed_at
        end,
        updated_at = now()`,
@@ -83,6 +93,7 @@ export async function upsertRenterIntake(
       input.employer_phone ?? null,
       input.employment_length_months ?? null,
       input.monthly_gross_income_cents ?? null,
+      leaseTerm,
       input.occupants != null ? JSON.stringify(input.occupants) : null,
       input.pets != null ? JSON.stringify(input.pets) : null,
       input.emergency_contact != null ? JSON.stringify(input.emergency_contact) : null,
@@ -90,6 +101,16 @@ export async function upsertRenterIntake(
       Boolean(input.mark_complete),
     ],
   );
+
+  if (leaseTerm != null) {
+    await client.query(
+      `update renter_profile
+       set preferred_lease_term_months = coalesce($2, preferred_lease_term_months),
+           updated_at = now()
+       where party_id = $1`,
+      [partyId, leaseTerm],
+    );
+  }
 
   // Mirror monthly income onto renter_profile annual when provided
   if (input.monthly_gross_income_cents != null) {
@@ -146,12 +167,32 @@ export async function snapshotIntakeOnApplication(
       : null,
     intake,
   };
+  const preferredLease =
+    (intake &&
+    typeof intake === 'object' &&
+    'preferred_lease_term_months' in intake &&
+    intake.preferred_lease_term_months != null
+      ? Number(intake.preferred_lease_term_months)
+      : null) ??
+    profile?.preferred_lease_term_months ??
+    null;
+
   await client.query(
     `update application
-     set intake_snapshot = $2::jsonb
+     set intake_snapshot = $2::jsonb,
+         preferred_lease_term_months = coalesce(
+           preferred_lease_term_months,
+           $3
+         )
      where id = $1
        and (intake_snapshot is null)`,
-    [applicationId, JSON.stringify(snapshot)],
+    [
+      applicationId,
+      JSON.stringify(snapshot),
+      preferredLease != null && Number.isFinite(preferredLease) && preferredLease > 0
+        ? Math.trunc(preferredLease)
+        : null,
+    ],
   );
 }
 

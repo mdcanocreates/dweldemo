@@ -4,7 +4,7 @@ import {
   serializeListingForApi,
   type ListingApiShape,
   type SourceDisplayRule,
-} from '../ingestion/display-serialize.js';
+} from '../ingestion/index.js';
 import { AppError } from '../shared/errors.js';
 
 type ListingRow = {
@@ -85,9 +85,9 @@ function rowToDisplayRule(row: ListingRow): SourceDisplayRule | null {
 }
 
 function rowToApiShape(row: ListingRow, media: Array<{ url: string }>): ListingApiShape {
-  // interim_v1: arbitrary display estimate — NOT from rs_price_book / lease credit.
-  // Formula: clamp(round(rent_amount_cents * 0.05), 5000, 50000)
-  const cashbackCents = Math.min(50_000, Math.max(5_000, Math.round(row.rent_amount_cents * 0.05)));
+  // interim_v1: renter cashback display = 20% of first month rent (integer cents).
+  // Not from rs_price_book / lease credit ledger — tagged interim until contractual offer rows exist.
+  const cashbackCents = Math.round(row.rent_amount_cents * 0.2);
   return {
     id: row.id,
     rent_amount_cents: row.rent_amount_cents,

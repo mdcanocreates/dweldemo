@@ -28,3 +28,8 @@ export {
   MATCH_MODEL_VERSION,
   type ScoringWeights,
 } from './match-score.js';
+
+export {
+  computeAndStoreRulesMatchScore,
+  MATCH_SCORE_VERSION,
+} from './rules-match-score.js';

@@ -4,7 +4,7 @@
  */
 
 import type { DbClient } from '../../db/pool.js';
-import { decideSelfExecutionReview } from '../admin/ops.js';
+import { decideSelfExecutionReview } from '../admin/index.js';
 import { AppError } from '../shared/errors.js';
 import { findIdempotentResponse, storeIdempotentResponse } from './idempotency.js';
 import { writeCcOutboxEvent } from './outbox.js';
