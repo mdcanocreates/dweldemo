@@ -32,6 +32,7 @@ export {
   getCaseDetail,
   getParty,
   getScreeningStatus,
+  issueInternalDocumentUrl,
   listCaseEvents,
   listCases,
   listParties,

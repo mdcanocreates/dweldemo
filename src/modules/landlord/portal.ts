@@ -9,6 +9,10 @@ import {
 import { emitDomainEvent } from '../audit/index.js';
 import { ensureCashbackOfferedOnApprove } from '../cashback/index.js';
 import { createNotification } from '../notifications/index.js';
+import {
+  listMissingInfoDocuments,
+  validateRequiredDocumentTypes,
+} from '../renter/index.js';
 import { AppError } from '../shared/errors.js';
 
 export type ScreeningMode = 'auto_screen' | 'manual_review';
@@ -333,6 +337,10 @@ export async function decideOnApplicant(
     note?: string | null;
     reason_codes?: string[];
     missing_info_categories?: string[];
+    required_document_types?: string[];
+    idempotency_key?: string | null;
+    /** Reject if application status changed since UI load (stale decision). */
+    expected_status?: string | null;
   },
 ): Promise<{ application_id: string; status: string; contact_revealed_at: string | null }> {
   const decision = normalizeHpDecision(input.decision);
@@ -351,6 +359,14 @@ export async function decideOnApplicant(
   );
   const app = rows[0];
   if (!app) throw new AppError('application not found', 'application_not_found', 404);
+
+  if (input.expected_status && input.expected_status !== app.status) {
+    throw new AppError(
+      `application status is '${app.status}', expected '${input.expected_status}'`,
+      'conflict',
+      409,
+    );
+  }
 
   // Idempotent: same terminal decision twice is OK
   if (decision === 'approve' && app.status === 'approved' && app.contact_revealed_at) {
@@ -379,6 +395,27 @@ export async function decideOnApplicant(
       status: app.status,
       contact_revealed_at: app.contact_revealed_at?.toISOString() ?? null,
     };
+  }
+
+  if (decision === 'request_more_info' && input.idempotency_key) {
+    const { rows: existingReq } = await client.query<{
+      id: string;
+      application_status: string;
+    }>(
+      `select mir.id, a.status as application_status
+       from missing_info_request mir
+       join application a on a.id = mir.application_id
+       where mir.org_id = $1 and mir.idempotency_key = $2
+       limit 1`,
+      [input.orgId, input.idempotency_key],
+    );
+    if (existingReq[0]) {
+      return {
+        application_id: app.id,
+        status: existingReq[0].application_status,
+        contact_revealed_at: app.contact_revealed_at?.toISOString() ?? null,
+      };
+    }
   }
 
   assertHpTransitionAllowed({ fromStatus: app.status, decision });
@@ -439,6 +476,7 @@ export async function decideOnApplicant(
     decisionRow = 'move_forward';
   } else if (decision === 'request_more_info') {
     missingCategories = validateMissingInfoCategories(input.missing_info_categories);
+    validateRequiredDocumentTypes(input.required_document_types);
     nextStatus = 'info_requested';
     decisionRow = 'info_requested';
   }
@@ -486,11 +524,12 @@ export async function decideOnApplicant(
       input.note != null && input.note.trim()
         ? input.note.trim().slice(0, 500)
         : null;
+    const docTypes = validateRequiredDocumentTypes(input.required_document_types);
     await client.query(
       `insert into missing_info_request (
          application_id, listing_id, org_id, categories, message,
-         requested_by_party_id, status
-       ) values ($1,$2,$3,$4::text[],$5,$6,'open')`,
+         requested_by_party_id, status, required_document_types, idempotency_key
+       ) values ($1,$2,$3,$4::text[],$5,$6,'open',$7::text[],$8)`,
       [
         app.id,
         input.listingId,
@@ -498,6 +537,8 @@ export async function decideOnApplicant(
         missingCategories,
         message,
         input.actorPartyId,
+        docTypes,
+        input.idempotency_key ?? null,
       ],
     );
   }
@@ -930,6 +971,11 @@ export async function getApplicantDetail(
     else if (r.report_kind === 'identity') screening_summary.identity = mapped;
   }
 
+  const { rows: mirCols } = await client.query<{ has_docs: string | null }>(
+    `select to_regclass('public.missing_info_request_document')::text as has_docs`,
+  );
+  const hasDocLink = Boolean(mirCols[0]?.has_docs);
+
   const { rows: missing } = await client.query<{
     id: string;
     categories: string[];
@@ -938,13 +984,48 @@ export async function getApplicantDetail(
     renter_response: string | null;
     created_at: Date;
     responded_at: Date | null;
+    required_document_types: string[] | null;
+    review_note: string | null;
+    reviewed_at: Date | null;
+    response_version: number | null;
   }>(
-    `select id, categories, message, status, renter_response, created_at, responded_at
-     from missing_info_request
-     where application_id = $1
-     order by created_at desc`,
+    hasDocLink
+      ? `select id, categories, message, status, renter_response, created_at, responded_at,
+                coalesce(required_document_types, '{}') as required_document_types,
+                review_note, reviewed_at, coalesce(response_version, 0) as response_version
+         from missing_info_request
+         where application_id = $1
+         order by created_at desc`
+      : `select id, categories, message, status, renter_response, created_at, responded_at,
+                '{}'::text[] as required_document_types,
+                null::text as review_note, null::timestamptz as reviewed_at,
+                0 as response_version
+         from missing_info_request
+         where application_id = $1
+         order by created_at desc`,
     [app.id],
   );
+
+  const missingWithDocs = [];
+  for (const m of missing) {
+    const documents = hasDocLink
+      ? await listMissingInfoDocuments(client, m.id)
+      : [];
+    missingWithDocs.push({
+      id: m.id,
+      categories: m.categories,
+      message: m.message,
+      status: m.status,
+      renter_response: m.renter_response,
+      created_at: m.created_at.toISOString(),
+      responded_at: m.responded_at?.toISOString() ?? null,
+      required_document_types: m.required_document_types ?? [],
+      review_note: m.review_note,
+      reviewed_at: m.reviewed_at?.toISOString() ?? null,
+      response_version: m.response_version ?? 0,
+      documents,
+    });
+  }
 
   const { rows: events } = await client.query<{
     event_type: string;
@@ -996,15 +1077,7 @@ export async function getApplicantDetail(
     criteria_version_id: app.criteria_version_id,
     prequal_evaluation: app.prequal_evaluation,
     screening_summary,
-    missing_info_requests: missing.map((m) => ({
-      id: m.id,
-      categories: m.categories,
-      message: m.message,
-      status: m.status,
-      renter_response: m.renter_response,
-      created_at: m.created_at.toISOString(),
-      responded_at: m.responded_at?.toISOString() ?? null,
-    })),
+    missing_info_requests: missingWithDocs,
     broker_notes: brokerNotes,
     broker_recommendation: brokerRecommendation,
     broker_recommendation_at: brokerRecommendationAt,

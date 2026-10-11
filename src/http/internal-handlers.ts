@@ -16,6 +16,7 @@ import {
   getParty,
   getScreeningStatus,
   hasScope,
+  issueInternalDocumentUrl,
   listApplicationWorkItems,
   listBrokers,
   listCaseEvents,
@@ -399,6 +400,33 @@ export async function handleInternalCaseAction(
     );
     sendJson(res, result.status, result.body);
   } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleInternalDocumentUrl(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: InternalHandlerDeps,
+  documentId: string,
+): Promise<void> {
+  try {
+    if (requireService(req, res) === false) return;
+    const body = z
+      .object({ org_id: z.string().uuid().optional() })
+      .parse((await readJsonBody(req).catch(() => ({}))) as Record<string, unknown>);
+    const result = await withSystemBypass(deps.pool, (c) =>
+      issueInternalDocumentUrl(c, {
+        documentId,
+        orgId: body.org_id ?? null,
+      }),
+    );
+    sendJson(res, 200, result);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
+      return;
+    }
     sendError(res, err);
   }
 }

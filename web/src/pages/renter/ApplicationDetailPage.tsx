@@ -19,12 +19,25 @@ import {
 } from '../../components/application/ApplicationProgressTimeline';
 import { applicationScreeningPath } from '../../lib/application-routes';
 
+type MissingInfoOpen = {
+  id: string;
+  status: string;
+  categories: string[];
+  message: string | null;
+  required_document_types: string[];
+  review_note: string | null;
+  response_version: number;
+  renter_response: string | null;
+  responded_at: string | null;
+};
+
 type AppRow = {
   application_id: string;
   status: string;
   listing_id: string | null;
   created_at: string;
   progress?: ApplicationProgress;
+  open_missing_info?: MissingInfoOpen | null;
   listing: {
     line1: string | null;
     city: string | null;
@@ -80,6 +93,8 @@ export function ApplicationDetailPage() {
   const [missingBusy, setMissingBusy] = useState(false);
   const [missingError, setMissingError] = useState<string | null>(null);
   const [missingOk, setMissingOk] = useState<string | null>(null);
+  const [uploadedDocIds, setUploadedDocIds] = useState<string[]>([]);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const [cashback, setCashback] = useState<CashbackRow | null>(null);
   const [cashbackNote, setCashbackNote] = useState<string | null>(null);
   const [leases, setLeases] = useState<LeaseRow[]>([]);
@@ -157,13 +172,24 @@ export function ApplicationDetailPage() {
 
   async function submitMissingInfo() {
     if (!app || !missingResponse.trim()) return;
+    const mir = app.open_missing_info;
+    if (mir?.required_document_types?.length && uploadedDocIds.length === 0) {
+      setMissingError('Upload the required supporting documents before submitting.');
+      return;
+    }
     setMissingBusy(true);
     setMissingError(null);
     setMissingOk(null);
     try {
-      await api.respondMissingInfo(app.application_id, { response: missingResponse.trim() });
+      await api.respondMissingInfo(app.application_id, {
+        response: missingResponse.trim(),
+        request_id: mir?.id,
+        document_ids: uploadedDocIds,
+        idempotency_key: `mir-resp-${app.application_id}-${mir?.id ?? 'latest'}-${Date.now()}`,
+      });
       setMissingOk('Response submitted. The Home Provider can continue review.');
       setMissingResponse('');
+      setUploadedDocIds([]);
       await load();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Could not submit response.';
@@ -179,9 +205,41 @@ export function ApplicationDetailPage() {
     }
   }
 
+  async function onPickFile(file: File | null) {
+    if (!file || !app?.open_missing_info?.id) return;
+    setUploadBusy(true);
+    setMissingError(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const b64 = btoa(binary);
+      const res = await api.uploadMissingInfoDocument(app.application_id, app.open_missing_info.id, {
+        content_type: file.type || 'application/pdf',
+        content_base64: b64,
+        original_filename: file.name,
+      });
+      setUploadedDocIds((prev) => [...prev, res.document_id]);
+    } catch (err) {
+      setMissingError(
+        friendlyApiError(err instanceof ApiError ? err.message : 'Upload failed.'),
+      );
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
   const progress = app?.progress ?? null;
+  const mir = app?.open_missing_info ?? null;
   const infoRequested =
-    app?.status === 'info_requested' || app?.status === 'more_info_requested';
+    app?.status === 'info_requested' ||
+    app?.status === 'more_info_requested' ||
+    mir?.status === 'open' ||
+    mir?.status === 'returned';
   const statusLabel = progress?.status_label ?? (app ? applicationStatusLabel(app.status) : '');
   const ctaHref = app && progress ? primaryHref(app.application_id, progress.primary_action) : null;
 
@@ -334,31 +392,73 @@ export function ApplicationDetailPage() {
             </Card>
           </div>
 
-          {infoRequested ? (
+          {infoRequested && mir ? (
             <div id="missing-info-panel">
             <Card className="mt-4 p-[18px]">
               <h2 className="text-lg font-semibold">Outstanding: information requested</h2>
               <p className="mt-1 text-sm text-dwel-muted">
-                The Home Provider asked for additional permitted details. Provide a clear response
-                so review can continue.
+                Status: <strong>{mir.status}</strong>
+                {mir.categories?.length ? ` · Categories: ${mir.categories.join(', ')}` : ''}
               </p>
+              {mir.message ? (
+                <p className="mt-2 text-sm">{mir.message}</p>
+              ) : (
+                <p className="mt-2 text-sm text-dwel-muted">
+                  Provide the requested details so review can continue.
+                </p>
+              )}
+              {mir.review_note && mir.status === 'returned' ? (
+                <p className="mt-2 rounded-[10px] border border-[#f0d7a0] bg-[#fff8e9] px-3 py-2 text-sm">
+                  Returned for correction: {mir.review_note}
+                </p>
+              ) : null}
+              {mir.required_document_types?.length ? (
+                <p className="mt-2 text-sm text-dwel-muted">
+                  Required documents: {mir.required_document_types.join(', ')}
+                </p>
+              ) : null}
+              <label className="mt-3 block text-sm font-semibold">
+                Upload supporting file (PDF or image, max 10MB)
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  className="mt-1 block w-full text-sm"
+                  disabled={uploadBusy || mir.status === 'responded' || mir.status === 'accepted'}
+                  onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {uploadedDocIds.length ? (
+                <p className="mt-2 text-xs text-dwel-success">
+                  {uploadedDocIds.length} file(s) uploaded and attached.
+                </p>
+              ) : null}
               <textarea
                 className="mt-3 w-full rounded-[10px] border border-dwel-line px-3 py-2 text-sm"
                 rows={4}
                 value={missingResponse}
                 onChange={(e) => setMissingResponse(e.target.value)}
-                placeholder="Your response"
+                placeholder="Your written explanation"
                 maxLength={2000}
+                disabled={mir.status === 'responded' || mir.status === 'accepted'}
               />
               {missingError ? <p className="mt-2 text-sm text-dwel-red">{missingError}</p> : null}
               {missingOk ? <p className="mt-2 text-sm text-dwel-success">{missingOk}</p> : null}
-              <Button
-                className="mt-3"
-                disabled={missingBusy || !missingResponse.trim()}
-                onClick={() => void submitMissingInfo()}
-              >
-                {missingBusy ? 'Submitting…' : 'Submit response'}
-              </Button>
+              {mir.status === 'responded' ? (
+                <p className="mt-3 text-sm text-dwel-muted">
+                  Response received{mir.responded_at ? ` on ${new Date(mir.responded_at).toLocaleString()}` : ''}. Waiting for
+                  Home Provider review.
+                </p>
+              ) : mir.status === 'accepted' ? (
+                <p className="mt-3 text-sm text-dwel-success">Your response was accepted.</p>
+              ) : (
+                <Button
+                  className="mt-3"
+                  disabled={missingBusy || uploadBusy || !missingResponse.trim()}
+                  onClick={() => void submitMissingInfo()}
+                >
+                  {missingBusy ? 'Submitting…' : 'Submit response'}
+                </Button>
+              )}
             </Card>
             </div>
           ) : null}

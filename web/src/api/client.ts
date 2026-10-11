@@ -631,6 +631,9 @@ export const api = {
       note?: string;
       reason_codes?: string[];
       missing_info_categories?: string[];
+      required_document_types?: string[];
+      expected_status?: string;
+      idempotency_key?: string;
     },
   ) =>
     request<{ application_id: string; status: string; contact_revealed_at?: string | null }>(
@@ -642,8 +645,32 @@ export const api = {
           note: opts?.note,
           reason_codes: opts?.reason_codes,
           missing_info_categories: opts?.missing_info_categories,
+          required_document_types: opts?.required_document_types,
+          expected_status: opts?.expected_status,
+          idempotency_key: opts?.idempotency_key,
         }),
       },
+    ),
+
+  landlordReviewMissingInfo: (
+    listingId: string,
+    applicationId: string,
+    requestId: string,
+    body: {
+      decision: 'accept' | 'return';
+      note?: string;
+      expected_response_version?: number;
+    },
+  ) =>
+    request<{ request_id: string; status: string }>(
+      `/v1/landlord/listings/${listingId}/applicants/${applicationId}/missing-info/${requestId}/review`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  landlordMissingInfoDocUrl: (applicationId: string, documentId: string) =>
+    request<{ url: string; expires_at: string; document_id: string }>(
+      `/v1/landlord/applicants/${applicationId}/missing-info/documents/${documentId}/url`,
+      { method: 'POST', body: JSON.stringify({}) },
     ),
 
   landlordApplicantDetail: (applicationId: string) =>
@@ -962,11 +989,42 @@ export const api = {
 
   respondMissingInfo: (
     applicationId: string,
-    body: { response: string; request_id?: string },
+    body: {
+      response: string;
+      request_id?: string;
+      document_ids?: string[];
+      idempotency_key?: string;
+    },
   ) =>
-    request<{ request_id: string; status: string }>(
+    request<{ request_id: string; status: string; response_version?: number }>(
       `/v1/renter/applications/${applicationId}/missing-info-response`,
       { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  uploadMissingInfoDocument: (
+    applicationId: string,
+    requestId: string,
+    body: {
+      content_type: string;
+      content_base64: string;
+      original_filename?: string;
+      doc_type?: string;
+    },
+  ) =>
+    request<{
+      document_id: string;
+      scan_status: string;
+      content_type: string;
+      size_bytes: number;
+    }>(`/v1/renter/applications/${applicationId}/missing-info/${requestId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  renterMissingInfoDocUrl: (applicationId: string, documentId: string) =>
+    request<{ url: string; expires_at: string; document_id: string }>(
+      `/v1/renter/applications/${applicationId}/missing-info/documents/${documentId}/url`,
+      { method: 'POST', body: JSON.stringify({}) },
     ),
 
   getRenterCashback: () =>

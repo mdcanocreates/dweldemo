@@ -21,20 +21,36 @@ import {
 import {
   handleLandlordCreateListing,
   handleLandlordDecideApplicant,
+  handleLandlordReviewMissingInfo,
+  handleLandlordMissingInfoDocUrl,
+  handleLandlordGetApplicantDetail,
+  handleLandlordGetCriteria,
   handleLandlordGetSelfExecution,
   handleLandlordGetSettings,
+  handleLandlordListActivity,
   handleLandlordListApplicants,
+  handleLandlordListLeases,
   handleLandlordListListings,
+  handleLandlordPutCriteria,
   handleLandlordSetListingStatus,
   handleLandlordSubmitSelfExecution,
   handleLandlordUpdateListing,
   handleLandlordUpdateSettings,
+  handleLandlordUploadLease,
   handleLandlordUploadListingPhoto,
+  handleLandlordConfirmListingFreshness,
+  handleLandlordListBrokerInvitations,
+  handleLandlordAcceptBrokerInvitation,
+  handleLandlordMakeLeaseAvailable,
 } from './portal-handlers.js';
 import {
   handleBrokerAddNote,
   handleBrokerApplicationDetail,
+  handleBrokerCancelInvitation,
+  handleBrokerCreateInvitation,
+  handleBrokerRevokeDelegation,
   handleBrokerLeads,
+  handleBrokerListInvitations,
   handleBrokerOverview,
   handleBrokerPerformance,
   handleBrokerPortfolioApplicants,
@@ -46,6 +62,10 @@ import {
   handleBrokerSetRecommendation,
   handleBrokerSubmarkets,
 } from './broker-handlers.js';
+import {
+  handleAttributionVisit,
+  handleInternalPartnerMetrics,
+} from './attribution-handlers.js';
 import {
   handleAcceptBrokerTerms,
   handleGetBrokerTerms,
@@ -63,7 +83,20 @@ import {
   handleGetApplicationIntakeDetail,
   handleGetRenterProfile,
   handleGetScreeningFee,
+  handleGetScreeningCenter,
   handleListMyApplications,
+  handleListSavedListings,
+  handleAddSavedListing,
+  handleRemoveSavedListing,
+  handleListSupportCases,
+  handleCreateSupportCase,
+  handleMissingInfoResponse,
+  handleMissingInfoUpload,
+  handleMissingInfoDocUrl,
+  handleListRenterCashback,
+  handleListNotifications,
+  handleMarkNotificationRead,
+  handleReportListingIssue,
   handleNyPath2Purchase,
   handleNyScreeningChoiceStatus,
   handleNyUploadReport,
@@ -73,8 +106,10 @@ import {
   handleGetAccountDeletionRequest,
   handleUpsertRenterIntake,
   handleUpsertRenterProfile,
-} from './renter-handlers.js';
-import {
+  handleListRenterLeases,
+  handleAcknowledgeRenterLease,
+  handleRenterLeaseDownloadUrl,
+} from './renter-handlers.js';import {
   handleAdminAssignRole,
   handleAdminAudit,
   handleAdminCertnStatus,
@@ -91,6 +126,7 @@ import {
 import { handleInternalPreviewAccess, handleInternalPreviewSetRole } from './preview-handlers.js';
 import {
   handleInternalCaseAction,
+  handleInternalDocumentUrl,
   handleInternalGetApplication,
   handleInternalGetApplicationIntake,
   handleInternalGetCase,
@@ -128,6 +164,10 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleAuthRedeem(req, res, deps);
       return true;
     }
+    if (method === 'POST' && path === '/v1/attribution/visit') {
+      await handleAttributionVisit(req, res, deps);
+      return true;
+    }
     if (method === 'GET' && path === '/v1/auth/me') {
       await handleAuthMe(req, res, deps);
       return true;
@@ -161,6 +201,13 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     if (method === 'GET' && path === '/internal/v1/partner-reviews') {
       await handleInternalListPartnerReviews(req, res, deps);
       return true;
+    }
+    {
+      const m = path.match(/^\/internal\/v1\/partners\/([^/]+)\/metrics$/i);
+      if (method === 'GET' && m) {
+        await handleInternalPartnerMetrics(req, res, deps, decodeURIComponent(m[1]!));
+        return true;
+      }
     }
     if (method === 'GET' && path === '/internal/v1/brokers') {
       await handleInternalListBrokers(req, res, deps);
@@ -198,6 +245,13 @@ export function createApiRouter(deps: HttpHandlerDeps) {
         decodeURIComponent(internalCaseAction[1]!),
         internalCaseAction[2]!,
       );
+      return true;
+    }
+    const internalDocUrl = path.match(
+      /^\/internal\/v1\/documents\/([0-9a-f-]{36})\/signed-url$/i,
+    );
+    if (method === 'POST' && internalDocUrl) {
+      await handleInternalDocumentUrl(req, res, deps, internalDocUrl[1]!);
       return true;
     }
     const internalCaseEvents = path.match(
@@ -294,6 +348,104 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleCreateInterestApplication(req, res, deps);
       return true;
     }
+    if (method === 'GET' && path === '/v1/renter/saved') {
+      await handleListSavedListings(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/renter/saved') {
+      await handleAddSavedListing(req, res, deps);
+      return true;
+    }
+    if (method === 'DELETE' && path === '/v1/renter/saved') {
+      await handleRemoveSavedListing(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/renter/support-cases') {
+      await handleListSupportCases(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/renter/support-cases') {
+      await handleCreateSupportCase(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/renter/screening-center') {
+      await handleGetScreeningCenter(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/renter/cashback') {
+      await handleListRenterCashback(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/notifications') {
+      await handleListNotifications(req, res, deps);
+      return true;
+    }
+    {
+      const m = path.match(/^\/v1\/notifications\/([0-9a-f-]{36})\/read$/i);
+      if (method === 'POST' && m) {
+        await handleMarkNotificationRead(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(/^\/v1\/listings\/([0-9a-f-]{36})\/report-issue$/i);
+      if (method === 'POST' && m) {
+        await handleReportListingIssue(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/renter\/applications\/([0-9a-f-]{36})\/missing-info-response$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleMissingInfoResponse(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/renter\/applications\/([0-9a-f-]{36})\/missing-info\/([0-9a-f-]{36})\/documents$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleMissingInfoUpload(req, res, deps, m[1]!, m[2]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/renter\/applications\/([0-9a-f-]{36})\/missing-info\/documents\/([0-9a-f-]{36})\/url$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleMissingInfoDocUrl(req, res, deps, m[1]!, m[2]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(/^\/v1\/renter\/applications\/([0-9a-f-]{36})\/leases$/i);
+      if (method === 'GET' && m) {
+        await handleListRenterLeases(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/renter\/applications\/([0-9a-f-]{36})\/leases\/([0-9a-f-]{36})\/acknowledge$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleAcknowledgeRenterLease(req, res, deps, m[1]!, m[2]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/renter\/applications\/([0-9a-f-]{36})\/leases\/([0-9a-f-]{36})\/download-url$/i,
+      );
+      if (method === 'GET' && m) {
+        await handleRenterLeaseDownloadUrl(req, res, deps, m[1]!, m[2]!);
+        return true;
+      }
+    }
     if (method === 'GET' && path === '/v1/renter/screening-choice') {
       await handleNyScreeningChoiceStatus(req, res, deps);
       return true;
@@ -332,6 +484,23 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       return true;
     }
 
+    if (method === 'GET' && path === '/v1/landlord/activity') {
+      await handleLandlordListActivity(req, res, deps);
+      return true;
+    }
+    {
+      const m = path.match(/^\/v1\/landlord\/applicants\/([0-9a-f-]{36})$/i);
+      if (method === 'GET' && m) {
+        const applicationId = m[1]!;
+        if (!UUID_RE.test(applicationId)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'validation_error', message: 'invalid application id' }));
+          return true;
+        }
+        await handleLandlordGetApplicantDetail(req, res, deps, applicationId);
+        return true;
+      }
+    }
     if (method === 'GET' && path === '/v1/landlord/listings') {
       await handleLandlordListListings(req, res, deps);
       return true;
@@ -364,6 +533,19 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleLandlordSetListingStatus(req, res, deps, listingId);
       return true;
     }
+    const landlordFreshness = path.match(
+      /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/confirm-freshness$/i,
+    );
+    if (method === 'POST' && landlordFreshness) {
+      const listingId = landlordFreshness[1]!;
+      if (!UUID_RE.test(listingId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid listing id' }));
+        return true;
+      }
+      await handleLandlordConfirmListingFreshness(req, res, deps, listingId);
+      return true;
+    }
     const landlordPhoto = path.match(
       /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/photos$/i,
     );
@@ -376,6 +558,25 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       }
       await handleLandlordUploadListingPhoto(req, res, deps, listingId);
       return true;
+    }
+    const landlordCriteria = path.match(
+      /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/criteria$/i,
+    );
+    if (landlordCriteria) {
+      const listingId = landlordCriteria[1]!;
+      if (!UUID_RE.test(listingId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid listing id' }));
+        return true;
+      }
+      if (method === 'GET') {
+        await handleLandlordGetCriteria(req, res, deps, listingId);
+        return true;
+      }
+      if (method === 'PUT') {
+        await handleLandlordPutCriteria(req, res, deps, listingId);
+        return true;
+      }
     }
     const landlordApplicants = path.match(
       /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/applicants$/i,
@@ -404,7 +605,113 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleLandlordDecideApplicant(req, res, deps, listingId, applicationId);
       return true;
     }
+    const landlordMirReview = path.match(
+      /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/applicants\/([0-9a-f-]{36})\/missing-info\/([0-9a-f-]{36})\/review$/i,
+    );
+    if (method === 'POST' && landlordMirReview) {
+      await handleLandlordReviewMissingInfo(
+        req,
+        res,
+        deps,
+        landlordMirReview[1]!,
+        landlordMirReview[2]!,
+        landlordMirReview[3]!,
+      );
+      return true;
+    }
+    const landlordMirDoc = path.match(
+      /^\/v1\/landlord\/applicants\/([0-9a-f-]{36})\/missing-info\/documents\/([0-9a-f-]{36})\/url$/i,
+    );
+    if (method === 'POST' && landlordMirDoc) {
+      await handleLandlordMissingInfoDocUrl(
+        req,
+        res,
+        deps,
+        landlordMirDoc[1]!,
+        landlordMirDoc[2]!,
+      );
+      return true;
+    }
+    const landlordLease = path.match(
+      /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/applicants\/([0-9a-f-]{36})\/lease$/i,
+    );
+    if (landlordLease) {
+      const listingId = landlordLease[1]!;
+      const applicationId = landlordLease[2]!;
+      if (!UUID_RE.test(listingId) || !UUID_RE.test(applicationId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid id' }));
+        return true;
+      }
+      if (method === 'POST') {
+        await handleLandlordUploadLease(req, res, deps, listingId, applicationId);
+        return true;
+      }
+      if (method === 'GET') {
+        await handleLandlordListLeases(req, res, deps, listingId, applicationId);
+        return true;
+      }
+    }
+    const landlordListingLeases = path.match(
+      /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/leases$/i,
+    );
+    if (method === 'GET' && landlordListingLeases) {
+      const listingId = landlordListingLeases[1]!;
+      if (!UUID_RE.test(listingId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid listing id' }));
+        return true;
+      }
+      await handleLandlordListLeases(req, res, deps, listingId);
+      return true;
+    }
+    {
+      const m = path.match(
+        /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/applicants\/([0-9a-f-]{36})\/leases\/([0-9a-f-]{36})\/make-available$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleLandlordMakeLeaseAvailable(req, res, deps, m[1]!, m[2]!, m[3]!);
+        return true;
+      }
+    }
+    if (method === 'GET' && path === '/v1/landlord/broker-invitations') {
+      await handleLandlordListBrokerInvitations(req, res, deps);
+      return true;
+    }
+    {
+      const m = path.match(
+        /^\/v1\/landlord\/broker-invitations\/([0-9a-f-]{36})\/accept$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleLandlordAcceptBrokerInvitation(req, res, deps, m[1]!);
+        return true;
+      }
+    }
 
+    if (method === 'GET' && path === '/v1/broker/invitations') {
+      await handleBrokerListInvitations(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/broker/invitations') {
+      await handleBrokerCreateInvitation(req, res, deps);
+      return true;
+    }
+    {
+      const m = path.match(/^\/v1\/broker\/invitations\/([0-9a-f-]{36})\/cancel$/i);
+      if (method === 'POST' && m) {
+        await handleBrokerCancelInvitation(req, res, deps, m[1]!);
+        return true;
+      }
+    }
+    {
+      const m = path.match(
+        /^\/v1\/broker\/delegations\/([0-9a-f-]{36})\/revoke$/i,
+      );
+      if (method === 'POST' && m) {
+        await handleBrokerRevokeDelegation(req, res, deps, m[1]!);
+        return true;
+      }
+    }
     if (method === 'GET' && path === '/v1/broker/overview') {
       await handleBrokerOverview(req, res, deps);
       return true;

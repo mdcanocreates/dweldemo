@@ -29,6 +29,8 @@ import {
   addSavedListing,
   removeSavedListing,
   respondToMissingInfo,
+  uploadMissingInfoDocument,
+  signMissingInfoDocumentUrl,
   MOVE_IN_URGENCY,
   recordApplicantPurchasedReport,
   recordApplicantSuppliedReport,
@@ -283,8 +285,79 @@ export async function handleListMyApplications(
         return apps;
       },
     );
+
+    const appsWithMir = await withTenantContext(
+      deps.pool,
+      { partyId },
+      async (client) => {
+        const { rows: hasMir } = await client.query<{ t: string | null }>(
+          `select to_regclass('public.missing_info_request')::text as t`,
+        );
+        if (!hasMir[0]?.t) {
+          return rows.map((a) => ({ app: a, missing: null as null | Record<string, unknown> }));
+        }
+        const out = [];
+        for (const a of rows) {
+          const { rows: sprint2 } = await client.query<{ c: string | null }>(
+            `select to_regclass('public.missing_info_request_document')::text as c`,
+          );
+          const hasSprint2 = Boolean(sprint2[0]?.c);
+          const { rows: mir } = await client.query<{
+            id: string;
+            status: string;
+            categories: string[];
+            message: string | null;
+            required_document_types: string[] | null;
+            review_note: string | null;
+            response_version: number | null;
+            renter_response: string | null;
+            responded_at: Date | null;
+          }>(
+            hasSprint2
+              ? `select id, status, categories, message,
+                      coalesce(required_document_types, '{}') as required_document_types,
+                      review_note, coalesce(response_version, 0) as response_version,
+                      renter_response, responded_at
+               from missing_info_request
+               where application_id = $1
+                 and status in ('open', 'returned', 'responded', 'accepted')
+               order by created_at desc
+               limit 1`
+              : `select id, status, categories, message,
+                      '{}'::text[] as required_document_types,
+                      null::text as review_note, 0 as response_version,
+                      renter_response, responded_at
+               from missing_info_request
+               where application_id = $1
+                 and status in ('open', 'responded', 'cancelled')
+               order by created_at desc
+               limit 1`,
+            [a.id],
+          );
+          const m = mir[0];
+          out.push({
+            app: a,
+            missing: m
+              ? {
+                  id: m.id,
+                  status: m.status,
+                  categories: m.categories,
+                  message: m.message,
+                  required_document_types: m.required_document_types ?? [],
+                  review_note: m.review_note,
+                  response_version: m.response_version ?? 0,
+                  renter_response: m.renter_response,
+                  responded_at: m.responded_at?.toISOString() ?? null,
+                }
+              : null,
+          });
+        }
+        return out;
+      },
+    );
+
     sendJson(res, 200, {
-      applications: rows.map((a) => {
+      applications: appsWithMir.map(({ app: a, missing }) => {
         const created = a.created_at.toISOString();
         const progress = buildApplicationProgress({
           status: a.status,
@@ -314,6 +387,7 @@ export async function handleListMyApplications(
           closed_at: a.closed_at?.toISOString() ?? null,
           contact_revealed_at: a.contact_revealed_at?.toISOString() ?? null,
           progress,
+          open_missing_info: missing,
           listing: a.listing_id
             ? {
                 line1: a.line1,
@@ -1023,6 +1097,8 @@ export async function handleMissingInfoResponse(
       .object({
         response: z.string().min(1).max(2000),
         request_id: z.string().uuid().optional(),
+        document_ids: z.array(z.string().uuid()).max(20).optional(),
+        idempotency_key: z.string().min(8).max(128).optional(),
       })
       .parse(await readJsonBody(req));
     const identity = await requireSession(deps.pool, req);
@@ -1036,6 +1112,8 @@ export async function handleMissingInfoResponse(
           partyId,
           response: body.response,
           requestId: body.request_id,
+          documentIds: body.document_ids,
+          idempotencyKey: body.idempotency_key,
         }),
     );
     sendJson(res, 200, result);
@@ -1044,6 +1122,77 @@ export async function handleMissingInfoResponse(
       sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
       return;
     }
+    sendError(res, err);
+  }
+}
+
+export async function handleMissingInfoUpload(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: RenterHandlerDeps,
+  applicationId: string,
+  requestId: string,
+): Promise<void> {
+  try {
+    const body = z
+      .object({
+        content_type: z.string().min(3).max(120),
+        original_filename: z.string().min(1).max(260).optional(),
+        doc_type: z.string().max(64).optional(),
+        /** Base64 file body — private store; never a public URL */
+        content_base64: z.string().min(1).max(14_000_000),
+      })
+      .parse(await readJsonBody(req));
+    const identity = await requireSession(deps.pool, req);
+    const { partyId } = await effectiveRenterPartyId(deps.pool, req, identity);
+    const buf = Buffer.from(body.content_base64, 'base64');
+    const result = await withTenantContext(
+      deps.pool,
+      { partyId },
+      (client) =>
+        uploadMissingInfoDocument(client, {
+          applicationId,
+          partyId,
+          requestId,
+          body: buf,
+          contentType: body.content_type,
+          originalFilename: body.original_filename,
+          docType: body.doc_type,
+        }),
+    );
+    sendJson(res, 201, result);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleMissingInfoDocUrl(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: RenterHandlerDeps,
+  applicationId: string,
+  documentId: string,
+): Promise<void> {
+  try {
+    const identity = await requireSession(deps.pool, req);
+    const { partyId } = await effectiveRenterPartyId(deps.pool, req, identity);
+    const result = await withTenantContext(
+      deps.pool,
+      { partyId },
+      (client) =>
+        signMissingInfoDocumentUrl(client, {
+          documentId,
+          actorPartyId: partyId,
+          asReviewer: false,
+        }),
+    );
+    void applicationId;
+    sendJson(res, 200, result);
+  } catch (err) {
     sendError(res, err);
   }
 }

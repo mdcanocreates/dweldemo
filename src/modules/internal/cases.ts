@@ -5,6 +5,13 @@
 
 import type { DbClient } from '../../db/pool.js';
 import { decideSelfExecutionReview } from '../admin/index.js';
+import { decideOnApplicant } from '../landlord/index.js';
+import {
+  listMissingInfoDocuments,
+  reviewMissingInfoResponse,
+  signMissingInfoDocumentUrl,
+  validateRequiredDocumentTypes,
+} from '../renter/index.js';
 import { AppError } from '../shared/errors.js';
 import { findIdempotentResponse, storeIdempotentResponse } from './idempotency.js';
 import { writeCcOutboxEvent } from './outbox.js';
@@ -78,10 +85,73 @@ export function parseSourceCaseId(raw: string): ParsedCaseId {
   throw new AppError('invalid case id', 'validation_error', 400);
 }
 
+/**
+ * Staff-authorized operational actions only — not full HP stage matrix.
+ * Approve/decline/pass remain home-provider owned.
+ */
 function applicationAllowedActions(status: string): string[] {
-  // Application stage transitions are landlord/renter owned — no CC staff actions today.
-  void status;
-  return [];
+  const terminal = new Set([
+    'approved',
+    'declined',
+    'landlord_passed',
+    'withdrawn',
+    'closed',
+  ]);
+  if (terminal.has(status)) return [];
+  const actions: string[] = [];
+  // Request information (maps to request_more_info) when review is still open.
+  if (
+    [
+      'draft',
+      'submitted',
+      'awaiting_landlord_interest',
+      'interested',
+      'info_requested',
+      'awaiting_consent',
+      'screening_authorized',
+      'screening_running',
+      'screening_in_progress',
+      'awaiting_provider_configuration',
+      'screened',
+      'screening_complete',
+    ].includes(status)
+  ) {
+    actions.push('request_information');
+  }
+  // Review renter response after they returned the app to HP queue.
+  if (status === 'awaiting_landlord_interest' || status === 'info_requested') {
+    actions.push('accept_missing_info', 'return_missing_info');
+  }
+  return actions;
+}
+
+async function resolveOrgActorParty(
+  client: DbClient,
+  orgId: string,
+  actorSubject: string | null,
+): Promise<string> {
+  if (actorSubject && UUID_RE.test(actorSubject)) {
+    const { rows } = await client.query<{ id: string }>(
+      `select id from party where id = $1`,
+      [actorSubject],
+    );
+    if (rows[0]) return rows[0].id;
+  }
+  const { rows: members } = await client.query<{ party_id: string }>(
+    `select party_id from party_role
+     where org_id = $1 and role = 'landlord'
+     order by created_at asc
+     limit 1`,
+    [orgId],
+  );
+  if (!members[0]) {
+    throw new AppError(
+      'no org actor available for staff action',
+      'actor_unavailable',
+      409,
+    );
+  }
+  return members[0].party_id;
 }
 
 function partnerAllowedActions(status: string): string[] {
@@ -228,8 +298,94 @@ async function loadApplicationCase(client: DbClient, id: string): Promise<CcCase
   );
   const row = rows[0];
   if (!row) throw new AppError('case not found', 'not_found', 404);
-  const documents = await documentMetadataForParty(client, row.party_id);
-  return toApplicationCase(row, documents);
+  const partyDocs = await documentMetadataForParty(client, row.party_id);
+
+  // Enrich with missing-info linked documents (clean only for CC metadata).
+  let missingInfo: Array<Record<string, unknown>> = [];
+  try {
+    const { rows: mir } = await client.query<{
+      id: string;
+      status: string;
+      categories: string[];
+      message: string | null;
+      renter_response: string | null;
+      created_at: Date;
+      responded_at: Date | null;
+      required_document_types: string[] | null;
+      review_note: string | null;
+      response_version: number | null;
+    }>(
+      `select id, status, categories, message, renter_response, created_at, responded_at,
+              coalesce(required_document_types, '{}') as required_document_types,
+              review_note, coalesce(response_version, 0) as response_version
+       from missing_info_request
+       where application_id = $1
+       order by created_at desc
+       limit 20`,
+      [row.id],
+    );
+    for (const m of mir) {
+      let documents: Awaited<ReturnType<typeof listMissingInfoDocuments>> = [];
+      try {
+        documents = await listMissingInfoDocuments(client, m.id);
+      } catch {
+        documents = [];
+      }
+      missingInfo.push({
+        id: m.id,
+        status: m.status,
+        categories: m.categories,
+        message: m.message,
+        renterResponse: m.renter_response,
+        createdAt: iso(m.created_at),
+        respondedAt: m.responded_at ? iso(m.responded_at) : null,
+        requiredDocumentTypes: m.required_document_types ?? [],
+        reviewNote: m.review_note,
+        responseVersion: m.response_version ?? 0,
+        documents: documents.map((d) => ({
+          documentId: d.document_id,
+          docType: d.doc_type,
+          contentType: d.content_type,
+          sizeBytes: d.size_bytes,
+          scanStatus: d.scan_status,
+          reviewerAccessible: d.reviewer_accessible,
+          createdAt: d.created_at,
+        })),
+      });
+    }
+  } catch {
+    missingInfo = [];
+  }
+
+  const linkedDocMeta = missingInfo.flatMap((m) => {
+    const docs = (m.documents as Array<Record<string, unknown>>) ?? [];
+    return docs
+      .filter((d) => d.reviewerAccessible === true)
+      .map((d) => ({
+        documentId: d.documentId,
+        docType: d.docType,
+        contentType: d.contentType,
+        sizeBytes: d.sizeBytes,
+        scanStatus: d.scanStatus,
+        version: 1,
+        createdAt: d.createdAt,
+        missingInfoRequestId: m.id,
+      }));
+  });
+
+  const caseObj = toApplicationCase(row, [...linkedDocMeta, ...partyDocs]);
+  caseObj.display = {
+    ...caseObj.display,
+    missingInfoRequests: missingInfo,
+  };
+  // Attention when info outstanding or response awaiting review
+  if (
+    row.status === 'info_requested' ||
+    missingInfo.some((m) => m.status === 'responded' || m.status === 'open')
+  ) {
+    caseObj.requiresAttention = true;
+  }
+  return caseObj;
 }
 
 type PartnerRow = {
@@ -740,7 +896,6 @@ export async function executeCaseAction(
     return { status: 200, body };
   }
 
-  // Application / listing review actions are not staff-owned on this surface yet.
   if (action === 'listing_approve' || action === 'listing_decline' || action === 'listing_review') {
     throw new AppError(
       'listing review actions are not available on this Dwel internal surface',
@@ -749,9 +904,187 @@ export async function executeCaseAction(
     );
   }
 
+  // Application operational actions (explicit allow-list — not full HP matrix).
+  if (parsed.caseType === 'application') {
+    const STAFF_APP_ACTIONS = new Set([
+      'request_information',
+      'accept_missing_info',
+      'return_missing_info',
+    ]);
+    if (!STAFF_APP_ACTIONS.has(action)) {
+      throw new AppError(
+        `unsupported action '${input.action}' for ${parsed.caseType}`,
+        'unsupported_action',
+        400,
+      );
+    }
+
+    const current = await loadApplicationCase(client, parsed.id);
+    if (expected != null && expected !== current.version && expected !== current.etag) {
+      return {
+        status: 409,
+        body: {
+          error: 'version_conflict',
+          message: 'case changed; refresh and retry',
+          version: current.version,
+          etag: current.etag,
+        },
+      };
+    }
+    const allowed = new Set(applicationAllowedActions(current.productStage));
+    if (!allowed.has(action)) {
+      throw new AppError(
+        `action '${action}' not permitted for status '${current.productStage}'`,
+        'unsupported_action',
+        400,
+      );
+    }
+
+    const listingId = String(current.display.listingId ?? '');
+    const orgId = String(current.display.orgId ?? '');
+    if (!listingId || !orgId) {
+      throw new AppError('application missing listing/org', 'invalid_case', 409);
+    }
+    const actorPartyId = await resolveOrgActorParty(client, orgId, input.actorSubject);
+
+    if (action === 'request_information') {
+      const categories = Array.isArray(input.body.categories)
+        ? (input.body.categories as string[])
+        : Array.isArray(input.body.missing_info_categories)
+          ? (input.body.missing_info_categories as string[])
+          : [];
+      const requiredDocs = Array.isArray(input.body.required_document_types)
+        ? (input.body.required_document_types as string[])
+        : Array.isArray(input.body.requiredDocumentTypes)
+          ? (input.body.requiredDocumentTypes as string[])
+          : [];
+      validateRequiredDocumentTypes(requiredDocs);
+      const note =
+        typeof input.body.message === 'string'
+          ? input.body.message
+          : typeof input.body.reason === 'string'
+            ? input.body.reason
+            : typeof input.body.note === 'string'
+              ? input.body.note
+              : null;
+      const result = await decideOnApplicant(client, {
+        listingId,
+        applicationId: parsed.id,
+        orgId,
+        actorPartyId,
+        decision: 'request_more_info',
+        note,
+        missing_info_categories: categories,
+        required_document_types: requiredDocs,
+        idempotency_key: input.idempotencyKey,
+        expected_status: current.productStage,
+      });
+      const updated = await loadApplicationCase(client, parsed.id);
+      await writeCcOutboxEvent(client, {
+        eventType: 'case.stage_changed',
+        sourceCaseId: parsed.sourceCaseId,
+        sourceVersion: updated.version,
+        payload: {
+          caseType: 'application',
+          action,
+          fromStage: current.productStage,
+          toStage: result.status,
+          actorSubject: input.actorSubject,
+        },
+      });
+      const body = { ok: true, sourceCaseId: parsed.sourceCaseId, action, result, case: updated };
+      await storeIdempotentResponse(client, {
+        idempotencyKey: input.idempotencyKey,
+        routeKey,
+        status: 200,
+        body,
+      });
+      return { status: 200, body };
+    }
+
+    if (action === 'accept_missing_info' || action === 'return_missing_info') {
+      const requestId =
+        typeof input.body.request_id === 'string'
+          ? input.body.request_id
+          : typeof input.body.requestId === 'string'
+            ? input.body.requestId
+            : null;
+      if (!requestId || !UUID_RE.test(requestId)) {
+        throw new AppError('request_id required', 'validation_error', 400);
+      }
+      const note =
+        typeof input.body.note === 'string'
+          ? input.body.note
+          : typeof input.body.reason === 'string'
+            ? input.body.reason
+            : null;
+      const expectedVersion =
+        typeof input.body.expected_response_version === 'number'
+          ? input.body.expected_response_version
+          : typeof input.body.expectedResponseVersion === 'number'
+            ? input.body.expectedResponseVersion
+            : null;
+      const reviewed = await reviewMissingInfoResponse(client, {
+        applicationId: parsed.id,
+        listingId,
+        orgId,
+        actorPartyId,
+        requestId,
+        decision: action === 'accept_missing_info' ? 'accept' : 'return',
+        note,
+        expectedResponseVersion: expectedVersion,
+      });
+      const updated = await loadApplicationCase(client, parsed.id);
+      await writeCcOutboxEvent(client, {
+        eventType: 'case.stage_changed',
+        sourceCaseId: parsed.sourceCaseId,
+        sourceVersion: updated.version,
+        payload: {
+          caseType: 'application',
+          action,
+          requestId,
+          toStatus: reviewed.status,
+          actorSubject: input.actorSubject,
+        },
+      });
+      const body = {
+        ok: true,
+        sourceCaseId: parsed.sourceCaseId,
+        action,
+        result: reviewed,
+        case: updated,
+      };
+      await storeIdempotentResponse(client, {
+        idempotencyKey: input.idempotencyKey,
+        routeKey,
+        status: 200,
+        body,
+      });
+      return { status: 200, body };
+    }
+  }
+
   throw new AppError(
     `unsupported action '${input.action}' for ${parsed.caseType}`,
     'unsupported_action',
     400,
   );
+}
+
+/** Signed preview URL for a missing-info / application document (private, short TTL). */
+export async function issueInternalDocumentUrl(
+  client: DbClient,
+  input: {
+    documentId: string;
+    orgId?: string | null;
+  },
+): Promise<{ url: string; expires_at: string; document_id: string }> {
+  if (!UUID_RE.test(input.documentId)) {
+    throw new AppError('invalid document id', 'validation_error', 400);
+  }
+  return signMissingInfoDocumentUrl(client, {
+    documentId: input.documentId,
+    actorOrgId: input.orgId ?? null,
+    asReviewer: true,
+  });
 }
