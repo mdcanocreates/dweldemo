@@ -19,6 +19,13 @@ import {
 import { createCertnSandboxFromEnv } from './certn.js';
 import { UnavailableTenantScreening } from './unavailable.js';
 import { assessCertnAvailability } from './certn-availability.js';
+import { DemoTenantScreening } from './demo-screening.js';
+import {
+  assessCheckrAvailability,
+  CheckrTenantScreening,
+  createCheckrTenantClientFromEnv,
+} from './checkr/index.js';
+import { AppError } from '../shared/errors.js';
 
 export type VendorRegistryConfig = {
   tenantScreening?: string;
@@ -116,6 +123,33 @@ export class VendorRegistry {
       }
       case 'certn_unavailable':
         return new UnavailableTenantScreening('certn_api_key_missing');
+      case 'checkr':
+      case 'checkr_tenant':
+      case 'checkr_sandbox': {
+        const status = assessCheckrAvailability();
+        if (!status.available) {
+          return new UnavailableTenantScreening(status.reason);
+        }
+        // Order context is resolved by the dedicated initiateCheckrScreening path.
+        // Saga submitOrder requires a resolver — provide a fail-closed stub here;
+        // production Checkr traffic should use POST .../checkr-screening/initiate.
+        return new CheckrTenantScreening({
+          client: createCheckrTenantClientFromEnv(),
+          resolveOrderContext: async () => {
+            throw new AppError(
+              'Checkr orders must be created via initiateCheckrScreening',
+              'checkr_use_initiate_path',
+              500,
+            );
+          },
+        });
+      }
+      case 'checkr_unavailable':
+        return new UnavailableTenantScreening('checkr_disabled');
+      case 'demo':
+      case 'demo_tenant_screening':
+        // Never boot-selected for normal traffic — only constructed per demo application.
+        return new DemoTenantScreening();
       default:
         throw new Error(`unknown TenantScreening vendor key: ${key}`);
     }

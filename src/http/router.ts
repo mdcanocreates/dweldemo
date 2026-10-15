@@ -19,6 +19,13 @@ import {
   type HttpHandlerDeps,
 } from './handlers.js';
 import {
+  handleCheckrWebhookPost,
+  handleCheckrStatus,
+  handleDownloadCheckrReportPdf,
+  handleGetCheckrScreening,
+  handleInitiateCheckrScreening,
+} from './checkr-handlers.js';
+import {
   handleLandlordCreateListing,
   handleLandlordDecideApplicant,
   handleLandlordReviewMissingInfo,
@@ -878,6 +885,41 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       }
       if (method === 'POST') {
         await handleCertnWebhookPost(req, res, deps);
+        return true;
+      }
+    }
+
+    if (method === 'POST' && path === '/v1/webhooks/checkr') {
+      await handleCheckrWebhookPost(req, res, deps);
+      return true;
+    }
+
+    if (method === 'GET' && path === '/v1/admin/integrations/checkr') {
+      await handleCheckrStatus(req, res);
+      return true;
+    }
+
+    const checkrAppMatch = path.match(
+      /^\/v1\/applications\/([0-9a-f-]{36})\/checkr-screening(?:\/(initiate|pdf))?$/i,
+    );
+    if (checkrAppMatch) {
+      const applicationId = checkrAppMatch[1]!;
+      const action = checkrAppMatch[2];
+      if (!UUID_RE.test(applicationId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid application id' }));
+        return true;
+      }
+      if (method === 'GET' && !action) {
+        await handleGetCheckrScreening(req, res, deps, applicationId);
+        return true;
+      }
+      if (method === 'POST' && action === 'initiate') {
+        await handleInitiateCheckrScreening(req, res, deps, applicationId);
+        return true;
+      }
+      if (method === 'GET' && action === 'pdf') {
+        await handleDownloadCheckrReportPdf(req, res, deps, applicationId);
         return true;
       }
     }

@@ -76,6 +76,17 @@ export {
 } from './webhook.js';
 
 export {
+  initiateCheckrScreening,
+  ingestCheckrWebhook,
+  processCheckrWebhookEvent,
+  getCheckrScreeningByApplication,
+  getCheckrReportReview,
+  downloadCheckrReportPdf,
+  type CheckrScreeningStatus,
+  type CheckrReportReviewDto,
+} from './checkr/index.js';
+
+export {
   runApplicationPipeline,
   resumeApplicationFromPrescreen,
   forceApplicationTransition,

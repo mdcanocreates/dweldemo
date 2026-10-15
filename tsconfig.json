@@ -16,6 +16,6 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false
   },
-  "include": ["src/**/*", "ci/**/*", "tests/**/*", "scripts/**/*"],
-  "exclude": ["dist", "node_modules"]
+  "include": ["src/**/*", "ci/**/*", "tests/**/*"],
+  "exclude": ["dist", "node_modules", "scripts"]
 }

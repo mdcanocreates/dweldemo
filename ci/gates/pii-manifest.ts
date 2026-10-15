@@ -45,8 +45,9 @@ async function main(): Promise<void> {
 
   const createColRe =
     /create\s+table\s+([a-z0-9_]+)\s*\(([\s\S]*?)\);/gi;
+  // Support "ADD COLUMN IF NOT EXISTS col" — do not capture "if" as a column name.
   const alterAddRe =
-    /alter\s+table\s+([a-z0-9_]+)\s+add\s+column\s+([a-z0-9_]+)/gi;
+    /alter\s+table\s+([a-z0-9_]+)\s+add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z0-9_]+)/gi;
 
   const piiTables = new Set(Object.keys(manifest));
   const failures: string[] = [];
@@ -90,7 +91,12 @@ async function main(): Promise<void> {
     await Promise.all(files.map((f) => readFile(path.join(migrationsDir, f), 'utf8')))
   ).join('\n');
   for (const table of piiTables) {
-    if (!new RegExp(`create\\s+table\\s+${table}\\b`, 'i').test(allSql)) {
+    if (
+      !new RegExp(
+        `create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?${table}\\b`,
+        'i',
+      ).test(allSql)
+    ) {
       // notification_suppression is Phase 1 — allow forward references in manifest
       if (table === 'notification_suppression') continue;
       failures.push(`pii-manifest references unknown table ${table}`);

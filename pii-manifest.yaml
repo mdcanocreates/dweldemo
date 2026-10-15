@@ -80,6 +80,24 @@ tables:
 
       retention_class: identity
 
+    screening_mode:
+
+      classification: operational
+
+      retention_class: operational
+
+    broker_payouts_enabled:
+
+      classification: operational
+
+      retention_class: operational
+
+    managed_by_broker_org_id:
+
+      classification: org_ref
+
+      retention_class: operational
+
   address:
 
     raw_input:
@@ -136,6 +154,30 @@ tables:
 
   landlord_interest:
 
+    match_score:
+
+      classification: operational
+
+      retention_class: operational
+
+    match_score_components:
+
+      classification: operational
+
+      retention_class: operational
+
+    match_model_key:
+
+      classification: operational
+
+      retention_class: operational
+
+    match_model_version:
+
+      classification: operational
+
+      retention_class: operational
+
     message:
 
       classification: free_text
@@ -163,6 +205,462 @@ tables:
     device_id:
 
       classification: device
+
+      retention_class: identity
+
+    contact_revealed_at:
+
+      classification: contact_reveal_meta
+
+      retention_class: identity
+
+    match_score_value:
+
+      classification: operational
+
+      retention_class: operational
+
+    intake_snapshot:
+
+      classification: self_reported_assessment
+
+      retention_class: identity
+
+    is_demo:
+
+      classification: operational
+
+      retention_class: operational
+
+    # Charter v3 / 0064 — prequal + decision timestamps (no contact/SSN here)
+    criteria_version_id:
+
+      classification: operational_ref
+
+      retention_class: operational
+
+    prequal_evaluation:
+
+      classification: self_reported_assessment
+
+      retention_class: identity
+
+    info_requested_at:
+
+      classification: operational
+
+      retention_class: operational
+
+    move_forward_at:
+
+      classification: operational
+
+      retention_class: operational
+
+    passed_at:
+
+      classification: operational
+
+      retention_class: operational
+
+    # 0065 — partner attribution snapshot on interest/application
+    acquisition_first_touch_id:
+
+      classification: attribution_ref
+
+      retention_class: operational
+
+    acquisition_last_touch_id:
+
+      classification: attribution_ref
+
+      retention_class: operational
+
+    acquisition_partner_org_id:
+
+      classification: attribution_ref
+
+      retention_class: operational
+
+    acquisition_campaign_id:
+
+      classification: attribution_ref
+
+      retention_class: operational
+
+    preferred_lease_term_months:
+
+      classification: self_reported_preference
+
+      retention_class: identity
+
+  # Charter v3 — 0064 new tables
+  listing_criteria:
+
+    jurisdiction:
+
+      classification: jurisdiction
+
+      retention_class: operational
+
+    rules:
+
+      classification: policy_rules
+
+      retention_class: operational
+
+  missing_info_request:
+
+    message:
+
+      classification: free_text
+
+      retention_class: identity
+
+    renter_response:
+
+      classification: free_text
+
+      retention_class: identity
+
+    categories:
+
+      classification: operational
+
+      retention_class: operational
+
+    required_document_types:
+
+      classification: operational
+
+      retention_class: operational
+
+    review_note:
+
+      classification: free_text
+
+      retention_class: identity
+
+    reviewed_at:
+
+      classification: operational
+
+      retention_class: operational
+
+    reviewed_by_party_id:
+
+      classification: party_ref
+
+      retention_class: identity
+
+    response_version:
+
+      classification: operational
+
+      retention_class: operational
+
+    idempotency_key:
+
+      classification: operational
+
+      retention_class: operational
+
+  missing_info_request_document:
+
+    storage_key:
+
+      classification: document_locator
+
+      retention_class: identity
+
+    original_filename:
+
+      classification: free_text
+
+      retention_class: identity
+
+    content_type:
+
+      classification: operational
+
+      retention_class: operational
+
+    scan_status:
+
+      classification: operational
+
+      retention_class: operational
+
+  saved_listing:
+
+    party_id:
+
+      classification: party_ref
+
+      retention_class: identity
+
+    listing_id:
+
+      classification: listing_ref
+
+      retention_class: operational
+
+  support_case:
+
+    subject:
+
+      classification: free_text
+
+      retention_class: identity
+
+    description:
+
+      classification: free_text
+
+      retention_class: identity
+
+    category:
+
+      classification: operational
+
+      retention_class: operational
+
+  lease_document:
+
+    storage_key:
+
+      classification: document_locator
+
+      retention_class: identity
+
+    original_filename:
+
+      classification: free_text
+
+      retention_class: identity
+
+    content_type:
+
+      classification: operational
+
+      retention_class: operational
+
+    workflow_status:
+
+      classification: operational
+
+      retention_class: operational
+
+    acknowledged_at:
+
+      classification: operational
+
+      retention_class: operational
+
+  cashback_eligibility:
+
+    offer_version:
+
+      classification: commercial_meta
+
+      retention_class: operational
+
+    ineligible_reason:
+
+      classification: free_text
+
+      retention_class: operational
+
+    rent_basis_cents:
+
+      classification: commercial_meta
+
+      retention_class: operational
+
+    amount_cents:
+
+      classification: commercial_meta
+
+      retention_class: operational
+
+  broker_provider_invitation:
+
+    contact_email:
+
+      classification: contact
+
+      retention_class: identity
+
+    business_name:
+
+      classification: org_identity
+
+      retention_class: identity
+
+    note:
+
+      classification: free_text
+
+      retention_class: identity
+
+  # Charter v3 NO-GO closure / 0065
+  broker_provider_delegation:
+
+    permissions:
+
+      classification: operational
+
+      retention_class: operational
+
+  lease_document_access_log:
+
+    ip:
+
+      classification: network
+
+      retention_class: identity
+
+    user_agent:
+
+      classification: device
+
+      retention_class: identity
+
+  partner_organization:
+
+    name:
+
+      classification: org_identity
+
+      retention_class: operational
+
+    partner_code:
+
+      classification: attribution_code
+
+      retention_class: operational
+
+  partner_campaign:
+
+    name:
+
+      classification: operational
+
+      retention_class: operational
+
+    campaign_code:
+
+      classification: attribution_code
+
+      retention_class: operational
+
+  visitor_attribution:
+
+    visitor_key:
+
+      classification: attribution_token
+
+      retention_class: operational
+
+    landing_path:
+
+      classification: operational
+
+      retention_class: operational
+
+    http_referrer:
+
+      classification: operational
+
+      retention_class: operational
+
+    utm_source:
+
+      classification: operational
+
+      retention_class: operational
+
+    utm_medium:
+
+      classification: operational
+
+      retention_class: operational
+
+    utm_campaign:
+
+      classification: operational
+
+      retention_class: operational
+
+    utm_content:
+
+      classification: operational
+
+      retention_class: operational
+
+  party_acquisition:
+
+    party_id:
+
+      classification: party_ref
+
+      retention_class: identity
+
+  renter_profile:
+
+    preferred_lease_term_months:
+
+      classification: self_reported_preference
+
+      retention_class: identity
+
+    annual_income_cents:
+
+      classification: financial
+
+      retention_class: identity
+
+    badge_share_token:
+
+      classification: token
+
+      retention_class: identity
+
+    badge_share_enabled:
+
+      classification: operational
+
+      retention_class: operational
+
+    badge_share_views:
+
+      classification: operational
+
+      retention_class: operational
+
+  renter_application_intake:
+
+    preferred_lease_term_months:
+
+      classification: self_reported_preference
+
+      retention_class: identity
+
+    current_address_city:
+
+      classification: address
+
+      retention_class: identity
+
+    current_address_state:
+
+      classification: address
+
+      retention_class: identity
+
+    current_address_line1:
+
+      classification: address
 
       retention_class: identity
 

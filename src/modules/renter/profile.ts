@@ -23,6 +23,7 @@ export type RenterProfileInput = {
   preferredState: string;
   hasPets: boolean;
   householdSize: number;
+  preferredLeaseTermMonths?: number | null;
 };
 
 export type RenterProfileView = {
@@ -38,6 +39,7 @@ export type RenterProfileView = {
   preferred_state: string | null;
   has_pets: boolean | null;
   household_size: number | null;
+  preferred_lease_term_months: number | null;
   updated_at: string;
 };
 
@@ -75,11 +77,13 @@ export async function getRenterProfile(
     preferred_state: string | null;
     has_pets: boolean | null;
     household_size: number | null;
+    preferred_lease_term_months: number | null;
     updated_at: Date;
   }>(
     `select party_id, given_name, family_name, phone_e164, email,
             annual_income_cents, move_in_urgency, bedrooms_min::text,
-            rent_max_cents, preferred_state, has_pets, household_size, updated_at
+            rent_max_cents, preferred_state, has_pets, household_size,
+            preferred_lease_term_months, updated_at
      from renter_profile
      where party_id = $1`,
     [partyId],
@@ -99,6 +103,7 @@ export async function getRenterProfile(
     preferred_state: row.preferred_state,
     has_pets: row.has_pets,
     household_size: row.household_size,
+    preferred_lease_term_months: row.preferred_lease_term_months,
     updated_at: row.updated_at.toISOString(),
   };
 }
@@ -124,12 +129,19 @@ export async function upsertRenterProfile(
     throw new AppError('invalid household/bedrooms', 'validation_error', 400);
   }
 
+  const leaseTerm =
+    input.preferredLeaseTermMonths != null &&
+    Number.isFinite(input.preferredLeaseTermMonths) &&
+    input.preferredLeaseTermMonths > 0
+      ? Math.trunc(input.preferredLeaseTermMonths)
+      : null;
+
   await client.query(
     `insert into renter_profile (
        party_id, given_name, family_name, phone_e164, email,
        annual_income_cents, move_in_urgency, bedrooms_min, rent_max_cents,
-       preferred_state, has_pets, household_size, updated_at
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
+       preferred_state, has_pets, household_size, preferred_lease_term_months, updated_at
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
      on conflict (party_id) do update set
        given_name = excluded.given_name,
        family_name = excluded.family_name,
@@ -142,6 +154,10 @@ export async function upsertRenterProfile(
        preferred_state = excluded.preferred_state,
        has_pets = excluded.has_pets,
        household_size = excluded.household_size,
+       preferred_lease_term_months = coalesce(
+         excluded.preferred_lease_term_months,
+         renter_profile.preferred_lease_term_months
+       ),
        updated_at = now()`,
     [
       partyId,
@@ -156,6 +172,7 @@ export async function upsertRenterProfile(
       state,
       input.hasPets,
       input.householdSize,
+      leaseTerm,
     ],
   );
 

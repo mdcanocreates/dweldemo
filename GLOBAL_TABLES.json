@@ -57,7 +57,13 @@
     "device_fingerprint",
     "device_identity_edge",
     "notification_sequence",
-    "notification_sequence_step"
+    "notification_sequence_step",
+    "cc_outbox",
+    "internal_action_idempotency",
+    "partner_organization",
+    "platform_flag",
+    "platform_flag_change",
+    "application_match_score_history"
   ],
   "justifications": {
     "schema_migrations": "Migration bookkeeping",
@@ -116,6 +122,12 @@
     "device_fingerprint": "Platform fraud device graph; cross-party velocity counts require global visibility",
     "device_identity_edge": "Platform fraud device↔identity edges; shared across parties for velocity gate",
     "notification_sequence": "Notification sequence catalog (reference)",
-    "notification_sequence_step": "Notification sequence step catalog (reference)"
+    "notification_sequence_step": "Notification sequence step catalog (reference)",
+    "cc_outbox": "Control Center outbox spine; published under system bypass; no single owning org",
+    "internal_action_idempotency": "Platform idempotency store for internal CC actions; keyed by route+hash",
+    "partner_organization": "Partner org catalog root (Charter attribution); reference-like platform entity",
+    "platform_flag": "Platform feature flag catalog; admin-managed",
+    "platform_flag_change": "Append-only platform flag audit log",
+    "application_match_score_history": "Derived match scores keyed by application_id; read under app tenant context in handlers; workers under bypass"
   }
 }

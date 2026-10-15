@@ -22,8 +22,10 @@ const PLATFORM_HMAC_SECRET =
 export type MagicTokenIssueResult = {
   /** Always identical shape — never reveals whether email existed. */
   ok: true;
-  /** Present only in non-production test hooks when explicitly requested. */
+  /** Present only when the caller requested the plaintext token (email send / DEV redeem). Never log. */
   debugToken?: string;
+  /** Configured magic-token TTL used for this issue (for email expiry copy). */
+  magicTokenTtlMs: number;
 };
 
 const rateBuckets = new Map<string, number[]>();
@@ -158,7 +160,7 @@ export async function issueMagicToken(
     occurredAt: now,
   });
 
-  const result: MagicTokenIssueResult = { ok: true };
+  const result: MagicTokenIssueResult = { ok: true, magicTokenTtlMs: sla.magicTokenTtlMs };
   if (input.returnTokenForTest) {
     result.debugToken = token.toString('base64url');
   }
@@ -178,7 +180,19 @@ export async function redeemMagicToken(
   const now = clock.now();
   const tokenBuf = Buffer.from(input.token, 'base64url');
   if (tokenBuf.length !== 32) {
-    throw new AppError('invalid token', 'auth_invalid_token', 401);
+    const err = new AppError('invalid token', 'auth_invalid_token', 401);
+    (err as AppError & { diagnostics?: Record<string, unknown> }).diagnostics = {
+      token_record_found: false,
+      expired: null,
+      consumed: null,
+      invalidated: null,
+      purpose_match: null,
+      hash_match: null,
+      has_party: null,
+      callback_purpose: input.purpose,
+      malformed_token_length: true,
+    };
+    throw err;
   }
   const tokenHash = hashToken(tokenBuf);
 
@@ -198,20 +212,31 @@ export async function redeemMagicToken(
     [tokenHash],
   );
   const row = rows[0];
+  const diagnostics = {
+    token_record_found: Boolean(row),
+    expired: row ? row.expires_at.getTime() < now.getTime() : null,
+    consumed: row ? Boolean(row.redeemed_at) : null,
+    invalidated: row ? Boolean(row.invalidated_at) : null,
+    purpose_match: row ? row.purpose === input.purpose : null,
+    hash_match: row
+      ? timingSafeEqual(Buffer.from(row.token_hash), tokenHash)
+      : null,
+    has_party: row ? Boolean(row.party_id) : null,
+    callback_purpose: input.purpose,
+  };
+
   if (
     !row ||
     row.purpose !== input.purpose ||
     row.redeemed_at ||
     row.invalidated_at ||
     row.expires_at.getTime() < now.getTime() ||
-    !row.party_id
+    !row.party_id ||
+    !diagnostics.hash_match
   ) {
-    throw new AppError('invalid token', 'auth_invalid_token', 401);
-  }
-
-  // timing-safe compare already via unique hash lookup; keep compare for defense
-  if (!timingSafeEqual(Buffer.from(row.token_hash), tokenHash)) {
-    throw new AppError('invalid token', 'auth_invalid_token', 401);
+    const err = new AppError('invalid token', 'auth_invalid_token', 401);
+    (err as AppError & { diagnostics?: typeof diagnostics }).diagnostics = diagnostics;
+    throw err;
   }
 
   await client.query(

@@ -858,12 +858,19 @@ export async function executeCaseAction(
       actorPartyId = partyRows[0]?.id ?? null;
     }
 
+    if (!actorPartyId) {
+      throw new AppError(
+        'actor party required for partner review decision',
+        'actor_party_required',
+        403,
+      );
+    }
+
     const result = await decideSelfExecutionReview(client, {
       id: parsed.id,
       decision,
       notes,
       actorPartyId,
-      actorSubject: input.actorSubject,
     });
 
     const updated = await loadPartnerCase(client, parsed.id);

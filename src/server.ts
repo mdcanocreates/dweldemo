@@ -3,8 +3,6 @@ import http from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createClient, type RedisClientType } from 'redis';
-
 import { createPool, type DbPool } from './db/pool.js';
 import { loadRdsSslConfig } from './db/rds-ssl.js';
 import { createApiRouter } from './http/router.js';
@@ -18,32 +16,48 @@ import {
   LiveStripeConnectAdapter,
   setStripeConnectAdapter,
 } from './modules/payments/index.js';
-import { resetVendorRegistry, assessCertnAvailability } from './modules/vendors/index.js';
+import {
+  resetVendorRegistry,
+  assessCertnAvailability,
+  assessCheckrAvailability,
+} from './modules/vendors/index.js';
 
 const logger = createLogger();
 
 function requireEnv(name: string): string {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
 }
 
+function optionalEnv(name: string, fallback = ''): string {
+  return process.env[name]?.trim() || fallback;
+}
+
+/**
+ * Boot requirements for local auth:
+ * - AWS_REGION, DB_*
+ * - JWT_SECRET (present for platform consistency; passwordless uses RBIT_AUTH_HMAC_SECRET)
+ *
+ * Stripe / S3 / KMS are NOT hard boot blockers. AWS KMS+S3 only initialize when
+ * USE_LOCAL_INFRA is unset and KMS_KEY_ID looks like a real ARN.
+ */
 const config = {
   port: Number(process.env.PORT ?? '3000'),
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  appEnv: optionalEnv('APP_ENV', process.env.NODE_ENV ?? 'development'),
   awsRegion: requireEnv('AWS_REGION'),
   dbHost: requireEnv('DB_HOST'),
   dbPort: requireEnv('DB_PORT'),
   dbName: requireEnv('DB_NAME'),
   dbUser: requireEnv('DB_USER'),
   dbPassword: requireEnv('DB_PASSWORD'),
-  redisUrl: requireEnv('REDIS_URL'),
-  jwtSecret: requireEnv('JWT_SECRET'),
-  stripeSecretKey: requireEnv('STRIPE_SECRET_KEY'),
-  s3Bucket: requireEnv('S3_BUCKET'),
-  kmsKeyId: requireEnv('KMS_KEY_ID'),
+  jwtSecret: optionalEnv('JWT_SECRET', 'rbit-local-dev-jwt-not-for-prod'),
+  stripeSecretKey: optionalEnv('STRIPE_SECRET_KEY', 'local_dev_not_a_stripe_key'),
+  s3Bucket: optionalEnv('S3_BUCKET'),
+  kmsKeyId: optionalEnv('KMS_KEY_ID'),
 };
 
 void config.jwtSecret;
@@ -53,15 +67,31 @@ const version = JSON.parse(
 ).version as string;
 
 function buildDatabaseUrl(): string {
-  // TLS is configured explicitly via pg Pool `ssl` (CA + rejectUnauthorized).
-  // Do not use sslmode=require — it does not verify the Aurora certificate chain.
   const user = encodeURIComponent(config.dbUser);
   const password = encodeURIComponent(config.dbPassword);
   return `postgresql://${user}:${password}@${config.dbHost}:${config.dbPort}/${config.dbName}`;
 }
 
+function resolvePoolSsl(): ReturnType<typeof loadRdsSslConfig> | undefined {
+  // Local disposable Postgres has no RDS CA — skip TLS when USE_LOCAL_INFRA is set.
+  if (process.env.USE_LOCAL_INFRA === '1' || process.env.USE_LOCAL_INFRA === 'true') {
+    return undefined;
+  }
+  return loadRdsSslConfig();
+}
+
+function shouldInitializeAwsRuntime(): boolean {
+  if (process.env.USE_LOCAL_INFRA === '1' || process.env.USE_LOCAL_INFRA === 'true') {
+    return false;
+  }
+  if (!shouldUseAwsInfra(config.nodeEnv)) {
+    return false;
+  }
+  // Real AWS KMS key ARNs only — skip probe for local placeholders.
+  return Boolean(config.kmsKeyId.startsWith('arn:') && config.s3Bucket);
+}
+
 let pool: DbPool;
-let redis: RedisClientType;
 
 async function checkDatabase(): Promise<boolean> {
   try {
@@ -73,17 +103,7 @@ async function checkDatabase(): Promise<boolean> {
   }
 }
 
-async function checkCache(): Promise<boolean> {
-  try {
-    const pong = await redis.ping();
-    return pong === 'PONG';
-  } catch (err) {
-    logger.warn({ err }, 'redis health check failed');
-    return false;
-  }
-}
-
-/** Process liveness only — no DB/cache I/O. Used by ALB/ECS probes (Aurora may auto-pause). */
+/** Process liveness only — no DB, cache, or network I/O. Used by ALB/ECS probes. */
 function buildLiveHealthResponse(): { statusCode: number; body: string } {
   return {
     statusCode: 200,
@@ -94,33 +114,41 @@ function buildLiveHealthResponse(): { statusCode: number; body: string } {
   };
 }
 
-/** Diagnostic readiness — checks PostgreSQL (and cache when configured). */
+/** Diagnostic readiness — checks PostgreSQL when intentionally requested. */
 async function buildReadyHealthResponse(): Promise<{ statusCode: number; body: string }> {
-  const [dbOk, cacheOk] = await Promise.all([checkDatabase(), checkCache()]);
-  const healthy = dbOk && cacheOk;
+  const dbOk = await checkDatabase();
 
   return {
-    statusCode: healthy ? 200 : 503,
+    statusCode: dbOk ? 200 : 503,
     body: JSON.stringify({
-      status: healthy ? 'healthy' : 'degraded',
+      status: dbOk ? 'healthy' : 'degraded',
       db: dbOk ? 'connected' : 'disconnected',
-      cache: cacheOk ? 'connected' : 'disconnected',
       version,
     }),
   };
 }
 
 async function main(): Promise<void> {
-  if (shouldUseAwsInfra(config.nodeEnv)) {
+  const useAws = shouldInitializeAwsRuntime();
+
+  if (useAws) {
     await initializeAwsRuntime({
       awsRegion: config.awsRegion,
       kmsKeyId: config.kmsKeyId,
       s3Bucket: config.s3Bucket,
       logger,
     });
+  } else {
+    logger.info(
+      {
+        kms: 'LocalKmsProvider',
+        objectStore: 'memory',
+        use_local_infra: process.env.USE_LOCAL_INFRA ?? null,
+      },
+      'using local infra providers (auth/SES do not require AWS KMS/S3 at boot)',
+    );
   }
 
-  // Stripe Connect Express — F-3 confirmed platform Connect active.
   if (config.stripeSecretKey.startsWith('sk_')) {
     setStripeConnectAdapter(new LiveStripeConnectAdapter(config.stripeSecretKey));
     logger.info({ vendor: 'stripe_connect' }, 'Stripe Connect adapter configured');
@@ -133,16 +161,19 @@ async function main(): Promise<void> {
 
   pool = createPool({
     connectionString: buildDatabaseUrl(),
-    ssl: loadRdsSslConfig(),
+    ssl: resolvePoolSsl(),
   });
-  redis = createClient({ url: config.redisUrl });
-  redis.on('error', (err) => logger.error({ err }, 'redis client error'));
-  await redis.connect();
 
-  // Certn live only when Secrets Manager has injected credentials.
-  // Never fall back to stub for product screening — unavailable adapter + HTTP gate.
+  // Prefer Checkr Tenant when explicitly enabled; otherwise keep Certn spine.
+  const checkr = assessCheckrAvailability();
   const certn = assessCertnAvailability();
-  if (certn.available) {
+  if (checkr.available) {
+    resetVendorRegistry({ tenantScreening: 'checkr_tenant' });
+    logger.info(
+      { vendor: 'checkr_tenant', mode: checkr.mode },
+      'tenant screening vendor configured (Checkr)',
+    );
+  } else if (certn.available) {
     resetVendorRegistry({ tenantScreening: 'certn_sandbox' });
     logger.info({ vendor: 'certn_sandbox', certn: 'configured' }, 'tenant screening vendor configured');
   } else {
@@ -150,16 +181,18 @@ async function main(): Promise<void> {
     logger.warn(
       {
         event: 'screening_provider_unavailable',
-        reason: certn.reason,
+        reason: checkr.available === false ? checkr.reason : certn.reason,
         vendor: 'certn_unavailable',
+        checkr_reason: checkr.available === false ? checkr.reason : null,
       },
-      'Certn not configured — app boots; submit-screening fails closed',
+      'No screening vendor configured — app boots; screening fails closed',
     );
   }
 
   const route = createApiRouter({
     pool,
     certnWebhookSecret: process.env.CERTN_WEBHOOK_SECRET ?? null,
+    checkrWebhookSecret: process.env.CHECKR_TENANT_WEBHOOK_SECRET ?? null,
   });
 
   const server = http.createServer(async (req, res) => {
@@ -190,23 +223,15 @@ async function main(): Promise<void> {
   });
 
   server.listen(config.port, () => {
-    const runtime = shouldUseAwsInfra(config.nodeEnv)
-      ? {
-          kmsKeyId: getRuntimeKms().keyId,
-          s3Bucket: config.s3Bucket,
-          objectStore: 's3',
-        }
-      : {
-          kmsKeyId: getRuntimeKms().keyId,
-          objectStore: 'memory',
-        };
-
     logger.info(
       {
         port: config.port,
         environment: config.nodeEnv,
+        app_env: config.appEnv,
         region: config.awsRegion,
-        ...runtime,
+        kmsKeyId: getRuntimeKms().keyId,
+        objectStore: useAws ? 's3' : 'memory',
+        email_provider: process.env.EMAIL_PROVIDER ?? 'unset',
       },
       'rbit api listening',
     );
