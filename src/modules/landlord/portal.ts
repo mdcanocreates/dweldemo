@@ -306,7 +306,10 @@ export async function listListingApplicants(
       has_pets: r.has_pets,
       current_location: locParts.length ? locParts.join(', ') : null,
       preferred_lease_term_months: r.preferred_lease_term_months,
-      display_name: displayNameInitial(r.given_name, r.family_name),
+      // Pre-reveal: opaque label only — never given/family fragments (H-2 privacy).
+      display_name: showContact
+        ? displayNameInitial(r.given_name, r.family_name)
+        : 'Applicant',
       criteria_match: appears,
       prequal_evaluation: r.prequal_evaluation,
       // Screening details only after Move Forward; prequal queue stays unknown.
@@ -1064,7 +1067,9 @@ export async function getApplicantDetail(
     org_id: app.org_id,
     status: app.status,
     created_at: app.created_at.toISOString(),
-    display_name: displayNameInitial(app.given_name, app.family_name),
+    display_name: showContact
+      ? displayNameInitial(app.given_name, app.family_name)
+      : 'Applicant',
     profile: {
       move_in_urgency: app.move_in_urgency,
       household_size: app.household_size,

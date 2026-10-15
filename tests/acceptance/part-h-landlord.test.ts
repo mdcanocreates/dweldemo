@@ -142,6 +142,26 @@ describe('Part H — landlord portal APIs', () => {
         [seeded.renterPartyId, seeded.renterProfileId, listingId],
       );
       applicationId = app[0]!.id;
+
+      // Approve requires at least one completed/failed screening_report (P0).
+      const { rows: pkg } = await c.query<{ id: string }>(
+        `select id from screening_package where is_active = true limit 1`,
+      );
+      if (!pkg[0]) {
+        throw new Error('no screening_package seeded for part-h fixture');
+      }
+      const { rows: order } = await c.query<{ id: string }>(
+        `insert into screening_order (
+           party_id, application_id, package_id, payer_kind, amount_charged_cents, status
+         ) values ($1,$2,$3,'applicant',0,'complete') returning id`,
+        [seeded.renterPartyId, applicationId, pkg[0].id],
+      );
+      await c.query(
+        `insert into screening_report (
+           screening_order_id, party_id, vendor, vendor_report_id, report_kind, status
+         ) values ($1,$2,'certn',$3,'identity','complete')`,
+        [order[0]!.id, seeded.renterPartyId, `part-h-ident-${applicationId}`],
+      );
     });
   }, 300_000);
 
