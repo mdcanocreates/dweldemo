@@ -917,7 +917,9 @@ export function LandlordApplicantDetailPage() {
                           {Object.entries(checkr.products).map(([key, val]) => (
                             <div key={key} className="flex justify-between gap-3">
                               <dt className="text-dwel-muted">{key.replace(/_/g, ' ')}</dt>
-                              <dd className="font-semibold">{val.result ?? val.status ?? '—'}</dd>
+                              <dd className="font-semibold">
+                                {val.result ?? val.status ?? '—'}
+                              </dd>
                             </div>
                           ))}
                         </dl>
@@ -932,6 +934,36 @@ export function LandlordApplicantDetailPage() {
                             <Button variant="secondary">Download report PDF</Button>
                           </a>
                         ) : null}
+                        {(checkr.status === 'not_requested' ||
+                          checkr.status === 'failed' ||
+                          checkr.status === 'canceled') && (
+                          <Button
+                            disabled={checkrBusy}
+                            onClick={() => {
+                              void (async () => {
+                                if (!applicationId) return;
+                                setCheckrBusy(true);
+                                try {
+                                  await api.initiateCheckrScreening(applicationId);
+                                  const ck = await api.getCheckrScreening(applicationId);
+                                  setCheckr(ck);
+                                } catch (err) {
+                                  setActionError(
+                                    friendlyApiError(
+                                      err instanceof ApiError
+                                        ? err.message
+                                        : 'Could not start Checkr screening.',
+                                    ),
+                                  );
+                                } finally {
+                                  setCheckrBusy(false);
+                                }
+                              })();
+                            }}
+                          >
+                            {checkrBusy ? 'Starting…' : 'Initiate Checkr screening'}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ) : (

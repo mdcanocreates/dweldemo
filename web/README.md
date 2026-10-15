@@ -1,24 +1,26 @@
-# dwel.20 web
+# Dwel frontend — userFlow.md progressive-trust redesign
 
-Production web app (renter marketplace, landlord portal, broker portal).
+## Auth flow
 
-## Live
-
-https://d1j0s2h5mond9a.cloudfront.net
-
-CloudFront → S3 (static) + ALB (API `/v1/*`, `/health`).
+1. `/auth/login` — email only (no role pre-select)
+2. Magic link → `/auth/callback?token=…`
+3. New users → `/onboarding/role` (renter / landlord / broker)
+4. Role-specific onboarding
 
 ## Local
 
 ```bash
-cd web
-npm install
-npm run dev
+cd web && npm install && npm run dev
 ```
+
+Backend SES: `product: 'dwel'` via shared `sendTransactionalEmail` in `src/infra/email/`.
 
 ## Notes
 
-- No demo language; empty states instead of fake data
-- Application access via private link query param `access` (never localStorage)
-- Landlord applicant review is live (masked pre-approval; contact on approve)
-- Broker funding/purchase gated on BOR/licensing; dashboard + Connect onboarding in Part I
+- Progressive trust: browse anonymously; auth at interest / sync saves
+- Guided discovery: `/discover` (no account wall, no income)
+- Phase 1 CTA: **I'm interested** only — no Contact / Book a tour
+- **Missing asset:** RBIT brand mark (Lumis-equivalent SVG/PNG) not in repo —
+  header uses Dwel wordmark alone until the mark is supplied (design3.md §14)
+- `prequal_profile` is self-reported — not an FCRA consumer report
+- FCRA copy: `FCRA_CONSENT_COPY` placeholder — do not ship to production
