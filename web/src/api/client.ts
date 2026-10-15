@@ -111,6 +111,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       } catch {
         /* ignore */
       }
+      // Netlify without /v1 proxy returns HTML 404 — surface a clearer demo diagnosis.
+      const text = typeof rawBody === 'string' ? rawBody : '';
+      if (
+        res.status === 404 ||
+        text.trimStart().startsWith('<!DOCTYPE') ||
+        text.trimStart().startsWith('<html')
+      ) {
+        message =
+          'Sign-in API was not reached (non-JSON response). On Netlify, configure the /v1 proxy to the Dwel API host.';
+        code = 'api_proxy_missing';
+      }
     }
 
     if (import.meta.env.DEV) {

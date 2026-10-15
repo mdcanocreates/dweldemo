@@ -1,0 +1,14 @@
+{
+  "name": "dwel-netlify-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Deployable Netlify demo of the production Dwel web app with /v1 API proxy.",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "preview": "npx --yes serve dist -p 4173"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
