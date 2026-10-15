@@ -59,4 +59,8 @@ For real access control, use Netlify Identity or an IdP.
 
 ## COMMIT SHA
 
-`6731f9f6842db63e811d1a367022e4de4e7a93c5` on `feat/netlify-demo-fornetlify`
+- Feature: `6731f9f6842db63e811d1a367022e4de4e7a93c5`
+- Docs tip (earlier): `35dae53517b1c52f2427e4d9ac643428fc3d1fa6`
+- **Deploy branch tip (buildable CI):** `4d847d5f69ecb923bc1bab3d4ca29c7739038dce` on `deploy/netlify-dwel-demo`
+
+See `NETLIFY_GIT_DEPLOY.md` for reconnecting `rbitdemo.netlify.app`.
