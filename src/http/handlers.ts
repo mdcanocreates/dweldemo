@@ -21,7 +21,13 @@ import {
   registerWebhookWorker,
 } from '../modules/screening/index.js';
 import { AppError } from '../modules/shared/errors.js';
-import { assessCertnAvailability } from '../modules/vendors/index.js';
+import { assessCertnAvailability, assessCheckrAvailability } from '../modules/vendors/index.js';
+import {
+  getSelectedScreeningProvider,
+  assessProviderInfrastructure,
+} from '../modules/screening/providers/index.js';
+import { isDemoModeEnabled } from '../modules/demo/mode.js';
+import { completeDemoScreening } from '../modules/screening/demo-complete.js';
 import { createLogger } from '../infra/logging/logger.js';
 import { requireApplicationAccess } from './application-auth.js';
 import { getClientIp, getUserAgent, parseQuery, readJsonBody } from './request.js';
@@ -247,24 +253,66 @@ export async function handleSubmitScreening(
     checkAppRouteRateLimit(`submit:${ip}:${applicationId}`);
     const body = submitScreeningSchema.parse(await readJsonBody(req));
 
-    // Fail closed BEFORE any auth-gated domain work that could advance state.
-    // Distinguish config-missing from vendor timeouts/rejections in telemetry.
-    const certn = assessCertnAvailability();
-    if (!certn.available) {
-      logger.warn(
-        {
-          event: 'screening_provider_unavailable',
-          reason: certn.reason,
-          application_id: applicationId,
-          outcome: 'no_state_transition',
-        },
-        'submit-screening blocked: Certn not configured',
-      );
-      sendJson(res, 503, {
-        error: 'SCREENING_PROVIDER_UNAVAILABLE',
-        message: 'screening provider not configured',
-      });
-      return;
+    // Fail closed BEFORE any auth-gated domain work that could advance state —
+    // except demo applications when DWEL_DEMO_ENABLED (never silent for normal apps).
+    // Provider selection is admin+env — do not hardcode Certn or Checkr here.
+    const providerGate = await withSystemBypass(deps.pool, async (client) => {
+      const selected = await getSelectedScreeningProvider(client);
+      const infra = assessProviderInfrastructure();
+      if (selected === 'disabled') {
+        return { ok: false as const, reason: 'screening_provider_disabled' };
+      }
+      if (!infra[selected].infrastructureReady) {
+        return {
+          ok: false as const,
+          reason: infra[selected].reason ?? 'provider_not_ready',
+        };
+      }
+      return { ok: true as const, selected };
+    });
+
+    if (!providerGate.ok) {
+      let demoAllowed = false;
+      if (isDemoModeEnabled()) {
+        const peek = await withSystemBypass(deps.pool, async (client) => {
+          const { rows } = await client.query<{ is_demo: boolean }>(
+            `select coalesce(is_demo, false) as is_demo from application where id = $1`,
+            [applicationId],
+          );
+          return rows[0]?.is_demo === true;
+        });
+        demoAllowed = peek;
+      }
+      // Legacy fallback: if admin setting row missing / disabled but Certn or Checkr
+      // infra is ready, allow submit for transitional environments.
+      const certn = assessCertnAvailability();
+      const checkr = assessCheckrAvailability();
+      const legacyReady = certn.available || checkr.available;
+      if (!demoAllowed && !legacyReady) {
+        logger.warn(
+          {
+            event: 'screening_provider_unavailable',
+            reason: providerGate.reason,
+            application_id: applicationId,
+            outcome: 'no_state_transition',
+          },
+          'submit-screening blocked: screening provider not configured',
+        );
+        sendJson(res, 503, {
+          error: 'SCREENING_PROVIDER_UNAVAILABLE',
+          message: 'screening provider not configured',
+        });
+        return;
+      }
+      if (demoAllowed) {
+        logger.info(
+          {
+            event: 'demo_screening_provider',
+            application_id: applicationId,
+          },
+          'submit-screening using DemoTenantScreening (demo application only)',
+        );
+      }
     }
 
     const auth = await withSystemBypass(deps.pool, (client) =>
@@ -309,6 +357,37 @@ export async function handleSubmitScreening(
       return;
     }
     // Genuine vendor/runtime failures keep their codes (e.g. certn_unavailable, certn_order_failed).
+    sendError(res, err);
+  }
+}
+
+export async function handleCompleteDemoScreening(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: HttpHandlerDeps,
+  applicationId: string,
+): Promise<void> {
+  try {
+    if (!isDemoModeEnabled()) {
+      sendJson(res, 404, { error: 'not_found', message: 'not found' });
+      return;
+    }
+    const auth = await withSystemBypass(deps.pool, (client) =>
+      requireApplicationAccess(client, req, applicationId),
+    );
+    const result = await withTenantContext(
+      deps.pool,
+      { orgId: auth.orgId, partyId: auth.partyId },
+      (client) => completeDemoScreening(client, applicationId),
+    );
+    sendJson(res, 200, {
+      application_id: result.applicationId,
+      screening_order_id: result.orderId,
+      status: result.status,
+      is_demo: true,
+      demo_result: result.demoResult,
+    });
+  } catch (err) {
     sendError(res, err);
   }
 }

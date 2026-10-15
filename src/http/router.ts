@@ -15,6 +15,7 @@ import {
   handleListListings,
   handleRecordConsent,
   handleSubmitScreening,
+  handleCompleteDemoScreening,
   type HttpHandlerDeps,
 } from './handlers.js';
 import {
@@ -24,6 +25,15 @@ import {
   handleGetCheckrScreening,
   handleInitiateCheckrScreening,
 } from './checkr-handlers.js';
+import {
+  handleInitiateProviderScreening,
+  handleGetProviderScreening,
+  handleAdminGetScreeningProviders,
+  handleAdminSetScreeningProvider,
+  handleAdminScreeningProviderHistory,
+  handleAdminScreeningComparison,
+  handleAdminProbeScreeningProvider,
+} from './screening-provider-handlers.js';
 import {
   handleLandlordCreateListing,
   handleLandlordDecideApplicant,
@@ -841,7 +851,7 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
 
     const appMatch = path.match(
-      /^\/v1\/applications\/([0-9a-f-]{36})(?:\/(consent|submit-screening|pay-consent|screening-eligibility))?$/i,
+      /^\/v1\/applications\/([0-9a-f-]{36})(?:\/(consent|submit-screening|pay-consent|complete-demo-screening|screening-eligibility))?$/i,
     );
     if (appMatch) {
       const applicationId = appMatch[1]!;
@@ -871,6 +881,10 @@ export function createApiRouter(deps: HttpHandlerDeps) {
         await handleSubmitScreening(req, res, deps, applicationId);
         return true;
       }
+      if (method === 'POST' && action === 'complete-demo-screening') {
+        await handleCompleteDemoScreening(req, res, deps, applicationId);
+        return true;
+      }
     }
 
     if (path === '/v1/webhooks/certn') {
@@ -885,12 +899,56 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
 
     if (method === 'POST' && path === '/v1/webhooks/checkr') {
+      // Checkr Tenant webhooks — continue for historical orders even if disabled for new ones
       await handleCheckrWebhookPost(req, res, deps);
       return true;
     }
 
     if (method === 'GET' && path === '/v1/admin/integrations/checkr') {
       await handleCheckrStatus(req, res);
+      return true;
+    }
+
+    // Provider-agnostic screening (preferred)
+    const providerScreeningMatch = path.match(
+      /^\/v1\/applications\/([0-9a-f-]{36})\/provider-screening(?:\/(initiate))?$/i,
+    );
+    if (providerScreeningMatch) {
+      const applicationId = providerScreeningMatch[1]!;
+      const action = providerScreeningMatch[2];
+      if (!UUID_RE.test(applicationId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid application id' }));
+        return true;
+      }
+      if (method === 'GET' && !action) {
+        await handleGetProviderScreening(req, res, deps, applicationId);
+        return true;
+      }
+      if (method === 'POST' && action === 'initiate') {
+        await handleInitiateProviderScreening(req, res, deps, applicationId);
+        return true;
+      }
+    }
+
+    if (method === 'GET' && path === '/v1/admin/screening/providers') {
+      await handleAdminGetScreeningProviders(req, res, deps);
+      return true;
+    }
+    if (method === 'PUT' && path === '/v1/admin/screening/providers') {
+      await handleAdminSetScreeningProvider(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/admin/screening/providers/history') {
+      await handleAdminScreeningProviderHistory(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/admin/screening/comparison') {
+      await handleAdminScreeningComparison(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/admin/screening/comparison/probe') {
+      await handleAdminProbeScreeningProvider(req, res, deps);
       return true;
     }
 

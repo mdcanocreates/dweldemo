@@ -436,6 +436,104 @@ export const api = {
   checkrReportPdfUrl: (applicationId: string) =>
     `/v1/applications/${applicationId}/checkr-screening/pdf`,
 
+  initiateProviderScreening: (
+    applicationId: string,
+    body?: {
+      package?: string;
+      provider?: 'certn' | 'checkr_tenant';
+    },
+  ) =>
+    request<{
+      screening_id: string;
+      application_id: string;
+      provider: string;
+      status: string;
+      provider_order_id: string | null;
+      application_url: string | null;
+      environment: string;
+      duplicate: boolean;
+    }>(`/v1/applications/${applicationId}/provider-screening/initiate`, {
+      method: 'POST',
+      body: JSON.stringify(body ?? {}),
+    }),
+
+  getProviderScreening: (applicationId: string) =>
+    request<{
+      screening_id?: string;
+      application_id: string;
+      provider: string | null;
+      status: string;
+      application_url?: string | null;
+      environment?: string;
+      products?: Record<string, unknown>;
+      overall_result?: string | null;
+      review_required?: boolean;
+    }>(`/v1/applications/${applicationId}/provider-screening`),
+
+  adminScreeningProviders: () =>
+    request<{
+      selected: string;
+      providers: Array<{
+        provider: string;
+        infrastructureReady: boolean;
+        reason: string | null;
+        mode: string | null;
+        selectable: boolean;
+      }>;
+    }>('/v1/admin/screening/providers'),
+
+  adminSetScreeningProvider: (provider: 'certn' | 'checkr_tenant' | 'disabled') =>
+    request<{ previous: string; selected: string }>('/v1/admin/screening/providers', {
+      method: 'PUT',
+      body: JSON.stringify({ provider }),
+    }),
+
+  adminScreeningProviderHistory: () =>
+    request<{
+      changes: Array<{
+        id: string;
+        previous_value: string;
+        new_value: string;
+        actor_party_id: string;
+        created_at: string;
+      }>;
+    }>('/v1/admin/screening/providers/history'),
+
+  adminScreeningComparison: () =>
+    request<{
+      scenarios: Array<{ key: string; provider: string; label: string }>;
+      infrastructure: Record<string, { infrastructureReady: boolean; reason: string | null }>;
+      runs: Array<{
+        id: string;
+        scenario_key: string;
+        provider: string;
+        screening_status: string | null;
+        request_latency_ms: number | null;
+        webhook_received: boolean;
+        report_available: boolean;
+        error_code: string | null;
+        created_at: string;
+      }>;
+      report: {
+        by_provider: Record<
+          string,
+          {
+            runs: number;
+            errors: number;
+            avg_latency_ms: number | null;
+            webhooks: number;
+            reports: number;
+          }
+        >;
+      };
+    }>('/v1/admin/screening/comparison'),
+
+  adminProbeScreeningProvider: (provider: 'certn' | 'checkr_tenant', scenario_key?: string) =>
+    request<{ run: unknown }>('/v1/admin/screening/comparison/probe', {
+      method: 'POST',
+      body: JSON.stringify({ provider, scenario_key }),
+    }),
+
   requestAccountDeletion: (body: { confirm: true; reason?: string }) =>
     request<{ request_id: string; status: string; message: string }>(
       '/v1/renter/account/deletion-request',

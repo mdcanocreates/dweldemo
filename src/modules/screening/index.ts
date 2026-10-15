@@ -87,6 +87,19 @@ export {
 } from './checkr/index.js';
 
 export {
+  initiateProviderScreening,
+  getProviderScreeningForViewer,
+  resolveProviderForNewScreening,
+  getSelectedScreeningProvider,
+  setSelectedScreeningProvider,
+  listSelectableProviders,
+  getScreeningProviderAdapter,
+  assessProviderInfrastructure,
+  type ScreeningProviderId,
+  type ScreeningProviderSelection,
+} from './providers/index.js';
+
+export {
   runApplicationPipeline,
   resumeApplicationFromPrescreen,
   forceApplicationTransition,

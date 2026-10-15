@@ -17,12 +17,20 @@ export function CheckrApplicantContinue({ applicationId }: { applicationId: stri
     let cancelled = false;
     void (async () => {
       try {
-        const row = await api.getCheckrScreening(applicationId);
-        if (!cancelled) {
-          setCheckr({ status: row.status, application_url: row.application_url });
+        // Prefer provider-agnostic endpoint; fall back to legacy Checkr route.
+        try {
+          const row = await api.getProviderScreening(applicationId);
+          if (!cancelled) {
+            setCheckr({ status: row.status, application_url: row.application_url });
+          }
+        } catch {
+          const row = await api.getCheckrScreening(applicationId);
+          if (!cancelled) {
+            setCheckr({ status: row.status, application_url: row.application_url });
+          }
         }
       } catch {
-        /* Checkr not enabled or no screening yet */
+        /* Screening not enabled or no screening yet */
       }
     })();
     return () => {
