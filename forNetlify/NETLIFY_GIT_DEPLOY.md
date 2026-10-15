@@ -35,6 +35,14 @@ Site: **rbitdemo.netlify.app** (do not create a new site)
 cd c:\Users\MDCan\Desktop\RBITMASTER\apps\dwel
 git remote add origin https://github.com/<ORG>/<DWEL-REPO>.git   # if missing
 git push -u origin deploy/netlify-dwel-demo
+# Expected tip: e0774bb0923419ca68f739eeb002f10856add2b6 (or newer on that branch)
 ```
 
 If GitHub/Netlify OAuth must be authorized by the site owner, complete that in the Netlify UI — agents cannot finish it without those credentials.
+
+## After deploy: live smoke checks
+
+1. https://rbitdemo.netlify.app/demo-build.json → `"mode": "standalone_demo"`
+2. https://rbitdemo.netlify.app/#/auth/login → **Enter demo** (not Send sign-in link)
+3. Emails: info@ / mdcano@ / addison@ / michaelsorge@ `@rbitfinancial.com`
+4. Demo chrome: Renter / Broker / Home Provider switch without magic link
