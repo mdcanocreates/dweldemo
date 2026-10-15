@@ -48,12 +48,16 @@ export function BrokerAckModal({
   open,
   demo = false,
   preview = false,
+  accepting = false,
+  error = null,
   onContinue,
   onSignOut,
 }: {
   open: boolean;
   demo?: boolean;
   preview?: boolean;
+  accepting?: boolean;
+  error?: string | null;
   onContinue: (values: BrokerAckValues) => void;
   onSignOut: () => void;
 }) {
@@ -115,6 +119,7 @@ export function BrokerAckModal({
                   type="checkbox"
                   className="mt-1 h-4 w-4 accent-dwel-mint-dark"
                   checked={values[section.key]}
+                  disabled={accepting}
                   onChange={(e) =>
                     setValues((prev) => ({ ...prev, [section.key]: e.target.checked }))
                   }
@@ -125,13 +130,23 @@ export function BrokerAckModal({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/50 bg-white/40 px-6 py-4 sm:px-8">
-          <Button variant="ghost" onClick={onSignOut}>
-            Sign out
-          </Button>
-          <Button disabled={!allChecked} onClick={() => onContinue(values)}>
-            Continue to Broker Dashboard
-          </Button>
+        <div className="flex flex-col gap-3 border-t border-white/50 bg-white/40 px-6 py-4 sm:px-8">
+          {error && (
+            <p role="alert" className="text-sm text-dwel-red">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button variant="ghost" onClick={onSignOut} disabled={accepting}>
+              Sign out
+            </Button>
+            <Button
+              disabled={!allChecked || accepting}
+              onClick={() => onContinue(values)}
+            >
+              {accepting ? 'Saving…' : 'Continue to Broker Dashboard'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -143,6 +158,8 @@ export function BrokerAckGate({
   needsAck,
   demo,
   preview,
+  acceptError,
+  accepting,
   onAccepted,
   onSignOut,
 }: {
@@ -150,6 +167,8 @@ export function BrokerAckGate({
   needsAck: boolean;
   demo?: boolean;
   preview?: boolean;
+  acceptError?: string | null;
+  accepting?: boolean;
   onAccepted: (values: BrokerAckValues) => void | Promise<void>;
   onSignOut: () => void;
 }) {
@@ -159,6 +178,8 @@ export function BrokerAckGate({
         open={needsAck}
         demo={demo}
         preview={preview}
+        accepting={accepting}
+        error={acceptError}
         onContinue={(v) => void onAccepted(v)}
         onSignOut={onSignOut}
       />

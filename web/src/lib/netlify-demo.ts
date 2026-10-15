@@ -3,6 +3,8 @@
  * Local email gate + in-memory session only — never production auth or API access.
  */
 
+import { clearDemoBrokerTermsAccepted } from './broker-terms-demo';
+
 export type NetlifyDemoRole = 'renter' | 'broker' | 'landlord';
 
 export const NETLIFY_DEMO_EMAILS = [
@@ -114,6 +116,25 @@ export function setNetlifyDemoRole(role: NetlifyDemoRole): void {
 
 export function stopNetlifyDemoSession(): void {
   writeStored(null);
+}
+
+/**
+ * Clears demo-only client persistence (broker acknowledgments, etc.) for a fresh walkthrough.
+ * Keeps the current demo email session unless `clearSession` is true.
+ */
+export function resetNetlifyDemoClientState(options?: { clearSession?: boolean }): void {
+  clearDemoBrokerTermsAccepted();
+  try {
+    localStorage.removeItem('dwel.broker.terms.ack.v1');
+    sessionStorage.removeItem('dwel.demo.broker.ack.v1');
+    sessionStorage.removeItem('dwel.demo.broker.portfolio.v1');
+  } catch {
+    /* ignore */
+  }
+  if (options?.clearSession) stopNetlifyDemoSession();
+  if (typeof window !== 'undefined' && typeof Event !== 'undefined') {
+    window.dispatchEvent(new Event(DEMO_EVENT));
+  }
 }
 
 export function netlifyDemoHomeForRole(role: NetlifyDemoRole): string {

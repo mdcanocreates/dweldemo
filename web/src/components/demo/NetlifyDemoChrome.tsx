@@ -4,6 +4,7 @@ import {
   isNetlifyDemoSessionActive,
   NETLIFY_DEMO_ROLE_ENTRY,
   netlifyDemoHomeForRole,
+  resetNetlifyDemoClientState,
   setNetlifyDemoRole,
   type NetlifyDemoRole,
 } from '../../lib/netlify-demo';
@@ -30,6 +31,13 @@ export function NetlifyDemoChrome() {
     setLocation(home);
   }
 
+  function resetDemo() {
+    resetNetlifyDemoClientState();
+    // Force remount of gated pages so broker ack reappears when incomplete.
+    setLocation('/broker/dashboard');
+    window.location.reload();
+  }
+
   return (
     <div
       role="region"
@@ -54,6 +62,14 @@ export function NetlifyDemoChrome() {
               {NETLIFY_DEMO_ROLE_ENTRY[role].label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={resetDemo}
+            className="rounded-md border border-white/20 bg-white/5 px-2.5 py-1 text-xs font-semibold text-dwel-gray-300 hover:bg-white/15 hover:text-white"
+            title="Clear demo acknowledgments and local demo state"
+          >
+            Reset demo
+          </button>
           <a
             href="#/auth/login"
             className="rounded-md px-2 py-1 text-xs font-medium text-dwel-gray-400 underline hover:text-white"

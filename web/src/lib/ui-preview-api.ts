@@ -24,6 +24,12 @@ import {
   isNetlifyDemoMode,
   isNetlifyDemoSessionActive,
 } from './netlify-demo';
+import { BROKER_TERMS_VERSION } from './demo-store';
+import {
+  getDemoBrokerTermsAcceptance,
+  readDemoBrokerTermsAccepted,
+  writeDemoBrokerTermsAccepted,
+} from './broker-terms-demo';
 
 type PreviewResult = { status: number; body: unknown } | null;
 
@@ -830,6 +836,46 @@ export function tryUiPreviewRequest(path: string, init?: RequestInit): PreviewRe
 
   if (method === 'GET' && p === '/v1/broker/invitations') {
     return json(200, { invitations: u.invitations });
+  }
+
+  // Broker partner acknowledgments — demo/preview only; localStorage, not production legal records.
+  if (method === 'GET' && p === '/v1/broker/terms') {
+    const accepted = readDemoBrokerTermsAccepted(BROKER_TERMS_VERSION);
+    return json(200, {
+      terms_version: BROKER_TERMS_VERSION,
+      accepted,
+      acceptance: accepted ? getDemoBrokerTermsAcceptance() : null,
+      provisional: true,
+      notice:
+        'Demo/preview acknowledgment only — not a production legal record and never sent to AWS.',
+    });
+  }
+
+  if (method === 'POST' && p === '/v1/broker/terms') {
+    const version =
+      typeof body.terms_version === 'string' && body.terms_version.trim()
+        ? String(body.terms_version)
+        : BROKER_TERMS_VERSION;
+    const required = [
+      'compensation_cap_ack',
+      'non_circumvention_ack',
+      'licensing_ack',
+      'platform_role_ack',
+    ] as const;
+    for (const key of required) {
+      if (body[key] !== true) {
+        return json(400, {
+          error: 'broker_terms_incomplete',
+          message: `Missing required acknowledgment: ${key}`,
+        });
+      }
+    }
+    const acceptance = writeDemoBrokerTermsAccepted(version);
+    return json(200, {
+      accepted: true as const,
+      acceptance,
+      provisional: true,
+    });
   }
 
   if (method === 'GET' && p === '/health/live') {

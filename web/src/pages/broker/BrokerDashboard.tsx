@@ -18,6 +18,11 @@ import {
 } from '../../lib/application-status';
 import { isUiPreviewActive } from '../../lib/ui-preview';
 import { previewInvite } from '../../lib/ui-preview-data';
+import { isNetlifyDemoMode } from '../../lib/netlify-demo';
+import {
+  readDemoBrokerTermsAccepted,
+  writeDemoBrokerTermsAccepted,
+} from '../../lib/broker-terms-demo';
 import {
   BrokerInviteModal,
   type BrokerInviteFormData,
@@ -27,6 +32,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 const LOCAL_ACK_KEY = 'dwel.broker.terms.ack.v1';
 
 function readLocalAck(): boolean {
+  if (isNetlifyDemoMode() || isUiPreviewActive()) {
+    return readDemoBrokerTermsAccepted(BROKER_TERMS_VERSION);
+  }
   try {
     const raw = localStorage.getItem(LOCAL_ACK_KEY);
     if (!raw) return false;
@@ -38,6 +46,10 @@ function readLocalAck(): boolean {
 }
 
 function writeLocalAck(): void {
+  if (isNetlifyDemoMode() || isUiPreviewActive()) {
+    writeDemoBrokerTermsAccepted(BROKER_TERMS_VERSION);
+    return;
+  }
   localStorage.setItem(
     LOCAL_ACK_KEY,
     JSON.stringify({ terms_version: BROKER_TERMS_VERSION, accepted_at: new Date().toISOString() }),
@@ -91,27 +103,32 @@ export function BrokerShell({ children }: { children: ReactNode }) {
 }
 
 function useBrokerAckGate() {
-  const preview = getPreviewRole() === 'broker' || isUiPreviewActive();
+  const netlifyDemo = isNetlifyDemoMode();
+  const uiPreview = isUiPreviewActive();
+  const internalPreview = getPreviewRole() === 'broker';
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [needsAck, setNeedsAck] = useState(!readLocalAck() && !isUiPreviewActive());
-  const [checking, setChecking] = useState(!preview);
+  const [needsAck, setNeedsAck] = useState(() => {
+    if (uiPreview) return false;
+    return !readLocalAck();
+  });
+  const [checking, setChecking] = useState(!uiPreview);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
-    if (preview) {
-      // Local UI inspection skips broker terms modal (in-memory only).
-      if (isUiPreviewActive()) {
-        setNeedsAck(false);
-        setChecking(false);
-        return;
-      }
-      setNeedsAck(!readLocalAck());
+    // Pure local UI inspection skips the legal modal entirely.
+    if (uiPreview && !netlifyDemo) {
+      setNeedsAck(false);
       setChecking(false);
       return;
     }
+
     let cancelled = false;
     void (async () => {
       try {
+        // Netlify demo + production both go through /v1/broker/terms.
+        // Demo builds are served by offline adapters (localStorage), never AWS.
         const status = await api.getBrokerTerms();
         if (!cancelled) {
           setNeedsAck(!status.accepted);
@@ -126,15 +143,28 @@ function useBrokerAckGate() {
     return () => {
       cancelled = true;
     };
-  }, [preview]);
+  }, [uiPreview, netlifyDemo, internalPreview]);
 
-  async function onAccepted(_values: BrokerAckValues) {
-    if (preview) {
-      writeLocalAck();
-      setNeedsAck(false);
-      return;
-    }
+  async function onAccepted(values: BrokerAckValues) {
+    setAcceptError(null);
+    setAccepting(true);
     try {
+      const incomplete =
+        !values.compensation_cap_ack ||
+        !values.non_circumvention_ack ||
+        !values.licensing_ack ||
+        !values.platform_role_ack;
+      if (incomplete) {
+        setAcceptError('Check all acknowledgment boxes before continuing.');
+        return;
+      }
+
+      if (uiPreview && !netlifyDemo) {
+        writeLocalAck();
+        setNeedsAck(false);
+        return;
+      }
+
       await api.acceptBrokerTerms({
         terms_version: BROKER_TERMS_VERSION,
         compensation_cap_ack: true,
@@ -144,15 +174,26 @@ function useBrokerAckGate() {
       });
       writeLocalAck();
       setNeedsAck(false);
-    } catch {
-      /* keep modal open */
+    } catch (err) {
+      setAcceptError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not save acknowledgments. Please try again.',
+      );
+    } finally {
+      setAccepting(false);
     }
   }
 
   return {
     checking,
     needsAck,
-    preview,
+    preview: uiPreview || internalPreview,
+    demo: netlifyDemo,
+    acceptError,
+    accepting,
     onAccepted,
     onSignOut: () => {
       void logout().finally(() => setLocation('/'));
@@ -172,6 +213,9 @@ function withAck(gate: ReturnType<typeof useBrokerAckGate>, body: ReactNode) {
     <BrokerAckGate
       needsAck={gate.needsAck}
       preview={gate.preview}
+      demo={gate.demo}
+      acceptError={gate.acceptError}
+      accepting={gate.accepting}
       onAccepted={gate.onAccepted}
       onSignOut={gate.onSignOut}
     >
@@ -181,7 +225,7 @@ function withAck(gate: ReturnType<typeof useBrokerAckGate>, body: ReactNode) {
 }
 
 function useBrokerInviteModal() {
-  const preview = isUiPreviewActive();
+  const offlineFixtures = isUiPreviewActive() || isNetlifyDemoMode();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -191,17 +235,17 @@ function useBrokerInviteModal() {
     setSubmitting(true);
     setError(null);
     try {
-      if (preview) {
+      if (offlineFixtures) {
         previewInvite(data.email, data.businessName, data.note || undefined);
         setOpen(false);
         setLocation('/broker/invitations');
       } else {
         setError(
-          'Broker invite endpoint is not deployed. Use local UI preview to demonstrate the flow.',
+          'Home Provider invite is not available in this environment yet. Demo builds support it offline.',
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Preview invite failed');
+      setError(err instanceof Error ? err.message : 'Invite failed');
     } finally {
       setSubmitting(false);
     }
