@@ -1,3 +1,25 @@
+.staging-banner {
+  position: sticky;
+  top: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 1rem;
+  background: #f59e0b;
+  color: #451a03;
+  font-family: var(--font-b, system-ui, sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid #92400e;
+}
+.staging-banner__label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 :root {
   /* N-4: tokens from Dwel-Platform/artifacts/dwel20-rental-platform/src/index.css */
   --primary: 158 94% 64%;

@@ -1,0 +1,73 @@
+name: staging-prep
+
+on:
+  push:
+    branches: [staging/engineering-continue, main, master]
+  pull_request:
+    paths:
+      - 'terraform/envs/staging/**'
+      - 'terraform/modules/dwel_staging_attachment/**'
+      - 'ci/gates/staging-terraform-static.ts'
+      - 'scripts/staging/**'
+      - 'src/server.ts'
+      - '.github/workflows/staging-prep.yml'
+
+jobs:
+  terraform-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Staging Terraform static gate
+        run: npm run ci:staging-terraform-static
+      - name: Terraform fmt / validate
+        run: |
+          terraform -chdir=terraform/envs/staging init -backend=false -input=false
+          terraform -chdir=terraform/envs/staging fmt -check
+          terraform -chdir=terraform/envs/staging validate
+      - name: Preflight rejects placeholder image
+        run: |
+          set +e
+          npx tsx scripts/staging/preflight-assert.ts --image '941612827888.dkr.ecr.us-east-2.amazonaws.com/dwel-staging-api:validate-only-do-not-apply'
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "expected preflight to reject placeholder"
+            exit 1
+          fi
+
+  disposable-migrate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: rbit
+          POSTGRES_PASSWORD: rbit
+          POSTGRES_DB: rbit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rbit -d rbit_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rbit:rbit@localhost:5432/rbit_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Migrate 0001→latest on disposable Postgres
+        run: npm run staging:disposable-migrate
+      - name: Unit tests (health + gates subset)
+        run: npx vitest run tests/unit/health-live.test.ts
+
+  # Browser E2E intentionally omitted — see tests/e2e/staging-browser.blockers.md

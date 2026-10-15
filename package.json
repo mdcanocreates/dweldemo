@@ -22,7 +22,10 @@
     "ci:openapi-drift": "tsx ci/gates/openapi-drift.ts",
     "ci:feature-leakage": "tsx ci/gates/feature-leakage.ts",
     "ci:tenant-session-local": "tsx ci/gates/tenant-session-local.ts",
-    "ci:gates": "npm run lint:boundaries && npm run ci:tenancy && npm run ci:pii-manifest && npm run ci:migration-safety && npm run ci:feature-leakage && npm run ci:tenant-session-local",
+    "ci:staging-terraform-static": "tsx ci/gates/staging-terraform-static.ts",
+    "ci:gates": "npm run lint:boundaries && npm run ci:tenancy && npm run ci:pii-manifest && npm run ci:migration-safety && npm run ci:feature-leakage && npm run ci:tenant-session-local && npm run ci:staging-terraform-static",
+    "staging:preflight": "tsx scripts/staging/preflight-assert.ts",
+    "staging:disposable-migrate": "tsx scripts/staging/disposable-migrate.ts",
     "evidence:phase0": "tsx scripts/phase0-evidence.ts",
     "seed:test-accounts": "tsx scripts/seed-test-accounts.ts"
   },

@@ -12,6 +12,11 @@ coverage/
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl
+**/terraform/envs/**/backend.hcl
+**/terraform/envs/**/*.auto.tfvars
+**/terraform/envs/**/terraform.tfvars
+!**/terraform/envs/**/*.tfvars.example
+!**/terraform/envs/**/backend.hcl.example
 evidence/tmp/
 .vitest/
 Dwel-Platform/node_modules/

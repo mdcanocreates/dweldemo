@@ -83,7 +83,19 @@ async function checkCache(): Promise<boolean> {
   }
 }
 
-async function buildHealthResponse(): Promise<{ statusCode: number; body: string }> {
+/** Process liveness only — no DB/cache I/O. Used by ALB/ECS probes (Aurora may auto-pause). */
+function buildLiveHealthResponse(): { statusCode: number; body: string } {
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      status: 'healthy',
+      version,
+    }),
+  };
+}
+
+/** Diagnostic readiness — checks PostgreSQL (and cache when configured). */
+async function buildReadyHealthResponse(): Promise<{ statusCode: number; body: string }> {
   const [dbOk, cacheOk] = await Promise.all([checkDatabase(), checkCache()]);
   const healthy = dbOk && cacheOk;
 
@@ -153,8 +165,16 @@ async function main(): Promise<void> {
   const server = http.createServer(async (req, res) => {
     const path = req.url?.split('?')[0] ?? '';
 
-    if (req.method === 'GET' && path === '/health') {
-      const health = await buildHealthResponse();
+    if (req.method === 'GET' && path === '/health/live') {
+      const health = buildLiveHealthResponse();
+      res.writeHead(health.statusCode, { 'Content-Type': 'application/json' });
+      res.end(health.body);
+      return;
+    }
+
+    // Deep/readiness checks for manual diagnostics — not used by ALB.
+    if (req.method === 'GET' && (path === '/health' || path === '/health/ready')) {
+      const health = await buildReadyHealthResponse();
       res.writeHead(health.statusCode, { 'Content-Type': 'application/json' });
       res.end(health.body);
       return;

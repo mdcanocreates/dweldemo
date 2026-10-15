@@ -1,0 +1,11 @@
+# Example remote-state config for Dwel staging.
+# Copy to backend.hcl (do not commit) after the state bucket/lock table exist.
+#
+# All PLACEHOLDER_* values MUST be replaced. Preflight/static checks treat
+# unchanged placeholders as unsafe for authorized plan/apply.
+
+bucket         = "PLACEHOLDER_REPLACE_rbit-tfstate-dwel-staging-941612827888"
+key            = "dwel/staging/terraform.tfstate"
+region         = "us-east-2"
+dynamodb_table = "PLACEHOLDER_REPLACE_rbit-tfstate-dwel-staging-lock"
+encrypt        = true
