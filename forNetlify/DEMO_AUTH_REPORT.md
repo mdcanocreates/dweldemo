@@ -56,3 +56,7 @@ For real access control, use Netlify Identity or an IdP.
 - Publish: `dist`
 - Env: `VITE_DWEL_NETLIFY_DEMO=true` (from `netlify.toml`)
 - **Do not set** `DWEL_API_ORIGIN`
+
+## COMMIT SHA
+
+`6731f9f6842db63e811d1a367022e4de4e7a93c5` on `feat/netlify-demo-fornetlify`
