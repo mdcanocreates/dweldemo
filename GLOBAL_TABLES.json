@@ -63,7 +63,13 @@
     "partner_organization",
     "platform_flag",
     "platform_flag_change",
-    "application_match_score_history"
+    "application_match_score_history",
+    "checkr_tenant_screening",
+    "checkr_report_access_audit",
+    "screening_provider_setting",
+    "screening_provider_setting_change",
+    "provider_screening",
+    "screening_comparison_run"
   ],
   "justifications": {
     "schema_migrations": "Migration bookkeeping",
@@ -128,6 +134,12 @@
     "partner_organization": "Partner org catalog root (Charter attribution); reference-like platform entity",
     "platform_flag": "Platform feature flag catalog; admin-managed",
     "platform_flag_change": "Append-only platform flag audit log",
-    "application_match_score_history": "Derived match scores keyed by application_id; read under app tenant context in handlers; workers under bypass"
+    "application_match_score_history": "Derived match scores keyed by application_id; read under app tenant context in handlers; workers under bypass",
+    "checkr_tenant_screening": "Checkr order linkage; requester_org_id scoped in handlers; workers under bypass pending dedicated RLS pass",
+    "checkr_report_access_audit": "Append-only Checkr access audit; platform compliance log",
+    "screening_provider_setting": "Singleton admin default screening provider selection",
+    "screening_provider_setting_change": "Append-only admin provider selection audit",
+    "provider_screening": "Provider-agnostic screening rows; requester_org_id scoped in handlers; workers under bypass pending dedicated RLS pass",
+    "screening_comparison_run": "Internal sandbox comparison runs; synthetic only"
   }
 }

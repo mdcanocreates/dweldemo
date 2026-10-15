@@ -6,13 +6,13 @@ import { AppError } from '../modules/shared/errors.js';
 import { requireSession } from './session-auth.js';
 import { pickOrgForRole } from '../modules/auth/session.js';
 import {
-  initiateCheckrScreening,
   getCheckrScreeningForAuthorizedViewer,
   getCheckrReportReview,
   downloadCheckrReportPdf,
   ingestCheckrWebhook,
   processCheckrWebhookEvent,
 } from '../modules/screening/checkr/index.js';
+import { initiateProviderScreening } from '../modules/screening/providers/index.js';
 import { assessCheckrAvailability } from '../modules/vendors/checkr/index.js';
 import { createLogger } from '../infra/logging/logger.js';
 import { getClientIp, readJsonBody } from './request.js';
@@ -62,15 +62,18 @@ export async function handleInitiateCheckrScreening(
       throw new AppError('home provider or broker role required', 'auth_forbidden', 403);
     }
 
+    // Legacy Checkr route — routes through provider-agnostic orchestration
+    // with an explicit Checkr override (does not change admin default).
     const result = await withTenantContext(
       deps.pool,
       { orgId, partyId: identity.partyId },
       (client) =>
-        initiateCheckrScreening(client, {
+        initiateProviderScreening(client, {
           applicationId,
           actorPartyId: identity.partyId,
           actorOrgId: orgId,
-          packageSlug: body.package,
+          providerOverride: 'checkr_tenant',
+          packageHint: body.package,
           sandboxApplicantOverride: body.sandbox_applicant,
         }),
     );
@@ -78,8 +81,9 @@ export async function handleInitiateCheckrScreening(
     sendJson(res, result.duplicate ? 200 : 201, {
       screening_id: result.screeningId,
       application_id: result.applicationId,
+      provider: result.provider,
       status: result.status,
-      checkr_order_id: result.checkrOrderId,
+      checkr_order_id: result.providerOrderId,
       application_url: result.applicationUrl,
       environment: result.environment,
       duplicate: result.duplicate,

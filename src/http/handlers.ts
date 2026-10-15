@@ -21,7 +21,11 @@ import {
   registerWebhookWorker,
 } from '../modules/screening/index.js';
 import { AppError } from '../modules/shared/errors.js';
-import { assessCertnAvailability } from '../modules/vendors/index.js';
+import { assessCertnAvailability, assessCheckrAvailability } from '../modules/vendors/index.js';
+import {
+  getSelectedScreeningProvider,
+  assessProviderInfrastructure,
+} from '../modules/screening/providers/index.js';
 import { isDemoModeEnabled } from '../modules/demo/mode.js';
 import { completeDemoScreening } from '../modules/screening/demo-complete.js';
 import { createLogger } from '../infra/logging/logger.js';
@@ -251,8 +255,23 @@ export async function handleSubmitScreening(
 
     // Fail closed BEFORE any auth-gated domain work that could advance state —
     // except demo applications when DWEL_DEMO_ENABLED (never silent for normal apps).
-    const certn = assessCertnAvailability();
-    if (!certn.available) {
+    // Provider selection is admin+env — do not hardcode Certn or Checkr here.
+    const providerGate = await withSystemBypass(deps.pool, async (client) => {
+      const selected = await getSelectedScreeningProvider(client);
+      const infra = assessProviderInfrastructure();
+      if (selected === 'disabled') {
+        return { ok: false as const, reason: 'screening_provider_disabled' };
+      }
+      if (!infra[selected].infrastructureReady) {
+        return {
+          ok: false as const,
+          reason: infra[selected].reason ?? 'provider_not_ready',
+        };
+      }
+      return { ok: true as const, selected };
+    });
+
+    if (!providerGate.ok) {
       let demoAllowed = false;
       if (isDemoModeEnabled()) {
         const peek = await withSystemBypass(deps.pool, async (client) => {
@@ -264,15 +283,20 @@ export async function handleSubmitScreening(
         });
         demoAllowed = peek;
       }
-      if (!demoAllowed) {
+      // Legacy fallback: if admin setting row missing / disabled but Certn or Checkr
+      // infra is ready, allow submit for transitional environments.
+      const certn = assessCertnAvailability();
+      const checkr = assessCheckrAvailability();
+      const legacyReady = certn.available || checkr.available;
+      if (!demoAllowed && !legacyReady) {
         logger.warn(
           {
             event: 'screening_provider_unavailable',
-            reason: certn.reason,
+            reason: providerGate.reason,
             application_id: applicationId,
             outcome: 'no_state_transition',
           },
-          'submit-screening blocked: Certn not configured',
+          'submit-screening blocked: screening provider not configured',
         );
         sendJson(res, 503, {
           error: 'SCREENING_PROVIDER_UNAVAILABLE',
@@ -280,13 +304,15 @@ export async function handleSubmitScreening(
         });
         return;
       }
-      logger.info(
-        {
-          event: 'demo_screening_provider',
-          application_id: applicationId,
-        },
-        'submit-screening using DemoTenantScreening (demo application only)',
-      );
+      if (demoAllowed) {
+        logger.info(
+          {
+            event: 'demo_screening_provider',
+            application_id: applicationId,
+          },
+          'submit-screening using DemoTenantScreening (demo application only)',
+        );
+      }
     }
 
     const auth = await withSystemBypass(deps.pool, (client) =>
