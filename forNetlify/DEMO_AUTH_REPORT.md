@@ -1,66 +1,33 @@
-# Dwel Netlify Demo — Standalone Mode Report
+# Dwel Netlify Demo — Live Recovery Report
 
-## MODE
+## Status
 
-**Standalone interactive demo** — no magic links, SES, AWS API, or `DWEL_API_ORIGIN`.
+**LIVE:** https://rbitdemo.netlify.app is serving the standalone demo.
 
-## ROOT CAUSE (historical)
+Verified 2026-10-15:
 
-Earlier `rbitdemo.netlify.app` failed auth because relative `/v1` had no API. That path is obsolete for this deploy: demo builds no longer call production `/v1`.
+- `/` → HTTP 200 + production HTML shell
+- `/demo-build.json` → `"mode": "standalone_demo"`
+- Bundle `/assets/index-CDm14zlb.js` contains `Enter demo`, `Simulated data`, four allowlisted emails, role chrome
 
-## ACCESS
+## ACTUAL ROOT CAUSE (404)
 
-Client-side email gate only (not secure authentication):
+After the submodule fix, the site returned Netlify’s default **Page not found** because published output was empty / mis-resolved:
 
-- info@rbitfinancial.com
-- mdcano@rbitfinancial.com
-- addison@rbitfinancial.com
-- michaelsorge@rbitfinancial.com
+1. Only branch on the repo was `deploy/netlify-dwel-demo` while Netlify’s default **production branch is `main`** (missing → no valid production publish).
+2. UI Base=`forNetlify` combined with Publish=`forNetlify/dist` can resolve to `forNetlify/forNetlify/dist` (empty → 404).
 
-For real access control, use Netlify Identity or an IdP.
+## FIX IMPLEMENTED
 
-## WHAT WORKS
+- Root `netlify.toml`: `command = npm --prefix forNetlify run build`, `publish = forNetlify/dist`, **no** `[build].base`
+- Pushed tip to `deploy/netlify-dwel-demo` and **`main`**
+- Docs updated in `NETLIFY_GIT_DEPLOY.md`
 
-- Demo email entry → immediate local session
-- Rejection of other emails by the local gate
-- Renter / Broker / Home Provider portals via production UI
-- Instant role switching after demo access
-- In-memory listings, applications, screening states, dashboards (ui-preview fixtures)
-- Local mutations only (sessionStorage / in-memory universe)
+## GIT
 
-## WHAT IS SIMULATED
-
-- Authentication (no magic link / no `rbit_session` cookie from API)
-- Screening provider calls (blocked)
-- Payments / Stripe (blocked)
-- Email delivery (none)
-- All `/v1` responses (offline adapters)
-
-## MISSING / THINNER COVERAGE
-
-- Admin Control Center surfaces (not in demo chrome roles)
-- Any production endpoint not covered by `ui-preview-api` returns empty GET or 403 mutation
-- Real document binaries / signed URLs
+- Remote: `https://github.com/mdcanocreates/dweldemo.git`
+- Branches: `deploy/netlify-dwel-demo` and `main` @ `ea7d6a5a16fa411b259fb9ba38b16ffaa479f8e1`
 
 ## PRODUCTION SAFETY
 
-- `VITE_DWEL_NETLIFY_DEMO` build flag required
-- Production builds keep magic-link auth unchanged
-- Demo builds refuse outbound API (`shouldBlockOutboundApi`)
-- No AWS resources or production secrets required
-
-## NETLIFY SETTINGS
-
-- Base directory: `forNetlify`
-- Build: `npm run build`
-- Publish: `dist`
-- Env: `VITE_DWEL_NETLIFY_DEMO=true` (from `netlify.toml`)
-- **Do not set** `DWEL_API_ORIGIN`
-
-## COMMIT SHA
-
-- Feature: `6731f9f6842db63e811d1a367022e4de4e7a93c5`
-- Docs tip (earlier): `35dae53517b1c52f2427e4d9ac643428fc3d1fa6`
-- **Deploy branch tip (buildable CI):** `e0774bb0923419ca68f739eeb002f10856add2b6` on `deploy/netlify-dwel-demo`
-
-See `NETLIFY_GIT_DEPLOY.md` for reconnecting `rbitdemo.netlify.app`.
+No AWS, secrets, or production Dwel auth changes.
