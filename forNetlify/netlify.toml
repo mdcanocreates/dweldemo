@@ -1,4 +1,5 @@
-# Dwel Netlify standalone demo — production UI + local fixtures (no AWS API).
+# Used only if Netlify UI Base directory is set to `forNetlify`.
+# Prefer the repository-root netlify.toml with Base directory LEFT BLANK.
 
 [build]
   command = "npm run build"
@@ -9,8 +10,10 @@
   VITE_DWEL_NETLIFY_DEMO = "true"
   VITE_APP_ENV = "demo"
 
-# No DWEL_API_ORIGIN required. Demo uses in-memory adapters only.
-# Do not add production API secrets to this site.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 [[headers]]
   for = "/index.html"

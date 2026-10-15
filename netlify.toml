@@ -1,0 +1,28 @@
+# Root Netlify config for https://rbitdemo.netlify.app
+# Intentionally does NOT use [build].base — avoids forNetlify/forNetlify/dist double-prefix 404s
+# when the UI "Base directory" is left blank (recommended) or set incorrectly.
+
+[build]
+  command = "npm --prefix forNetlify run build"
+  publish = "forNetlify/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  VITE_DWEL_NETLIFY_DEMO = "true"
+  VITE_APP_ENV = "demo"
+
+# SPA fallback (hash router). Also emitted into forNetlify/dist/_redirects by build.mjs.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/demo-build.json"
+  [headers.values]
+    Cache-Control = "no-cache"
