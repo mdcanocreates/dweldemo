@@ -402,6 +402,10 @@ export function LandlordApplicantDetailPage() {
   const [missingDocTypes, setMissingDocTypes] = useState<string[]>([]);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const [leaseBusy, setLeaseBusy] = useState(false);
+  const [checkr, setCheckr] = useState<Awaited<ReturnType<typeof api.getCheckrScreening>> | null>(
+    null,
+  );
+  const [checkrBusy, setCheckrBusy] = useState(false);
 
   const invalidId = !isValidApplicationId(applicationId);
 
@@ -420,6 +424,12 @@ export function LandlordApplicantDetailPage() {
         setData(null);
       } else {
         setData(row);
+        try {
+          const ck = await api.getCheckrScreening(applicationId);
+          setCheckr(ck);
+        } catch {
+          setCheckr(null);
+        }
       }
     } catch (err) {
       setError(friendlyApiError(err instanceof ApiError ? err.message : 'Could not load application.'));
@@ -868,7 +878,8 @@ export function LandlordApplicantDetailPage() {
                   <h2 className="text-lg font-semibold">Screening report</h2>
                   <p className="mt-1 text-xs text-dwel-muted">
                     Authorized normalized results only. Completion does not mean “no records found.”
-                    Raw vendor payloads are never shown.
+                    Raw vendor payloads are never shown. A <strong>consider</strong> result requires
+                    human review — it is never an automatic decline.
                   </p>
                   <dl className="mt-4 space-y-2 text-sm">
                     {(['identity', 'credit', 'criminal', 'eviction'] as const).map((key) => (
@@ -890,6 +901,74 @@ export function LandlordApplicantDetailPage() {
                           : 'Not ordered'}
                     </strong>
                   </p>
+
+                  {checkr && checkr.status !== 'not_requested' ? (
+                    <div className="mt-6 border-t border-dwel-line pt-4">
+                      <h3 className="text-base font-semibold">Checkr Tenant screening</h3>
+                      <p className="mt-1 text-xs text-dwel-muted">
+                        Sub-status: <strong>{checkr.status}</strong>
+                        {checkr.environment ? ` · ${checkr.environment}` : ''}
+                        {checkr.review_required
+                          ? ' · Review required (consider indicators present)'
+                          : ''}
+                      </p>
+                      {checkr.products && Object.keys(checkr.products).length > 0 ? (
+                        <dl className="mt-3 space-y-2 text-sm">
+                          {Object.entries(checkr.products).map(([key, val]) => (
+                            <div key={key} className="flex justify-between gap-3">
+                              <dt className="text-dwel-muted">{key.replace(/_/g, ' ')}</dt>
+                              <dd className="font-semibold">{val.result ?? val.status ?? '—'}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : null}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {checkr.status === 'completed' && checkr.checkr_report_id ? (
+                          <a
+                            href={api.checkrReportPdfUrl(applicationId!)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button variant="secondary">Download report PDF</Button>
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-6 border-t border-dwel-line pt-4">
+                      <p className="text-sm text-dwel-muted">
+                        Checkr Tenant screening has not been requested for this application.
+                      </p>
+                      <Button
+                        className="mt-3"
+                        disabled={checkrBusy}
+                        onClick={() => {
+                          void (async () => {
+                            if (!applicationId) return;
+                            setCheckrBusy(true);
+                            setActionError(null);
+                            try {
+                              await api.initiateCheckrScreening(applicationId);
+                              const ck = await api.getCheckrScreening(applicationId);
+                              setCheckr(ck);
+                            } catch (err) {
+                              setActionError(
+                                friendlyApiError(
+                                  err instanceof ApiError
+                                    ? err.message
+                                    : 'Could not start Checkr screening.',
+                                ),
+                              );
+                            } finally {
+                              setCheckrBusy(false);
+                            }
+                          })();
+                        }}
+                      >
+                        {checkrBusy ? 'Starting…' : 'Initiate Checkr screening'}
+                      </Button>
+                    </div>
+                  )}
                 </Card>
               )}
 

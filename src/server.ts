@@ -18,7 +18,11 @@ import {
   LiveStripeConnectAdapter,
   setStripeConnectAdapter,
 } from './modules/payments/index.js';
-import { resetVendorRegistry, assessCertnAvailability } from './modules/vendors/index.js';
+import {
+  resetVendorRegistry,
+  assessCertnAvailability,
+  assessCheckrAvailability,
+} from './modules/vendors/index.js';
 
 const logger = createLogger();
 
@@ -127,10 +131,17 @@ async function main(): Promise<void> {
   redis.on('error', (err) => logger.error({ err }, 'redis client error'));
   await redis.connect();
 
-  // Certn live only when Secrets Manager has injected credentials.
+  // Prefer Checkr Tenant when explicitly enabled; otherwise keep Certn spine.
   // Never fall back to stub for product screening — unavailable adapter + HTTP gate.
+  const checkr = assessCheckrAvailability();
   const certn = assessCertnAvailability();
-  if (certn.available) {
+  if (checkr.available) {
+    resetVendorRegistry({ tenantScreening: 'checkr_tenant' });
+    logger.info(
+      { vendor: 'checkr_tenant', mode: checkr.mode },
+      'tenant screening vendor configured (Checkr)',
+    );
+  } else if (certn.available) {
     resetVendorRegistry({ tenantScreening: 'certn_sandbox' });
     logger.info({ vendor: 'certn_sandbox', certn: 'configured' }, 'tenant screening vendor configured');
   } else {
@@ -138,16 +149,18 @@ async function main(): Promise<void> {
     logger.warn(
       {
         event: 'screening_provider_unavailable',
-        reason: certn.reason,
+        reason: checkr.available === false ? checkr.reason : certn.reason,
         vendor: 'certn_unavailable',
+        checkr_reason: checkr.available === false ? checkr.reason : null,
       },
-      'Certn not configured — app boots; submit-screening fails closed',
+      'No screening vendor configured — app boots; screening fails closed',
     );
   }
 
   const route = createApiRouter({
     pool,
     certnWebhookSecret: process.env.CERTN_WEBHOOK_SECRET ?? null,
+    checkrWebhookSecret: process.env.CHECKR_TENANT_WEBHOOK_SECRET ?? null,
   });
 
   const server = http.createServer(async (req, res) => {

@@ -1,0 +1,4137 @@
+openapi: 3.1.0
+info:
+  title: Checkr Tenant API
+  version: '1.0'
+  summary: |
+    The Tenant Monolith API is a RESTful service that powers tenant screening
+    workflows at Checkr. It uses resource-oriented URLs, supports HTTPS for
+    authentication and requests, and returns JSON responses.
+  description: >
+    The Checkr Tenant API lets property managers and landlords order tenant
+
+    screenings, manage rental properties, and retrieve screening reports
+
+    programmatically. It is organized around four core resources:
+
+
+    - **Properties** — rental addresses you screen applicants for.
+
+    - **Applicants** — people being screened.
+
+    - **Orders** — a screening request placed for an applicant against a
+    property.
+
+    - **Reports** — the results returned by an order, broken down by check type.
+
+
+    Reports are produced asynchronously. You can either listen for `report.*`
+
+    [webhooks](webhooks.md) or poll `GET /orders/{id}/report`. All resources are
+
+    isolated per environment via test and live API keys — see the
+
+    [Testing guide](testing.md) for how mode isolation works and which scenarios
+
+    are available against test keys.
+
+
+    New to the API? Start with the [Getting Started guide](index.md) for the
+
+    end-to-end walkthrough, including authorization, billing setup, and your
+    first
+
+    order.
+  contact:
+    name: Tenant Engineering
+    email: hello-tenant@checkr.com
+    url: https://tenant.checkr.com
+servers:
+  - url: https://tenant.checkr.com/api
+    description: Checkr Tenant API
+security:
+  - bearer-token: []
+x-tagGroups:
+  - name: Resources
+    tags:
+      - Orders
+      - Reports
+      - Properties
+      - Applicants
+  - name: Products
+    tags:
+      - Products
+  - name: Webhooks
+    tags:
+      - Webhooks
+tags:
+  - name: Applicants
+    description: >-
+      People being screened. Applicants can be created on their own and attached
+      to an order later, or created inline when an order is placed. Each
+      applicant attaches to at most one order.
+  - name: Orders
+    description: Screening orders placed for an applicant against a property.
+  - name: Products
+    description: >-
+      The individual products that make up a screening order. Each product is
+      run as a separate report item and appears on the report keyed by its type
+      (`criminal_history`, `credit_report`, `eviction_history`,
+      `identity_verification`, `income_verification`, `sex_offender_registry`,
+      `global_watchlist`).
+  - name: Properties
+    description: >-
+      Rental addresses you screen applicants for. Properties can be created on
+      their own and reused across orders, or created inline when an order is
+      placed.
+  - name: Reports
+    description: Screening results produced for an order, broken down by check type.
+  - name: Webhooks
+    description: |
+      Outbound HTTP callbacks Checkr Tenant sends to your endpoints when
+      lifecycle events happen. See the [Webhooks guide](webhooks.md) for
+      delivery semantics, retries, and signature verification.
+paths:
+  /orders:
+    get:
+      summary: List orders
+      description: |
+        List the orders owned by your organization, newest first. The response
+        is paginated — see `next_href` / `previous_href` for walking through
+        pages. Live-mode keys see only live-mode orders; test-mode keys see
+        only test-mode orders.
+      tags:
+        - Orders
+      parameters:
+        - $ref: '#/components/parameters/checkr-tenant-version'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/per_page'
+        - $ref: '#/components/parameters/include'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/order-list'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-orders
+      security:
+        - bearer-token: []
+    post:
+      summary: Create order
+      description: >
+        Create a new screening order for an applicant against a property. The
+
+        property and the applicant can each be supplied either inline (address
+
+        / identity fields) — in which case a new record is created — or by id
+
+        (`property_id` / `applicant_id`) to reuse an existing record. Provide
+
+        exactly one form per side.
+
+
+        `original_requester` is optional. Omit it entirely if you are screening
+        applicants
+
+        for your own organization. Supply it only if you are a platform placing
+        orders on
+
+        behalf of your own customers, to identify the end user the report is
+        furnished to.
+
+        It follows the same inline-or-id shape, sending both forms returns a
+        validation error,
+
+        sending neither does not.
+
+
+        **Screening fee compliance:** many states and cities cap what you may
+        charge an
+
+        applicant for a screening fee, or require specific disclosures. You are
+        responsible
+
+        for determining and following the application screening fee laws that
+        apply to each
+
+        property's jurisdiction. See our [Application Screening
+
+        Fees](https://tenant.checkr.com/resources/application-screening-fee)
+        page for
+
+        state and city fee caps, provided for reference only and subject to
+        change.
+      tags:
+        - Orders
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+        - $ref: '#/components/parameters/checkr-tenant-version'
+        - $ref: '#/components/parameters/include'
+      requestBody:
+        $ref: '#/components/requestBodies/post-order-request-body'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/order'
+        '401':
+          $ref: '#/components/responses/error'
+        '402':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: post-orders
+      security:
+        - bearer-token: []
+  /orders/{id}:
+    get:
+      summary: Get order
+      description: Retrieve an order by its id.
+      tags:
+        - Orders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the order.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+        - $ref: '#/components/parameters/include'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/order'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-order
+      security:
+        - bearer-token: []
+  /orders/{id}/report:
+    get:
+      summary: Get report for order
+      description: |
+        Retrieve the report associated with an order. Returns `404` if the
+        order has not yet produced a report — typically because it is still
+        in `waiting_for_applicant` or `pending` status.
+      tags:
+        - Reports
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the order.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/report'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-order-report
+      security:
+        - bearer-token: []
+  /reports/{id}:
+    get:
+      summary: Get report
+      description: Retrieve a report by its id.
+      tags:
+        - Reports
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the report.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/report'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-report
+      security:
+        - bearer-token: []
+  /reports/{id}/pdf:
+    get:
+      summary: Download report PDF
+      description: >
+        Download the report as a PDF file. The PDF is generated and returned
+
+        synchronously in a single response — the bytes (`application/pdf`)
+
+        come back on the same call, with no polling or callback. Generation
+
+        can take several seconds when a fresh render is required, so
+
+        configure your HTTP client's **read timeout to at least 60 seconds**
+
+        for this endpoint to avoid prematurely aborting in-progress renders.
+
+
+        **Handling failures.** Rendering can fail transiently for various
+        reasons.
+
+        It is suggested that if you encounter an error, you should retry the
+        request,
+
+        within a reasonable policy.
+      tags:
+        - Reports
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the report.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: The PDF file.
+          headers:
+            Content-Disposition:
+              description: Attachment disposition with the report's canonical filename.
+              schema:
+                type: string
+            Cache-Control:
+              description: |
+                Always `private, no-store` — the PDF contains PII and must not
+                be cached by intermediaries or the client.
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '500':
+          description: >
+            Generation failed transiently for various reasons. If you encounter
+            an error, you should retry the request,
+
+            within a reasonable policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errors'
+      operationId: get-report-pdf
+      security:
+        - bearer-token: []
+  /reports/{id}/documents/zip:
+    get:
+      summary: Download all report documents
+      description: |
+        Download every document collected for the report as a single ZIP
+        archive. The bytes (`application/zip`) come back on the same call.
+
+        Returns `404` when the report has no documents.
+
+        Entries are namespaced by the kind of document:
+
+        - `income_documents/` — the proof-of-income documents the applicant
+          uploaded, the same set listed in `income_verification.documents`.
+          Present only when the order was placed with document-based income
+          verification.
+        - `identity_verification/` — the document images captured during the
+          applicant's identity verification session. Present only when the
+          order included the identity verification product.
+      tags:
+        - Reports
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the report.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: |
+            The ZIP archive. Entries keep the filename the document was
+            uploaded under; a name that would collide within a folder gets a
+            ` (n)` suffix before its extension.
+          headers:
+            Content-Disposition:
+              description: |
+                Attachment disposition with a filename of
+                `documents-<report_id>.zip`.
+              schema:
+                type: string
+            Cache-Control:
+              description: |
+                Always `private, no-store` — the archive contains PII and must
+                not be cached by intermediaries or the client.
+              schema:
+                type: string
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+      operationId: get-report-documents-zip
+      security:
+        - bearer-token: []
+  /reports/{id}/documents/{document_id}/download:
+    get:
+      summary: Download a report document
+      description: |
+        Download a single document collected for the report, in the format it
+        was uploaded — read `Content-Type` rather than assuming PDF. Returns
+        `404` if the document does not exist on this report, or is of a kind
+        not retrievable for its order.
+      tags:
+        - Reports
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the report.
+          schema:
+            type: string
+        - name: document_id
+          in: path
+          required: true
+          description: >-
+            Id of the document, as it appears in
+            `income_verification.documents[].id`.
+          schema:
+            type: string
+          example: inc_K9dM2pXqR4vN8tLZbWyHJa
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: The document file, in whatever format it was uploaded.
+          headers:
+            Content-Disposition:
+              description: |
+                Attachment disposition with the filename the applicant
+                uploaded the document under.
+              schema:
+                type: string
+            Cache-Control:
+              description: |
+                Always `private, no-store` — the document contains PII and
+                must not be cached by intermediaries or the client.
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+      operationId: get-report-document
+      security:
+        - bearer-token: []
+  /properties:
+    get:
+      summary: List properties
+      description: |
+        List the properties owned by your organization, newest first. The
+        response is paginated — see `next_href` / `previous_href` for walking
+        through pages.
+      tags:
+        - Properties
+      parameters:
+        - $ref: '#/components/parameters/checkr-tenant-version'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/per_page'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/property-list'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-properties
+      security:
+        - bearer-token: []
+    post:
+      summary: Create property
+      description: >
+        Create a new property record from a mailing address. Properties created
+
+        directly via this endpoint can later be referenced by `property_id`
+
+        when creating an order, instead of supplying the address inline again.
+
+
+        ### Address-based deduplication
+
+
+        Properties are deduplicated by address within your organization. If
+
+        you submit an address that already matches an existing property, that
+
+        existing property is returned and no new record is created — making
+
+        this endpoint safely idempotent for repeated submissions of the same
+
+        address.
+
+
+        Address matching is case- and whitespace-insensitive across `street`,
+
+        `unit`, `city`, and `state`. A `unit` value matches with or without a
+
+        leading `#` (`"4B"` and `"#4B"` are equivalent). A 5-digit `zipcode`
+
+        matches its ZIP+4 form (`94111` is equivalent to `94111-1234`).
+
+
+        Abbreviations are treated literally — `"123 Main St"` and
+
+        `"123 Main Street"` are different addresses.
+
+
+        The response status indicates which path was taken:
+
+
+        - `201 Created` — a new property was created
+
+        - `200 OK` — the address matched an existing property; that record is
+        returned
+
+
+        The `Location` response header always points to the canonical property
+        URL.
+      tags:
+        - Properties
+      parameters:
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      requestBody:
+        $ref: '#/components/requestBodies/post-property-request-body'
+      responses:
+        '200':
+          description: >-
+            OK — the address matched an existing property in your organization;
+            the existing record is returned and no new property was created.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the existing property.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/property'
+        '201':
+          description: Created — a new property was created.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the newly created property.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/property'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: post-properties
+      security:
+        - bearer-token: []
+  /properties/{id}:
+    get:
+      summary: Get property
+      description: >-
+        Retrieve a property by its id. Returns 404 if the property does not
+        exist or belongs to another organization.
+      tags:
+        - Properties
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the property.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/property'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-property
+      security:
+        - bearer-token: []
+  /applicants:
+    get:
+      summary: List applicants
+      description: |
+        List the applicants owned by your organization, newest first. The
+        response is paginated — see `next_href` / `previous_href` for walking
+        through pages.
+      tags:
+        - Applicants
+      parameters:
+        - $ref: '#/components/parameters/checkr-tenant-version'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/per_page'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/applicant-list'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-applicants
+      security:
+        - bearer-token: []
+    post:
+      summary: Create applicant
+      description: >
+        Create a new applicant record from identity fields. Applicants created
+
+        directly via this endpoint can later be referenced by `applicant_id`
+
+        when creating an order, instead of supplying identity fields inline
+
+        again.
+
+
+        `phone_number` is optional; accepts any common US format. `dob` and
+        `ssn`
+
+        are also optional at create time — if they are not supplied here, the
+
+        applicant will be prompted to provide them when they complete the
+
+        consent form on their first order.
+      tags:
+        - Applicants
+      parameters:
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      requestBody:
+        $ref: '#/components/requestBodies/post-applicant-request-body'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/applicant'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: post-applicants
+      security:
+        - bearer-token: []
+  /applicants/{id}:
+    get:
+      summary: Get applicant
+      description: >-
+        Retrieve an applicant by its id. Returns 404 if the applicant does not
+        exist or belongs to another organization.
+      tags:
+        - Applicants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id of the applicant.
+          schema:
+            type: string
+        - $ref: '#/components/parameters/checkr-tenant-version'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/applicant'
+        '401':
+          $ref: '#/components/responses/error'
+        '403':
+          $ref: '#/components/responses/error'
+        '404':
+          $ref: '#/components/responses/error'
+        '422':
+          $ref: '#/components/responses/error'
+      operationId: get-applicant
+      security:
+        - bearer-token: []
+webhooks:
+  report.completed:
+    post:
+      summary: report.completed
+      description: |
+        Sent when an order has finished processing and the full report is
+        available. See the [Webhooks guide](webhooks.md) for delivery
+        semantics, retry behavior, and signature verification.
+      tags:
+        - Webhooks
+      parameters:
+        - $ref: '#/components/parameters/tenant-signature'
+        - $ref: '#/components/parameters/webhook-user-agent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/webhook-event-report-completed'
+      responses:
+        2XX:
+          $ref: '#/components/responses/webhook-acknowledged'
+  report.product.completed:
+    post:
+      summary: report.product.completed
+      description: |
+        Sent when a product finishes processing and results are available on
+        the report.
+      tags:
+        - Webhooks
+      parameters:
+        - $ref: '#/components/parameters/tenant-signature'
+        - $ref: '#/components/parameters/webhook-user-agent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/webhook-event-report-product-completed'
+      responses:
+        2XX:
+          $ref: '#/components/responses/webhook-acknowledged'
+  order.applicant.visited:
+    post:
+      summary: order.applicant.visited
+      description: |
+        Sent when the applicant visits the apply link for an order at any time
+        before they complete the application.
+      tags:
+        - Webhooks
+      parameters:
+        - $ref: '#/components/parameters/tenant-signature'
+        - $ref: '#/components/parameters/webhook-user-agent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/webhook-event-order-applicant-visited'
+      responses:
+        2XX:
+          $ref: '#/components/responses/webhook-acknowledged'
+  order.applicant.started:
+    post:
+      summary: order.applicant.started
+      description: >
+        Sent when the applicant consents to and starts the screening
+        application.
+      tags:
+        - Webhooks
+      parameters:
+        - $ref: '#/components/parameters/tenant-signature'
+        - $ref: '#/components/parameters/webhook-user-agent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/webhook-event-order-applicant-started'
+      responses:
+        2XX:
+          $ref: '#/components/responses/webhook-acknowledged'
+  order.applicant.completed:
+    post:
+      summary: order.applicant.completed
+      description: |
+        Sent when the applicant finishes and submits the application.
+      tags:
+        - Webhooks
+      parameters:
+        - $ref: '#/components/parameters/tenant-signature'
+        - $ref: '#/components/parameters/webhook-user-agent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/webhook-event-order-applicant-completed'
+      responses:
+        2XX:
+          $ref: '#/components/responses/webhook-acknowledged'
+  order.applicant.paid:
+    post:
+      summary: order.applicant.paid
+      description: >
+        Sent when the applicant completes payment on a `payer: "applicant"`
+        order.
+      tags:
+        - Webhooks
+      parameters:
+        - $ref: '#/components/parameters/tenant-signature'
+        - $ref: '#/components/parameters/webhook-user-agent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/webhook-event-order-applicant-paid'
+      responses:
+        2XX:
+          $ref: '#/components/responses/webhook-acknowledged'
+components:
+  parameters:
+    checkr-tenant-version:
+      name: Checkr-Tenant-Version
+      in: header
+      required: false
+      description: >
+        CalVer-dated API version to pin behavior to (e.g. `2026-04-29`). When
+        omitted,
+
+        the request is served by the newest supported version. Unknown values
+        return 422.
+      schema:
+        type: string
+        enum:
+          - '2026-04-29'
+    include:
+      name: include
+      in: query
+      required: false
+      description: >
+        Comma-separated list of related objects to embed in the response.
+        Supported values:
+
+        `property`, `applicant`, `original_requester`. By default only the
+        `property_id`,
+
+        `applicant_id` and `original_requester_id` are returned.
+      schema:
+        type: string
+        example: property,applicant
+    cursor:
+      name: cursor
+      in: query
+      required: false
+      description: >
+        Opaque pagination token. Omit on the first request, then follow the
+
+        `next_href` and `previous_href` URLs in the response — those URLs
+        already
+
+        have the correct cursor encoded. Cursors from one endpoint are not valid
+
+        on another. An invalid cursor returns 422.
+      schema:
+        type: string
+    per_page:
+      name: per_page
+      in: query
+      required: false
+      description: >
+        Page size. Defaults to 25; the maximum is 100. The chosen size is
+        preserved
+
+        on `next_href` and `previous_href`, so you only need to set it on the
+        first
+
+        request of a walk.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    idempotency-key:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >
+        Unique, client-generated string (1–255 characters; a UUIDv4 is
+        recommended)
+
+        that identifies a single logical request. Generate a fresh key per
+        logical
+
+        request; only reuse it when retrying the same request.
+
+
+        In live mode, reusing a key after a successful create returns the
+        original
+
+        order and does not create a new, billable one. Keys are retained for
+        that
+
+        purpose and do not expire after a short window. Transient errors (5xx)
+        are
+
+        not replayed: retrying with the same key will re-execute the request.
+        After
+
+        a declined card (`402`), send a new key once the payment method is
+        updated.
+
+
+        In test mode, the header is accepted but does not prevent duplicate
+        orders.
+
+        Sending the same key more than once can create multiple `ord_test_` IDs.
+
+        See [Testing](testing.md#idempotency-in-test-mode).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+        example: 8e1bce8f-2a5e-4f7e-9f61-7e1f3e6e0c7b
+    tenant-signature:
+      name: Tenant-Signature
+      in: header
+      required: true
+      description: |
+        Signature header in the form `t=<unix_ts>,v1=<hmac_sha256_hex>`.
+        See [Verifying signatures](webhooks.md#verifying-signatures).
+      schema:
+        type: string
+        example: >-
+          t=1714414933,v1=8d2bf3ac0f9e1b2d4c5a6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9
+    webhook-user-agent:
+      name: User-Agent
+      in: header
+      required: true
+      description: Always `CheckrTenant/1`.
+      schema:
+        type: string
+        enum:
+          - CheckrTenant/1
+  schemas:
+    order:
+      type: object
+      description: A screening order placed for an applicant against a property.
+      properties:
+        id:
+          type: string
+          description: >-
+            Unique identifier for the order. Use this value in subsequent API
+            calls; it is stable for the lifetime of the order. Test-mode IDs
+            carry a `_test_` infix (e.g. `ord_test_TUyYsLnyTbG3xv9hONJF7w`);
+            live-mode IDs have no infix.
+          example: ord_TUyYsLnyTbG3xv9hONJF7w
+        live_mode:
+          type: boolean
+          description: >
+            Whether this order was created with a live API key (`true`) or a
+            test API key (`false`). Test-mode orders are inert: they route to
+            canned provider responses and do not produce billable activity. See
+            [Testing](testing.md) for details.
+          example: true
+        status:
+          type: string
+          description: |
+            Current state of the order in its lifecycle:
+              * `waiting_for_applicant` — invitation sent; awaiting the applicant's consent and information
+              * `pending` — applicant submitted consent and information; screening is in progress
+              * `completed` — screening is complete and the report is available
+              * `canceled` — terminated before completion
+          enum:
+            - waiting_for_applicant
+            - pending
+            - completed
+            - canceled
+        package:
+          type: string
+          description: >-
+            Slug of the screening package on the order, e.g. `starter`,
+            `essential` or `complete`.
+        add_on_products:
+          type: array
+          description: >-
+            Slugs of add-on products run on the order in addition to the ones
+            bundled into `package`. Sorted alphabetically; empty if none were
+            requested.
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+          example:
+            - identity_verification
+        payer:
+          type: string
+          description: >-
+            Who pays for this order, `applicant` or `organization`. `applicant`
+            is live mode only — always `organization` for test-mode orders.
+          example: organization
+        property_id:
+          type: string
+          description: >-
+            Identifier of the property record this order is screening for. Pass
+            `?include=property` to embed the full property object.
+          example: pr_K9dM2pXqR4vN8tLZbWyHJa
+        applicant_id:
+          type: string
+          description: >-
+            Identifier of the applicant being screened. Pass
+            `?include=applicant` to embed the full applicant object.
+          example: ap_F3hQ7wEsLp2xBnVcRuMyTk
+        original_requester_id:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Identifier of the requester you supplied when creating this order,
+            or null if you did not supply one. Pass
+            `?include=original_requester` to embed the full object.
+          example: req_TUyYsLnyTbG3xv9hONJF7w
+        application_url:
+          type:
+            - string
+            - 'null'
+          description: >
+            Absolute URL for the applicant apply flow
+            (`https://…/apply/<token>`).
+
+            Returned only while the order status is `waiting_for_applicant` —
+            for
+
+            live-mode orders, and in test mode only for the Hudson Green
+
+            applicant-experience profile (other test applicants auto-submit and
+            skip
+
+            the apply flow — see
+            [Testing](testing.md#applicant-experience-in-test-mode)).
+
+            `null` when status is `pending`, `completed`, or `canceled`, and for
+
+            ordinary test-mode profiles. When the apply flow runs, Checkr emails
+            this
+
+            link to the applicant; in live mode, if a phone number is present,
+            Checkr
+
+            also texts it. Integrators may share `application_url` themselves.
+          example: https://tenant.checkr.com/apply/K7P2MX
+          format: uri
+        property:
+          description: >-
+            Embedded property object. Only returned when the request includes
+            `?include=property`.
+          $ref: '#/components/schemas/property'
+        applicant:
+          description: >-
+            Embedded applicant object. Only returned when the request includes
+            `?include=applicant`.
+          $ref: '#/components/schemas/applicant'
+        original_requester:
+          description: >-
+            Embedded end user object. Only returned when the request includes
+            `?include=original_requester` and the order has one.
+          $ref: '#/components/schemas/requester'
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp the order was accepted by the API.
+        completed_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: >-
+            Timestamp the order reached the `completed` status. Null while in
+            any earlier state, and remains null if the order is canceled.
+        canceled_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: >-
+            Timestamp the order was canceled. Null unless the order was
+            canceled.
+    order-list:
+      description: A page of orders wrapped in the standard list envelope.
+      allOf:
+        - $ref: '#/components/schemas/list-envelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              description: Orders on this page, ordered newest first.
+              items:
+                $ref: '#/components/schemas/order'
+    requester:
+      description: >
+        One of your own customers, identified on an order you placed on their
+
+        behalf. You create one by sending `original_requester` at order
+        creation,
+
+        and identify it afterwards by your own `external_id`.
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: string
+              description: Checkr Tenant identifier for the requester record.
+              example: req_TUyYsLnyTbG3xv9hONJF7w
+            external_id:
+              type: string
+              description: A unique identifier assigned to the requester in your system.
+              example: your_customer_42
+            type:
+              type: string
+              description: Whether this end user is an individual person or a business.
+              enum:
+                - individual
+                - business
+            name:
+              type: string
+              description: Name this end user does business under.
+              example: Acme Property Management, Inc.
+            email:
+              type:
+                - string
+                - 'null'
+              format: email
+              description: Contact email for this end user.
+              example: ops@kimco.example
+            phone_number:
+              type:
+                - string
+                - 'null'
+              description: Contact phone number for this end user in E.164 format.
+              example: '+14155550123'
+        - $ref: '#/components/schemas/requester-address'
+        - type: object
+          properties:
+            created_at:
+              type: string
+              format: date-time
+              description: Timestamp the requester record was created.
+    report:
+      type: object
+      description: >
+        The screening results produced for an order. A report bundles together
+        one
+
+        report item per product included in the order. Each report item is keyed
+        by its
+
+        product type (`criminal_history`, `credit_report`, `eviction_history`,
+        `identity_verification`, `income_verification`, `sex_offender_registry`,
+        `global_watchlist`);
+
+        products not included in the order are returned as `null`.
+      properties:
+        id:
+          type: string
+          description: >-
+            Unique identifier for the report. Use this value in subsequent API
+            calls; it is stable for the lifetime of the report. Test-mode IDs
+            carry a `_test_` infix (e.g. `rp_test_K9dM2pXqR4vN8tLZbWyHJa`);
+            live-mode IDs have no infix.
+          example: rp_K9dM2pXqR4vN8tLZbWyHJa
+        live_mode:
+          type: boolean
+          description: >
+            Whether this report was produced from an order created with a live
+            API key (`true`) or a test API key (`false`). Test-mode reports are
+            produced from canned provider responses and do not reflect real
+            screening activity. See [Testing](testing.md) for details.
+          example: true
+        order_id:
+          type: string
+          description: Identifier of the order this report was produced for.
+          example: ord_TUyYsLnyTbG3xv9hONJF7w
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp the report was created.
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp the report was last updated.
+        criminal_history:
+          description: >-
+            Report item for the criminal history product, or `null` if this
+            product was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/criminal-history'
+            - type: 'null'
+        credit_report:
+          description: >-
+            Report item for the credit report product, or `null` if this product
+            was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/credit-report'
+            - type: 'null'
+        eviction_history:
+          description: >-
+            Report item for the eviction history product, or `null` if this
+            product was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/eviction-history'
+            - type: 'null'
+        identity_verification:
+          description: >-
+            Report item for the identity verification product, or `null` if this
+            product was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/identity-verification'
+            - type: 'null'
+        income_verification:
+          description: >-
+            Report item for the income verification product, or `null` if this
+            product was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/income-verification'
+            - type: 'null'
+        sex_offender_registry:
+          description: >-
+            Report item for the sex offender registry product, or `null` if this
+            product was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/sex-offender-registry'
+            - type: 'null'
+        global_watchlist:
+          description: >-
+            Report item for the global watchlist product, or `null` if this
+            product was not included in the order.
+          oneOf:
+            - $ref: '#/components/schemas/global-watchlist'
+            - type: 'null'
+    report-item-base:
+      type: object
+      description: Fields shared by every report item on a report.
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the report item.
+          example: rpi_F3hQ7wEsLp2xBnVcRuMyTk
+        status:
+          type:
+            - string
+            - 'null'
+          description: >
+            Resolved status of this report item:
+              * `clear` — no findings that warrant adjudication
+              * `consider` — something to review before making a decision. This does
+                not necessarily mean adverse information was found.
+
+            Null while the report item is still being assembled and no results
+            have been recorded yet.
+          enum:
+            - clear
+            - consider
+            - null
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp the report item was created.
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp the report item was last updated.
+    criminal-history:
+      x-tags:
+        - Products
+      description: >-
+        Report item for the criminal history product, containing findings
+        sourced from court records across the jurisdictions searched for the
+        applicant.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            records:
+              type: array
+              description: >-
+                One entry per criminal case returned for the applicant, with the
+                source it came from and the person it was matched to. Empty if
+                no records were found.
+              items:
+                $ref: '#/components/schemas/criminal-record'
+    criminal-case:
+      type: object
+      description: >-
+        A single criminal case returned by the search, including the charges
+        filed under it.
+      properties:
+        case_number:
+          type:
+            - string
+            - 'null'
+          description: Court-assigned case number identifying the matter.
+        court_name:
+          type:
+            - string
+            - 'null'
+          description: Name of the court that handled the case.
+        county:
+          type:
+            - string
+            - 'null'
+          description: County the case was filed in.
+        state:
+          type:
+            - string
+            - 'null'
+          description: Two-letter USPS state code where the case was filed.
+          example: CA
+        file_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the case was filed with the court.
+        charges:
+          type: array
+          description: Charges filed under this case.
+          items:
+            $ref: '#/components/schemas/criminal-charge'
+    criminal-charge:
+      type: object
+      description: >-
+        A single charge filed under a criminal case, with its disposition (the
+        court's resolution of the charge).
+      properties:
+        charge:
+          type:
+            - string
+            - 'null'
+          description: Description of the charge as recorded by the court.
+        statute:
+          type:
+            - string
+            - 'null'
+          description: Statute or legal code the charge was filed under.
+        type:
+          type:
+            - string
+            - 'null'
+          description: >
+            Classification of the charge as reported by the underlying court
+            source.
+
+            Commonly one of `felony`, `misdemeanor`, `infraction`, or
+            `violation`,
+
+            but other source-specific classifications may pass through.
+        offense_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the alleged offense occurred.
+        charge_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the charge was filed.
+        arrest_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: The date the person was arrested.
+        disposition:
+          type:
+            - string
+            - 'null'
+          description: >
+            The court's most recent resolution of the charge. Returns the
+            normalized
+
+            `disposition_type` value when available, otherwise the raw text as
+
+            reported by the source. Charges with multiple court actions surface
+
+            the latest one by `disposition_date`.
+        disposition_type:
+          type:
+            - string
+            - 'null'
+          description: >
+            Normalized disposition category. Known values: `conviction`,
+            `dismissed`,
+
+            `expunged`, `pending`, `transferred`, `warrant`, `merged`,
+            `invalid`,
+
+            `alternative_adjudication`, `unclassified`. Additional values may be
+
+            introduced over time. `null` when no normalized category could be
+            assigned.
+        disposition_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the most recent disposition was entered.
+    credit-report:
+      x-tags:
+        - Products
+      description: >-
+        Report item for the credit report product, containing findings sourced
+        from a soft credit pull. The pull does not affect the applicant's credit
+        score.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            credit_file_status:
+              type:
+                - string
+              enum:
+                - available
+                - frozen
+                - not_found
+                - thin_file
+              description: >
+                The status of the request for a credit file from a credit
+                bureau. When the value is not `available`, a credit report
+                cannot be generated.
+
+
+                | Value       | Description |
+
+                |-------------|---------|
+
+                | `available` | Credit file was returned and a score was
+                generated. |
+
+                | `frozen`    | Applicant's credit file is frozen with the
+                credit bureau. |
+
+                | `not_found` | Either the applicant has never used credit, or
+                there's a mismatch in the information provided. |
+
+                | `thin_file` | A credit report could not be generated because
+                the applicant has little or no credit history. |
+              example: available
+            credit_score:
+              type:
+                - integer
+                - 'null'
+              description: >-
+                Applicant's credit score. `null` when `credit_file_status` is
+                not `available`.
+              example: 712
+            credit_summary:
+              description: >
+                Aggregate summary of the applicant's credit profile. `null` when
+                `credit_file_status` is not `available`.
+              oneOf:
+                - $ref: '#/components/schemas/credit-summary'
+                - type: 'null'
+            collections:
+              description: |
+                Collection accounts behind `credit_summary.collections_count`.
+
+                `null` when `credit_file_status` is not `available`.
+              oneOf:
+                - $ref: '#/components/schemas/credit-collections'
+                - type: 'null'
+            bankruptcies:
+              description: >
+                Bankruptcy public records behind
+                `credit_summary.bankruptcies_count`, itemized.
+
+
+                `null` when `credit_file_status` is not `available`.
+              oneOf:
+                - $ref: '#/components/schemas/credit-bankruptcies'
+                - type: 'null'
+    credit-summary:
+      type: object
+      description: >-
+        Aggregate metrics describing the applicant's credit profile at the time
+        the report was produced.
+      properties:
+        total_accounts:
+          type: integer
+          description: Total number of credit accounts on file for the applicant.
+          example: 8
+        on_time_payment_rate:
+          type:
+            - number
+            - 'null'
+          description: >-
+            Share of payments made on time across all reporting accounts,
+            expressed as a value between `0` and `1`.
+          example: 0.97
+        average_account_age_months:
+          type:
+            - integer
+            - 'null'
+          description: Average age of the applicant's credit accounts, in months.
+          example: 84
+        credit_utilization:
+          $ref: '#/components/schemas/credit-utilization'
+        estimated_monthly_payment_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Estimated total monthly payment across all reporting accounts, in
+            cents.
+          example: 142000
+        collections_count:
+          type: integer
+          description: >
+            Number of accounts in collections, as counted by the bureau. Can
+            differ from the collection records this report returns.
+          example: 0
+        open_collections_balance_cents:
+          type: integer
+          description: >
+            Summed balance of every collection still carrying one, in cents. `0`
+            when none are open.
+
+
+            Includes collections whose own `balance_cents` is withheld, so it is
+            larger than the records alone account for and cannot be reconciled
+            against them.
+          example: 219300
+        charge_offs_count:
+          type: integer
+          description: Number of accounts charged off by the lender.
+          example: 0
+        bankruptcies_count:
+          type: integer
+          description: Number of bankruptcies on file.
+          example: 0
+        payment_timeline:
+          type: array
+          description: >-
+            Month-by-month payment behavior over the lookback window, ordered
+            oldest to newest.
+          items:
+            $ref: '#/components/schemas/credit-timeline-entry'
+    credit-utilization:
+      type: object
+      description: Revolving credit utilization across the applicant's reporting accounts.
+      properties:
+        rate:
+          type:
+            - number
+            - 'null'
+          description: Ratio of balance to limit, expressed as a value between `0` and `1`.
+          example: 0.23
+        balance_cents:
+          type:
+            - integer
+            - 'null'
+          description: Total revolving balance, in cents.
+        limit_cents:
+          type:
+            - integer
+            - 'null'
+          description: Total revolving credit limit, in cents.
+    credit-timeline-entry:
+      type: object
+      description: Payment behavior aggregated for a single month.
+      properties:
+        month:
+          type: string
+          description: Month the entry covers, in `YYYY-MM` format.
+          example: 2026-02
+        on_time_count:
+          type: integer
+          description: Number of payments made on time during the month.
+        late_count:
+          type: integer
+          description: Number of payments made late during the month.
+        on_time_rate:
+          type:
+            - number
+            - 'null'
+          description: >-
+            Share of payments made on time during the month, expressed as a
+            value between `0` and `1`.
+    credit-collections:
+      type: object
+      description: >-
+        Collection accounts reported for the applicant, in the order the bureau
+        returned them.
+      properties:
+        records:
+          type: array
+          description: One entry per collection account. Empty when the applicant has none.
+          items:
+            $ref: '#/components/schemas/credit-collection-record'
+    credit-collection-record:
+      type: object
+      description: >
+        A single collection account.
+
+
+        How much is reported depends on `classification`. Four fields are never
+        withheld — `original_creditor_name`, `classification`, `status` and
+        `open` — though the first three are `null` when the bureau reported no
+        value. Eight more — `ownership`, `account_last4`, `balance_cents`,
+        `past_due_cents`, `opened_date`, `closed_date`, `reported_date` and
+        `paid_date` — are reported only on a record classified `rental_leasing`,
+        and are `null` on every other record, including one the bureau left
+        unclassified.
+
+
+        Read `classification` to know which you are holding: a `null` there
+        means the record is in the reduced set, not that the debt is
+        unclassified rental. A withheld number is `null`, never `0`.
+
+
+        Every date field is also `null` when the event has not occurred, or the
+        bureau reported no usable date.
+      properties:
+        original_creditor_name:
+          type:
+            - string
+            - 'null'
+          description: >
+            The business the debt was originally owed to, as the bureau reports
+            it. Occasionally a category token rather than a business name
+            (`MEDICAL`, `COLLECTION`), so treat it as an opaque label rather
+            than parsing it.
+
+
+            `null` when the bureau reported no original creditor.
+          example: PARKSIDE PLACE APTS
+        classification:
+          type:
+            - string
+            - 'null'
+          description: |
+            Industry of the original creditor.
+
+            `null` when the bureau reported no classification.
+          enum:
+            - retail
+            - medical
+            - oil_company
+            - government
+            - personal_services
+            - insurance
+            - educational
+            - banking
+            - rental_leasing
+            - utilities
+            - cable_cellular
+            - financial
+            - credit_union
+            - automotive
+            - check_guarantee
+            - null
+          example: rental_leasing
+        status:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Account status as reported by the bureau. `null` when it reported
+            none.
+          example: Open
+        open:
+          type: boolean
+          description: Whether the account is still open.
+          example: true
+        ownership:
+          type:
+            - string
+            - 'null'
+          description: >
+            Who carries the account, in the bureau's ECOA vocabulary, as a
+            human-readable label.
+
+
+            Also `null` when the bureau reports an unrecognized value.
+          example: Individual
+        account_last4:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Last four characters of the account identifier. The full identifier
+            is never returned. Also `null` when the bureau supplied no
+            identifier.
+          example: '2511'
+        balance_cents:
+          type:
+            - integer
+            - 'null'
+          description: Amount currently owed on the account, in cents.
+          example: 172620
+        past_due_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Portion of the balance that is past due, in cents. `0` when nothing
+            is past due.
+          example: 172620
+        opened_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the collection account was opened.
+          example: '2023-06-03'
+        closed_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the account was closed, if it has been.
+        reported_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the furnisher last refreshed the account with the bureau.
+          example: '2026-08-16'
+        paid_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the account was paid, if it has been.
+    credit-bankruptcies:
+      type: object
+      description: Bankruptcy public records reported for the applicant.
+      properties:
+        records:
+          type: array
+          description: One entry per filing. Empty if no bankruptcies were reported.
+          items:
+            $ref: '#/components/schemas/credit-bankruptcy-record'
+    credit-bankruptcy-record:
+      type: object
+      description: >
+        A single bankruptcy filing.
+
+
+        Every date field is `null` when the event has not occurred, or the
+        bureau reported no usable date.
+      properties:
+        chapter:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Chapter of the US Bankruptcy Code the case was filed under. `null`
+            for an unrecognized filing type.
+          enum:
+            - 7
+            - 13
+            - null
+          example: 7
+        disposition:
+          type:
+            - string
+            - 'null'
+          description: >
+            How the case concluded, as a human-readable label.
+
+
+            `null` while the case is still open, or when the reported
+            disposition is unrecognized.
+          example: discharged
+        active:
+          type: boolean
+          description: >
+            Whether the case is still open. `true` when the filing has no
+            recognized disposition, so an unrecognized outcome reads as active
+            rather than asserting a conclusion.
+          example: false
+        filed_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the case was filed.
+          example: '2017-01-19'
+        disposition_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: >
+            Date the case concluded — not a payment date. The bureau sets it on
+            dismissals and most discharges, and never while a case is open, so a
+            concluded filing can still report `null` here.
+          example: '2017-02-28'
+    eviction-history:
+      x-tags:
+        - Products
+      description: >-
+        Report item for the eviction history product, containing findings
+        sourced from civil court filings across the jurisdictions searched for
+        the applicant.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            records:
+              type: array
+              description: >-
+                One entry per eviction filing returned for the applicant. Empty
+                if no records were found, or when `eviction_report_status` is
+                `restricted`.
+              items:
+                $ref: '#/components/schemas/eviction-record'
+            eviction_report_status:
+              type:
+                - string
+              enum:
+                - available
+                - restricted
+              description: >
+                The status of the request for an eviction report. When the value
+                is
+
+                not `available`, eviction history could not be searched.
+
+
+                | Value        | Description |
+
+                |--------------|---------|
+
+                | `available`  | The jurisdiction allowed a search and a report
+                was produced, including a clear with zero records. |
+
+                | `restricted` | The jurisdiction prohibits furnishing the
+                report. `records` is empty and item `status` is `consider`,
+                meaning there is something to review, not that adverse records
+                were found. |
+              example: available
+    eviction-record:
+      type: object
+      description: >-
+        A single eviction filing, including the judgment outcome if one was
+        entered.
+      properties:
+        case_number:
+          type:
+            - string
+            - 'null'
+          description: Court-assigned case number identifying the filing.
+        plaintiff:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Party that filed the eviction action — typically the landlord or
+            property manager.
+        file_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the case was filed with the court.
+        judgment:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Judgment outcome as reported by the underlying court source.
+            Free-form text; vocabulary varies across jurisdictions. Null if no
+            judgment has been entered.
+        judgment_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the judgment was entered. Null if no judgment has been entered.
+        judgment_amount_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Monetary amount of the judgment, in cents. Null if no monetary
+            judgment was entered.
+    identity-verification:
+      x-tags:
+        - Products
+      description: >
+        Report item for the identity verification product, containing the
+        outcome of a analysis of a user provided document and a selfie.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            document_type:
+              description: >-
+                Classification of the identity document that was submitted, or
+                `null` if no results are available yet.
+              oneOf:
+                - $ref: '#/components/schemas/idv-document-type'
+                - type: 'null'
+            document_data:
+              description: >-
+                Data extracted from the submitted document, or `null` if no
+                results are available yet.
+              oneOf:
+                - $ref: '#/components/schemas/idv-document-data'
+                - type: 'null'
+            consider_reasons:
+              type: array
+              description: >
+                Reasons the verification resulted in a `consider` status. Empty
+                when `status` is `clear` or `null`.
+
+                Each entry represents a distinct rejection category explaining
+                why the verification did not pass.
+              items:
+                $ref: '#/components/schemas/idv-consider-reason'
+            documents_zip_url:
+              type:
+                - string
+                - 'null'
+              format: uri
+              description: >
+                Signed URL to download the document images captured during the
+                verification session as a ZIP archive, or `null` if no document
+                images are available. The URL is single-use and short-lived, and
+                needs no authentication of its own — it can be handed straight
+                to a browser.
+
+
+                To retrieve these images alongside the report's other documents
+                in one authenticated call, use [`GET
+                /reports/{id}/documents/zip`](#operation/get-report-documents-zip)
+                instead.
+              example: >-
+                https://tenant.checkr.com/api/identity_verification_documents/idvd_K9dM2pXqR4vN8tLZbWyHJa
+    idv-document-type:
+      type: object
+      description: Classification of the identity document submitted by the applicant.
+      properties:
+        type:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Type of identity document submitted. Possible values include:
+            `Drivers License`, `Identification Card`, `Passport`, `Passport
+            Card`, `Permanent Resident Card`, `Unknown`.
+          example: Drivers License
+        country:
+          type:
+            - string
+            - 'null'
+          description: Three-letter ISO 3166-1 alpha-3 country code of the issuing country.
+          example: USA
+        state:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Two-letter state or province code of the issuing authority, if
+            applicable. Null for nationally-issued documents such as passports.
+          example: CA
+    idv-document-data:
+      type: object
+      description: >-
+        Data extracted from the identity document. All fields are nullable —
+        extraction is best-effort and not every document type exposes every
+        field.
+      properties:
+        first_name:
+          type:
+            - string
+            - 'null'
+          description: Given name as printed on the document.
+          example: Jane
+        last_name:
+          type:
+            - string
+            - 'null'
+          description: Family name (surname) as printed on the document.
+          example: Public
+        full_name:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Full name as printed on the document. May differ from the
+            concatenation of `first_name` and `last_name` for documents that use
+            a single name field.
+          example: Jane Public
+        dob:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date of birth printed on the document, in `YYYY-MM-DD` format.
+          example: '1990-05-14'
+        document_number:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Identifier assigned to the document by the issuing authority (e.g.
+            driver's license number, passport number).
+          example: D1234567
+        issue_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the document was issued, in `YYYY-MM-DD` format.
+          example: '2020-01-01'
+        expiration_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Date the document expires, in `YYYY-MM-DD` format.
+          example: '2028-01-01'
+        address:
+          description: >-
+            Address printed on the document, parsed into components, or `null`
+            if no address was extracted.
+          oneOf:
+            - $ref: '#/components/schemas/idv-document-address'
+            - type: 'null'
+    idv-document-address:
+      type: object
+      description: Address extracted from the identity document, parsed into components.
+      properties:
+        street:
+          type:
+            - string
+            - 'null'
+          description: Primary street line.
+          example: 123 Example Street
+        street2:
+          type:
+            - string
+            - 'null'
+          description: Secondary street line (unit, suite, apartment, etc.).
+          example: Suite 200
+        city:
+          type:
+            - string
+            - 'null'
+          description: City.
+          example: Denver
+        state:
+          type:
+            - string
+            - 'null'
+          description: Two-letter state or province code.
+          example: CO
+        country:
+          type:
+            - string
+            - 'null'
+          description: Three-letter ISO 3166-1 alpha-3 country code.
+          example: USA
+        zip:
+          type:
+            - string
+            - 'null'
+          description: Postal code.
+          example: '80033'
+    idv-consider-reason:
+      type: object
+      description: >-
+        A single rejection category explaining why the identity verification
+        resulted in a `consider` status.
+      properties:
+        category:
+          type: string
+          description: >-
+            Machine-readable rejection category. Stable across releases; safe to
+            branch on.
+          enum:
+            - name_mismatch
+            - selfie_mismatch
+            - doc_expired
+            - doc_not_authentic
+            - doc_unsupported
+            - image_quality
+            - duplicate_identity
+            - suspected_fraud
+            - other
+        label:
+          type: string
+          description: Human-readable description of the rejection category.
+          example: Document expired
+    income-verification:
+      x-tags:
+        - Products
+      description: >
+        Report item for income verification, containing the applicant's income
+        streams and the totals across them. `income_streams` lists every stream
+        identified, and `verification_method` says what the findings were drawn
+        from.
+
+
+        Which fields carry a figure depends on the evidence behind each stream,
+        and every field below says when it is null.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            verification_method:
+              type:
+                - string
+                - 'null'
+              description: >-
+                How the income was verified. `bank` when the applicant linked
+                their accounts, `document` when they uploaded proof of income.
+                Null before verification begins.
+              example: document
+            current_as_of:
+              type:
+                - string
+                - 'null'
+              format: date
+              description: >
+                How current the findings are. For a bank connection, the date
+                the account data was last refreshed. For documents, the last day
+                the documents cover, which is not the date they were uploaded:
+                `documents[].submitted_at` says that.
+
+
+                Null when only tax forms were supplied, which report a completed
+                tax year rather than recent activity.
+            current_month_income:
+              description: >
+                Net and estimated gross income from a bank connection for the
+                most recent full calendar month. For example, a report generated
+                in August returns income for July. `month` identifies the month
+                included.
+
+
+                Null when income was verified from documents or results are not
+                yet available.
+              oneOf:
+                - $ref: '#/components/schemas/income-current-month'
+                - type: 'null'
+            summary:
+              description: >-
+                Aggregate income across the streams included in the report, or
+                `null` if no results are available. The period covered by each
+                field is described in the schema below.
+              oneOf:
+                - $ref: '#/components/schemas/income-summary'
+                - type: 'null'
+            accounts:
+              type: array
+              description: >-
+                One entry per financial-institution account the applicant
+                connected. Empty when the income was verified by document, and
+                when no results are available yet.
+              items:
+                $ref: '#/components/schemas/income-account'
+            income_streams:
+              type: array
+              description: >
+                Every income stream identified, whichever method established it.
+                A stream a connected account produced names that account in
+                `account_id`; one a document established names its evidence in
+                `document_ids`.
+
+
+                Streams from a connected account also appear under that account
+                in `accounts[].income_streams`. The two are the same objects, so
+                read one or the other, never both, or the totals double.
+              items:
+                $ref: '#/components/schemas/income-stream'
+            documents:
+              type: array
+              description: >-
+                Proof-of-income documents the applicant uploaded, oldest first.
+                Empty when the income was verified by bank connection.
+              items:
+                $ref: '#/components/schemas/income-document'
+            consider_reasons:
+              type: array
+              description: >
+                Reasons the verification resulted in a `consider` status. Empty
+                when `status` is `clear` or `null`.
+
+                Each entry represents a distinct category explaining why the
+                verification did not pass.
+              items:
+                $ref: '#/components/schemas/income-consider-reason'
+    income-current-month:
+      type: object
+      description: >-
+        Income across the bank income streams identified for the most recent
+        full calendar month.
+      properties:
+        month:
+          type: string
+          description: Full calendar month covered by the totals, in `YYYY-MM` format.
+          example: 2024-11
+        net_cents:
+          type:
+            - integer
+            - 'null'
+          description: Net income across the identified streams for `month`, in cents.
+          example: 224546
+        estimated_gross_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Estimated gross income across the identified streams for `month`, in
+            cents.
+          example: 269455
+    income-summary:
+      type: object
+      description: >
+        Aggregate income across the streams included in the report.
+
+
+        Monthly averages and 12-month totals may cover different periods and are
+        not interchangeable. The fields below describe how each value is
+        calculated.
+
+
+        An order may specify a requested period containing a fixed number of
+        full calendar months; the month in progress is excluded. Calculations
+        that use the requested period divide total observed income by the number
+        of full calendar months in that period. A month with no income adds zero
+        to the total but still counts as one full month in the divisor. When
+        there is no requested period, each field below describes the observation
+        period used.
+      properties:
+        average_monthly_net_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Average monthly net income, in cents.
+
+
+            For bank verification, this is the sum of the monthly averages for
+            all income streams. Each stream uses the requested period or the
+            provider's observation period, as described in
+            `income_streams[].average_monthly_net_cents`.
+
+
+            For document verification, annual tax forms are excluded. Net income
+            from bank statements and paystubs is summed. The total is divided by
+            the number of full calendar months in the requested period when the
+            order specifies one. Otherwise, it is divided by the fractional
+            number of calendar months covered by those documents; a day covered
+            by multiple documents is counted once.
+          example: 393492
+        total_past_12_months_net_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Net income over the past 12 months, in cents.
+
+
+            For bank verification, this is the sum of net income from streams
+            with at least 12 months of history.
+
+
+            For document verification, this covers the latest tax year supplied
+            rather than the 12 months preceding the report. It is gross income
+            from supported tax forms, less only the tax withholdings stated on
+            those forms. It is an estimate, not take-home pay. Null if any
+            included form does not support this estimate.
+          example: 4721906
+        average_monthly_estimated_gross_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Average monthly gross income, in cents.
+
+
+            For bank verification, gross income is estimated from net income
+            over the same period as `average_monthly_net_cents`.
+
+
+            For document verification, gross income is stated by paystubs rather
+            than estimated. Null unless paystubs state gross income for every
+            stream included in `average_monthly_net_cents`.
+          example: 472191
+        total_past_12_months_estimated_gross_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Gross income over the past 12 months, in cents.
+
+
+            For bank verification, this is the sum of estimated gross income
+            from streams with at least 12 months of history.
+
+
+            For document verification, this covers the latest tax year supplied
+            rather than the 12 months preceding the report. It is the sum of
+            gross income stated on supported tax forms.
+          example: 5666287
+    income-account:
+      type: object
+      description: >-
+        A single financial-institution account the applicant connected for
+        income verification.
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the connected account.
+          example: ivac_K9dM2pXqR4vN8tLZbWyHJa
+        financial_institution_name:
+          type:
+            - string
+            - 'null'
+          description: Name of the financial institution holding the account.
+          example: Bank of America
+        account_type:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Type of account as reported by the financial institution. Free-form
+            text; vocabulary varies across institutions (typical values include
+            `Checking`, `Savings`, `Investment`, `401k`).
+          example: Checking
+        account_number_last4:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Last four digits of the account number. The full number is never
+            returned.
+          example: '5131'
+        account_owners:
+          type: array
+          description: >-
+            Names listed as owners on the account. May contain multiple entries
+            for jointly held accounts. Empty if no owners were reported.
+          items:
+            type: string
+            example: Amy Brierly
+        active_from:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: >-
+            Date the account first became active (the earliest activity visible
+            to the analysis).
+        current_balance_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Current balance on the account at the time the report was produced,
+            in cents.
+          example: 1266287
+        average_monthly_balance_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Average monthly balance on the account over the analysis window, in
+            cents.
+          example: 664336
+        insufficient_funds_count_last_6_months:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Number of insufficient-funds (NSF) fee events on the account in the
+            last six months.
+          example: 2
+        insufficient_funds_count_last_12_months:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Number of insufficient-funds (NSF) fee events on the account in the
+            report's analysis window (last 12 months).
+          example: 2
+        last_insufficient_funds_fee_at:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: >-
+            Date of the most recent insufficient-funds (NSF) fee on the account.
+            Day-precision only. Null if no NSF fees have been observed in the
+            analysis window.
+        income_streams:
+          type: array
+          description: >-
+            Recurring deposit streams identified on this account. Empty if no
+            recurring income was detected.
+          items:
+            $ref: '#/components/schemas/income-stream'
+    income-stream:
+      type: object
+      description: >
+        Income from one payer, for example the paychecks from one employer.
+
+
+        Which figures are filled follows from what established the stream, and
+        each field below says when it is null.
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the income stream.
+          example: ist_K9dM2pXqR4vN8tLZbWyHJa
+        account_id:
+          type:
+            - string
+            - 'null'
+          description: >-
+            The connected account this stream was identified on, matching an
+            `id` in `accounts`. Null for a stream a document established.
+          example: ivac_K9dM2pXqR4vN8tLZbWyHJa
+        source:
+          type:
+            - string
+            - 'null'
+          description: >
+            Best-effort display label for the income source, such as an employer
+            or payer.
+
+
+            This value is not unique. Use `id` to identify a stream.
+          example: Enterprise One
+        stream_type:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Classification of the stream as reported by the analysis. Free-form
+            text — typical values include `Paycheck`, `Deposit`, `Transfer`. May
+            be `null` when no transactions have been attributed to the stream.
+          example: Paycheck
+        status:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Whether the income stream is still arriving at the time of the
+            report. Free-form text.
+          example: Active
+        start_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: >-
+            First day this stream's evidence covers. Null for a stream from a
+            connected account, which reports months rather than days.
+        end_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: >-
+            Last day this stream's evidence covers. Null for a stream from a
+            connected account, which reports months rather than days.
+        stream_history_days:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Days of evidence behind this stream, counting a day covered by two
+            documents once. Null for a stream from a connected account, which
+            reports months. Exact, where `stream_history_months` is rounded and
+            never zero, so a fortnight and a full month both read as `1` there.
+          example: 29
+        start_month:
+          type:
+            - string
+            - 'null'
+          description: >-
+            The same span at month precision. First month deposits were
+            attributed to this stream, in `YYYY-MM` format.
+          example: 2022-09
+        end_month:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Last month deposits were attributed to this stream, in `YYYY-MM`
+            format. Null when the stream is still receiving deposits at the time
+            of the report.
+          example: 2024-08
+        stream_history_months:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Number of months between `start_month` and `end_month` (or the
+            report date, if the stream is still active). Rounded, so prefer
+            `stream_history_days` for arithmetic.
+          example: 25
+        deposit_frequency:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Typical cadence between deposits in this stream. Free-form text; may
+            be a range (for example, `2-3 days`) when the cadence is irregular.
+          example: 14 days
+        consistency_score:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Qualitative score reflecting how consistently deposits in this
+            stream are classified as income. Free-form text.
+          example: High
+        net_annual_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Annual net income from this stream, in cents.
+
+
+            For bank verification, reported only when the stream has at least 12
+            months of history. For a tax-form stream, this field reports gross
+            income less only the tax withholdings stated on the form, so it is
+            an estimate rather than take-home pay. Null for a stream established
+            by a bank statement or paystub.
+          example: 5666287
+        estimated_gross_annual_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Estimated gross annual income from this stream, in cents. Inferred
+            from net deposits, so only a stream from a connected account reports
+            one.
+
+
+            Null for a stream a document established, whose gross was stated
+            rather than estimated and is reported in `gross_cents`.
+          example: 6799544
+        average_monthly_net_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Average monthly net income from this stream, in cents.
+
+
+            For bank verification, total deposits for the stream are divided by
+            the number of full calendar months in the requested period when the
+            order specifies one. A month with no reported income adds zero to
+            the total but still counts as one full month in the divisor. When
+            there is no requested period, this is the provider's average over
+            its observation period for the stream.
+
+
+            For document verification, this uses the same period and divisor as
+            `summary.average_monthly_net_cents`.
+
+
+            Null for a stream established by a tax form because dividing an
+            annual total by twelve would not represent observed monthly income.
+          example: 248096
+        last_30_days_net_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Net income from this stream in the most recent month observed, in
+            cents. `0` is valid. Null for a stream a document established, which
+            reports no month-by-month detail.
+          example: 224500
+        net_income_by_month:
+          type: array
+          description: >
+            Per-month breakdown of net deposits from this stream. Empty if no
+            transactions have been observed in the analysis window.
+
+
+            Always empty for a stream a document established, which reports a
+            total for the period it covers and no month-by-month detail.
+            `current_month_income` is null for the same reason.
+          items:
+            $ref: '#/components/schemas/income-monthly-net'
+        net_cents:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Net income from this stream between `start_date` and `end_date`, in
+            cents. Null when nothing reported the net this payer deposited,
+            which is the case for a tax form.
+          example: 382000
+        gross_cents:
+          type:
+            - integer
+            - 'null'
+          description: >
+            Gross income from this stream between `start_date` and `end_date`,
+            in cents. Not estimated: a paystub and a tax form both state gross
+            outright.
+
+
+            Null when no document stated it, which is the case for a stream
+            established only by bank statements, since deposits are net.
+          example: 480000
+        document_ids:
+          type: array
+          description: >-
+            The documents in `documents` that established this stream. Empty for
+            a stream from a connected account.
+          items:
+            type: string
+            example: inc_K9dM2pXqR4vN8tLZbWyHJa
+    income-document:
+      type: object
+      description: >
+        A proof-of-income document the applicant uploaded, and what the analysis
+        made of it.
+
+
+        A document appears once it has been accepted, so one the applicant
+        replaced never does. `checks` records what was verified about its
+        contents; `risk_assessment` records whether it appears genuine, which is
+        judged separately, so a document can pass every check and still carry a
+        high risk level. Whether a document contributed to the reported income
+        follows from its `risk_assessment.level`.
+      properties:
+        id:
+          type: string
+          description: >-
+            Unique identifier for the document, and what
+            `income_streams[].document_ids` refers to.
+          example: inc_K9dM2pXqR4vN8tLZbWyHJa
+        document_type:
+          type: string
+          description: >
+            What the document was classified as. Known values: `paystub`, `w2`,
+            `1099`, `bank_statement`,
+
+            and `unknown` when the type could not be established, in which case
+            no income was taken
+
+            from it. Additional types may be introduced over time.
+          example: paystub
+        filename:
+          type:
+            - string
+            - 'null'
+          description: Name of the file as the applicant uploaded it.
+          example: paystub-june.pdf
+        content_type:
+          type:
+            - string
+            - 'null'
+          description: MIME type of the document.
+          example: application/pdf
+        period_start_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: >-
+            First day the document covers. A tax form covers its year, January 1
+            to December 31. Null when the dates could not be read.
+        period_end_date:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: Last day the document covers.
+        risk_assessment:
+          description: >-
+            Whether the document appears genuine. Null until the analysis has
+            assessed it, which is not the same as a clean assessment.
+          oneOf:
+            - $ref: '#/components/schemas/income-document-risk-assessment'
+            - type: 'null'
+        checks:
+          $ref: '#/components/schemas/income-document-checks'
+        download_url:
+          type: string
+          format: uri
+          description: >-
+            Endpoint that returns the document itself — [`GET
+            /reports/{id}/documents/{document_id}/download`](#operation/get-report-document).
+            It requires the same authentication as any other request, so the URL
+            alone grants no access. It addresses the document by id and does not
+            expire. To fetch every document for the report in one call instead,
+            see [`GET
+            /reports/{id}/documents/zip`](#operation/get-report-documents-zip).
+          example: >-
+            https://api.checkrtenant.com/v1/reports/rp_K9dM2pXqR4vN8tLZbWyHJa/documents/inc_K9dM2pXqR4vN8tLZbWyHJa/download
+        submitted_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: >-
+            When the applicant submitted the document. Null if it has not been
+            submitted.
+        created_at:
+          type: string
+          format: date-time
+          description: When the document was first uploaded.
+    income-document-risk-assessment:
+      type: object
+      description: >
+        The result of document risk analysis: whether the document shows signs
+        of having been altered,
+
+        read from its metadata, its appearance, its internal consistency and
+        other risk indicators.
+
+
+        Separate from `checks`, which are upload time validations to ensure that
+        the applicant uploads
+
+        usable income documents.
+      properties:
+        level:
+          type:
+            - string
+            - 'null'
+          description: >
+            How strong the indicators of alteration are.
+
+
+            | Level    | What was
+            detected                                                                                                                                 
+            | Used for reported income |
+
+            | -------- |
+            --------------------------------------------------------------------------------------------------------------------------------------------------
+            | ---------------------- |
+
+            | `low`    | No significant anomalies were detected. Contents are
+            internally consistent and metadata matches the conventions for the
+            type.                      | Yes                    |
+
+            | `medium` | Minor inconsistencies, unusual metadata, or formatting
+            that departs from the norm. Suggestive rather than
+            conclusive.                              | Yes                    |
+
+            | `high`   | Clear indicators, such as digital editing, structural
+            or layout flaws, or signs of synthetic
+            generation.                                           |
+            No                     |
+
+            | `null`   | Not assessed: the analysis has not run yet, or this
+            document type cannot be
+            assessed.                                                             
+            | No                     |
+
+
+            Known values are the three above; additional values may be
+            introduced over time. Treat an
+
+            unrecognised level as not counted rather than as `low`.
+          example: low
+        summary:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Plain-language account of what the assessment found, naming the
+            specific signals behind the level.
+          example: >-
+            No fraud signals detected. Document metadata and content are
+            consistent with a genuine bank export.
+    income-document-checks:
+      type: object
+      description: >-
+        What was verified about the document when it was uploaded. Each check is
+        `true` when it passed, `false` when it failed, and `null` when it has
+        not been evaluated, which is not the same as a failure.
+      properties:
+        document_type:
+          type:
+            - boolean
+            - 'null'
+          description: Whether the document is a type accepted as proof of income.
+        name_match:
+          type:
+            - boolean
+            - 'null'
+          description: Whether a name on the document matches the applicant.
+        recency:
+          type:
+            - boolean
+            - 'null'
+          description: >-
+            Whether the document is recent enough to describe the applicant's
+            current income.
+    income-monthly-net:
+      type: object
+      description: Net deposits from an income stream for a single month.
+      properties:
+        month:
+          type: string
+          description: The month the totals cover, in `YYYY-MM` format.
+          example: 2024-05
+        net_cents:
+          type: integer
+          description: >-
+            Net deposits attributed to the stream during `month`, in cents. `0`
+            is valid.
+          example: 269552
+        transaction_count:
+          type: integer
+          description: >-
+            Number of deposit transactions attributed to the stream during
+            `month`.
+          example: 2
+    sex-offender-registry:
+      x-tags:
+        - Products
+      description: >-
+        Report item for the sex offender registry product, containing matches
+        found against state sex offender registries.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            records:
+              type: array
+              description: >-
+                One entry per registry match returned for the applicant. Empty
+                if no matches were found.
+              items:
+                $ref: '#/components/schemas/record'
+    global-watchlist:
+      x-tags:
+        - Products
+      description: >-
+        Report item for the global watchlist product, containing matches found
+        against sanctions, healthcare, and other regulatory watchlists.
+      allOf:
+        - $ref: '#/components/schemas/report-item-base'
+        - type: object
+          properties:
+            records:
+              type: array
+              description: >-
+                One entry per watchlist match returned for the applicant. Empty
+                if no matches were found.
+              items:
+                $ref: '#/components/schemas/record'
+    record:
+      type: object
+      description: >-
+        A single registry or watchlist match, including the source the match
+        came from, the matched person's identifying details, and any criminal
+        cases associated with the match.
+      properties:
+        source:
+          description: >-
+            The registry or watchlist that returned the match. `null` when the
+            upstream source returned no source metadata.
+          oneOf:
+            - $ref: '#/components/schemas/record-source'
+            - type: 'null'
+        person:
+          description: >-
+            Identifying details of the matched person as recorded by the source.
+            `null` when the upstream source returned no person details.
+          oneOf:
+            - $ref: '#/components/schemas/record-person'
+            - type: 'null'
+        cases:
+          type: array
+          description: >-
+            Criminal cases associated with this match. Often empty for watchlist
+            matches that do not carry court data.
+          items:
+            $ref: '#/components/schemas/criminal-case'
+    record-source:
+      type: object
+      description: The registry, watchlist, or other source that produced a match.
+      properties:
+        name:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Human-readable name of the source (e.g. `California Megan's Law
+            Registry`, `OFAC SDN`).
+        category:
+          type:
+            - string
+            - 'null'
+          description: |
+            Category of source the match came from. Common values include
+            `sex offender registry`, `sanctions`, `healthcare`, and similar
+            regulatory list categories.
+        county:
+          type:
+            - string
+            - 'null'
+          description: County the source covers, when applicable.
+        state:
+          type:
+            - string
+            - 'null'
+          description: Two-letter USPS state code the source covers, when applicable.
+          example: CA
+    record-person:
+      type: object
+      description: >-
+        Identifying details of the matched person as recorded by the registry or
+        watchlist. Fields are populated only when the source provides them.
+      properties:
+        full_name:
+          type:
+            - string
+            - 'null'
+          description: Full name as recorded by the source.
+        first_name:
+          type:
+            - string
+            - 'null'
+          description: Given name as recorded by the source.
+        middle_name:
+          type:
+            - string
+            - 'null'
+          description: Middle name as recorded by the source.
+        last_name:
+          type:
+            - string
+            - 'null'
+          description: Family name as recorded by the source.
+        dob:
+          type:
+            - string
+            - 'null'
+          description: >
+            Date of birth as recorded by the source. Returned in truncated ISO
+            8601
+
+            form: `YYYY-MM-DD`, `YYYY-MM`, or `YYYY` when only a partial date is
+
+            known. `null` when the source does not publish a date of birth.
+        gender:
+          type:
+            - string
+            - 'null'
+          description: Gender as recorded by the source.
+        height:
+          type:
+            - string
+            - 'null'
+          description: Height in US units (feet and inches, e.g. `5'10"`).
+        weight:
+          type:
+            - string
+            - 'null'
+          description: Weight in US units (pounds, e.g. `175 lb`).
+        hair_color:
+          type:
+            - string
+            - 'null'
+          description: Hair color as recorded by the source.
+        eye_color:
+          type:
+            - string
+            - 'null'
+          description: Eye color as recorded by the source.
+        race:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Race as recorded by the source. May be withheld by source
+            jurisdiction.
+        photo_urls:
+          type: array
+          description: >-
+            URLs of any photos published by the source. Empty array when none
+            are available.
+          items:
+            type: string
+            format: uri
+        aliases:
+          type: array
+          description: >-
+            Other names the matched person is known by, as recorded by the
+            source.
+          items:
+            type: string
+        addresses:
+          type: array
+          description: >-
+            Addresses associated with the matched person, as recorded by the
+            source.
+          items:
+            $ref: '#/components/schemas/record-address'
+    record-address:
+      type: object
+      description: An address associated with a registry or watchlist match.
+      properties:
+        street:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Street line, including house/building number and street name.
+            Apartment or unit numbers may be included.
+        city:
+          type:
+            - string
+            - 'null'
+          description: City or municipality.
+        state:
+          type:
+            - string
+            - 'null'
+          description: Two-letter US state code. `null` for non-US addresses.
+          example: CA
+        zipcode:
+          type:
+            - string
+            - 'null'
+          description: >-
+            US Postal Service ZIP code (5-digit or 9-digit ZIP+4). `null` for
+            non-US addresses.
+        country:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Two-letter ISO country code. Defaults to `US` when omitted by the
+            source.
+          example: US
+        county:
+          type:
+            - string
+            - 'null'
+          description: County the address is located in.
+    property:
+      description: >-
+        A property record representing the rental address an order is screening
+        for.
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: string
+              description: >-
+                Unique identifier for the property record. Use this value in
+                subsequent API calls; it is stable for the lifetime of the
+                property. Test-mode IDs carry a `_test_` infix (e.g.
+                `pr_test_K9dM2pXqR4vN8tLZbWyHJa`); live-mode IDs have no infix.
+              example: pr_K9dM2pXqR4vN8tLZbWyHJa
+            name:
+              type:
+                - string
+                - 'null'
+              description: >-
+                Optional human-readable label for the property (e.g. a building
+                or unit nickname). When set, it is shown to applicants and used
+                in email/SMS communications in addition to the property address.
+              example: Sunset Apartments
+        - $ref: '#/components/schemas/property-address'
+        - type: object
+          properties:
+            created_at:
+              type: string
+              format: date-time
+              description: Timestamp the property record was created.
+    property-address:
+      type: object
+      description: >-
+        The mailing-address fields shared between order creation requests and
+        the embedded property object returned in responses.
+      properties:
+        street:
+          type: string
+          description: Street line of the property address (number and street name).
+          example: 1234 Market St
+        unit:
+          type:
+            - string
+            - 'null'
+          description: Optional unit, suite, or apartment designator within the building.
+          example: Apt 4B
+        city:
+          type: string
+          description: City the property is located in.
+          example: San Francisco
+        state:
+          type: string
+          description: Two-letter USPS state or territory code (uppercase).
+          example: CA
+        zipcode:
+          type: string
+          description: 5-digit US ZIP code or ZIP+4.
+          example: '94103'
+    property-list:
+      description: A page of properties wrapped in the standard list envelope.
+      allOf:
+        - $ref: '#/components/schemas/list-envelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              description: Properties on this page, ordered newest first.
+              items:
+                $ref: '#/components/schemas/property'
+    applicant:
+      description: >-
+        An applicant record. The full SSN is never returned — only the masked
+        form.
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: string
+              description: >-
+                Unique identifier for the applicant record. Use this value in
+                subsequent API calls; it is stable for the lifetime of the
+                applicant. Test-mode IDs carry a `_test_` infix (e.g.
+                `ap_test_F3hQ7wEsLp2xBnVcRuMyTk`); live-mode IDs have no infix.
+              example: ap_F3hQ7wEsLp2xBnVcRuMyTk
+        - $ref: '#/components/schemas/applicant-identity'
+        - type: object
+          properties:
+            first_name:
+              type: string
+              minLength: 1
+              maxLength: 50
+              description: Applicant's given name.
+            last_name:
+              type: string
+              minLength: 1
+              maxLength: 50
+              description: Applicant's family name.
+            dob:
+              type:
+                - string
+                - 'null'
+              format: date
+              description: >-
+                Date of birth in ISO-8601 format (`YYYY-MM-DD`). Null if not yet
+                collected.
+              example: '1990-05-14'
+            phone_number:
+              type:
+                - string
+                - 'null'
+              description: >
+                Phone number on file for the applicant in E.164 format (US
+                numbers
+
+                only), or null if none has been collected. Accepted on input in
+                any
+
+                common format (e.g. `(555) 123-4567`, `555-123-4567`);
+                normalized
+
+                before storage.
+              example: '+15551234567'
+            ssn:
+              type:
+                - string
+                - 'null'
+              description: >-
+                Masked Social Security Number (last four digits only). Null in
+                responses if no SSN is on file. The full SSN is never returned.
+              example: XXX-XX-6789
+            created_at:
+              type: string
+              format: date-time
+              description: Timestamp the applicant record was created.
+    applicant-identity:
+      type: object
+      description: >-
+        Identity fields returned for an applicant record. Values should match
+        the applicant's legal identity.
+      properties:
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Applicant's full legal name as it appears on government-issued ID.
+          example: Jane Public
+        email:
+          type: string
+          format: email
+          description: Email address used to contact the applicant about their screening.
+          example: jane@example.com
+    applicant-list:
+      description: A page of applicants wrapped in the standard list envelope.
+      allOf:
+        - $ref: '#/components/schemas/list-envelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              description: Applicants on this page, ordered newest first.
+              items:
+                $ref: '#/components/schemas/applicant'
+    list-envelope:
+      type: object
+      description: >
+        Wrapper returned by every list endpoint. The `data` array is ordered
+        newest
+
+        first. Use `next_href` and `previous_href` to walk forward and backward
+
+        through results — both are absolute URLs that already encode the cursor
+        and
+
+        `per_page` for you, and are `null` at the ends of the list.
+      properties:
+        object:
+          type: string
+          description: Always `list` for list responses.
+          enum:
+            - list
+        count:
+          type: integer
+          description: >-
+            Total number of records in the underlying collection (across all
+            pages), not the size of `data`.
+        next_href:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: >-
+            Absolute URL of the next page (older records), or `null` if this is
+            the last page.
+        previous_href:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: >-
+            Absolute URL of the previous page (newer records), or `null` if this
+            is the first page.
+    webhook-event:
+      type: object
+      description: |
+        Common envelope for every webhook delivery. Concrete event types narrow
+        the `type` field and the shape of `data`.
+      properties:
+        id:
+          type: string
+          description: >-
+            Unique event id. Stable across retries — use it for idempotency on
+            the receiving side.
+          example: evt_K9dM2pXqR4vN8tLZbWyHJa
+        object:
+          type: string
+          description: Always `event` for webhook payloads.
+          enum:
+            - event
+        type:
+          type: string
+          description: >-
+            Event type. See the [Webhooks guide](webhooks.md) for the current
+            catalog.
+          example: report.completed
+        created_at:
+          type: string
+          format: date-time
+          description: UTC timestamp the event was created, in ISO-8601 format.
+        data:
+          type: object
+          description: >-
+            Event-specific payload. Shape varies by event type — see the
+            concrete event schemas below.
+    webhook-event-report-completed:
+      description: |
+        Sent when an order has finished processing and the full report is
+        available.
+      allOf:
+        - $ref: '#/components/schemas/webhook-event'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - report.completed
+            data:
+              type: object
+              description: Reference to the completed report and the parent order.
+              properties:
+                id:
+                  type: string
+                  description: Id of the completed report.
+                  example: rp_F3hQ7wEsLp2xBnVcRuMyTk
+                order_id:
+                  type: string
+                  description: Id of the parent order.
+                  example: ord_WHImYp5RjqUxBowWilloQ
+    webhook-event-report-product-completed:
+      description: |
+        Sent when a product finishes processing and results are available on
+        the report.
+      allOf:
+        - $ref: '#/components/schemas/webhook-event'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - report.product.completed
+            data:
+              type: object
+              description: Reference to the completed product result and the parent report.
+              properties:
+                id:
+                  type: string
+                  description: Id of the completed product result.
+                  example: rpi_abc123def456ghi7
+                report_id:
+                  type: string
+                  description: Id of the parent report.
+                  example: rp_F3hQ7wEsLp2xBnVcRuMyTk
+                product:
+                  type: string
+                  description: >-
+                    Identifier of the product that finished (e.g.
+                    `criminal_history`, `credit_report`, `eviction_history`).
+                  example: criminal_history
+    webhook-event-order-applicant-visited:
+      description: |
+        Sent when the applicant visits the apply link for an order at any time
+        before they complete the application.
+      allOf:
+        - $ref: '#/components/schemas/webhook-event'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - order.applicant.visited
+            data:
+              type: object
+              description: Reference to the applicant and order.
+              properties:
+                id:
+                  type: string
+                  description: Id of the applicant.
+                  example: ap_9f8e7d6c5b4a3210
+                order_id:
+                  type: string
+                  description: Id of the order.
+                  example: ord_WHImYp5RjqUxBowWilloQ
+    webhook-event-order-applicant-started:
+      description: >
+        Sent when the applicant consents to and starts the screening
+        application.
+      allOf:
+        - $ref: '#/components/schemas/webhook-event'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - order.applicant.started
+            data:
+              type: object
+              description: Reference to the applicant and order.
+              properties:
+                id:
+                  type: string
+                  description: Id of the applicant.
+                  example: ap_9f8e7d6c5b4a3210
+                order_id:
+                  type: string
+                  description: Id of the order.
+                  example: ord_WHImYp5RjqUxBowWilloQ
+    webhook-event-order-applicant-completed:
+      description: |
+        Sent when the applicant finishes and submits the application.
+      allOf:
+        - $ref: '#/components/schemas/webhook-event'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - order.applicant.completed
+            data:
+              type: object
+              description: Reference to the applicant and order.
+              properties:
+                id:
+                  type: string
+                  description: Id of the applicant.
+                  example: ap_9f8e7d6c5b4a3210
+                order_id:
+                  type: string
+                  description: Id of the order.
+                  example: ord_WHImYp5RjqUxBowWilloQ
+    webhook-event-order-applicant-paid:
+      description: >
+        Sent when the applicant completes payment on a `payer: "applicant"`
+        order.
+      allOf:
+        - $ref: '#/components/schemas/webhook-event'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - order.applicant.paid
+            data:
+              type: object
+              description: Reference to the applicant and order.
+              properties:
+                id:
+                  type: string
+                  description: Id of the applicant.
+                  example: ap_9f8e7d6c5b4a3210
+                order_id:
+                  type: string
+                  description: Id of the order.
+                  example: ord_WHImYp5RjqUxBowWilloQ
+    errors:
+      type: object
+      description: >-
+        Standard error response envelope. Every non-2xx response uses this
+        shape. Validation failures (HTTP 422) may include multiple entries, one
+        per offending field; other errors return a single entry.
+      properties:
+        errors:
+          type: array
+          description: One or more errors describing why the request failed.
+          items:
+            type: object
+            properties:
+              code:
+                type: string
+                description: >
+                  Machine-readable error type. Stable across releases; safe to
+                  branch on. Possible values:
+                    * `authorization_error` (401)
+                    * `forbidden` (403)
+                    * `not_found_error` (404)
+                    * `validation_error` (422)
+                    * `internal_error` (500)
+                    * `no_payment_method` (402) — no card on file for the organization. Add a card in Settings → Billing, then retry the request.
+                    * `card_declined` (402) — the saved card was declined. Update the card on file or use a different one, then retry the request with a new `Idempotency-Key`.
+                    * `authentication_required` (402) — the saved card requires interactive authentication and cannot be charged. Replace the saved card with one that supports off-session payments.
+              detail:
+                type: string
+                description: Human-readable explanation of this specific occurrence.
+              source:
+                type: object
+                description: >-
+                  Pointer to the input that caused the error. Returned for
+                  validation errors to identify the offending field; absent
+                  otherwise.
+                properties:
+                  pointer:
+                    type: string
+                    description: JSON Pointer path to the offending attribute.
+                    example: /email
+    requester-address:
+      type: object
+      description: |
+        The address of the end user: an individual's physical address, or a
+        business's place of business.
+      properties:
+        street:
+          type: string
+          description: Street line of the end user's address (number and street name).
+          example: 500 Market St
+        unit:
+          type:
+            - string
+            - 'null'
+          description: Optional unit, suite, or floor designator within the building.
+          example: Floor 8
+        city:
+          type: string
+          description: City the end user is located in.
+          example: San Francisco
+        state:
+          type: string
+          description: Two-letter USPS state or territory code (uppercase).
+          example: CA
+        zipcode:
+          type: string
+          description: 5-digit US ZIP code or ZIP+4.
+          example: '94105'
+    criminal-record:
+      type: object
+      description: >-
+        A single criminal case returned by the search, enriched with the
+        `source` it came from and the `person` it was matched to. Combines the
+        case data (case number, court, charges) with source and person blocks.
+      allOf:
+        - $ref: '#/components/schemas/criminal-case'
+        - type: object
+          properties:
+            source:
+              description: >-
+                The court or other source that produced the record. `null` when
+                the upstream source returned no source metadata.
+              oneOf:
+                - $ref: '#/components/schemas/record-source'
+                - type: 'null'
+            person:
+              description: >-
+                Identifying details of the person the record was matched to.
+                `null` when the upstream source returned no person details.
+              oneOf:
+                - $ref: '#/components/schemas/record-person'
+                - type: 'null'
+    income-consider-reason:
+      type: object
+      description: >
+        A single category explaining why the income verification resulted in a
+        `consider` status.
+
+
+        | Category               | Label                              |
+        Description                                                                                 
+        |
+
+        | ---------------------- | ---------------------------------- |
+        --------------------------------------------------------------------------------------------
+        |
+
+        | `applicant_declined`   | Applicant declined verification    | The
+        applicant declined to connect their bank account(s) to verify their
+        income.              |
+      properties:
+        category:
+          type: string
+          description: >-
+            Machine-readable category. Stable across releases; safe to branch
+            on.
+          enum:
+            - applicant_declined
+        label:
+          type: string
+          description: Human-readable description of the category.
+          example: Applicant declined verification
+  responses:
+    error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/errors'
+    webhook-acknowledged:
+      description: >
+        Any 2xx response acknowledges the delivery. Non-2xx responses, network
+
+        errors, and timeouts are treated as failures and retried with
+        exponential
+
+        backoff.
+  requestBodies:
+    post-order-request-body:
+      description: >
+        The request body for creating a new order. Each side of the order — the
+
+        property and the applicant — can be supplied either inline (the address
+
+        or identity fields) or by id (a previously created `pr_…` / `ap_…`).
+
+        Provide exactly one form per side; sending both, or neither, returns a
+
+        validation error.
+
+
+        `original_requester` is optional. Omit it entirely if you are screening
+        applicants
+
+        for your own organization. Supply it only if you are a platform placing
+        orders on
+
+        behalf of your own customers, to identify the end user the report is
+        furnished to.
+
+        It follows the same inline-or-id shape, sending both forms returns a
+        validation error,
+
+        sending neither does not.
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              order:
+                type: object
+                description: Attributes for the new order.
+                properties:
+                  package:
+                    type: string
+                    description: >-
+                      Slug of the screening package to run. Determines which
+                      checks are performed and the price charged.
+                    enum:
+                      - starter
+                      - essential
+                      - complete
+                  property_id:
+                    type: string
+                    description: >
+                      Id of an existing property record (e.g.
+                      `pr_K9dM2pXqR4vN8tLZbWyHJa`)
+
+                      owned by your organization. Mutually exclusive with
+                      `property`.
+
+                      Returns 404 if the property does not exist or belongs to
+
+                      another organization.
+                    example: pr_K9dM2pXqR4vN8tLZbWyHJa
+                  property:
+                    description: |
+                      Address of the rental property the applicant is being
+                      screened for. Mutually exclusive with `property_id`.
+
+                      If the address matches an existing property in your
+                      organization, the existing property is reused and no new
+                      record is created — see `POST /properties` for the exact
+                      matching rules. The order's `property_id` in the response
+                      reflects whichever id was used (existing or new).
+                    allOf:
+                      - type: object
+                        properties:
+                          name:
+                            type:
+                              - string
+                              - 'null'
+                            description: >-
+                              Optional human-readable label for the property
+                              (e.g. a building or unit nickname). When set, it
+                              is shown to applicants and used in email/SMS
+                              communications in addition to the property
+                              address.
+                            example: Sunset Apartments
+                      - $ref: '#/components/schemas/property-address'
+                      - type: object
+                        required:
+                          - street
+                          - city
+                          - state
+                          - zipcode
+                  original_requester_id:
+                    type: string
+                    description: >
+                      Leave blank unless you are a platform ordering on behalf
+                      of
+
+                      your own customers.
+
+
+                      Id of an end user you have already registered (e.g.
+
+                      `req_TUyYsLnyTbG3xv9hONJF7w`), owned by your organization.
+
+                      Mutually exclusive with `original_requester`. Returns 404
+                      if
+
+                      it does not exist, belongs to another organization, or has
+
+                      been deactivated.
+                    example: req_TUyYsLnyTbG3xv9hONJF7w
+                  original_requester:
+                    description: >
+                      Leave blank unless you are a platform ordering on behalf
+                      of
+
+                      your own customers. If you screen applicants for your own
+
+                      organization, omit this field entirely.
+
+
+                      Identifies the end user this order is placed on behalf of,
+
+                      meaning whoever the report is furnished to. Mutually
+
+                      exclusive with `original_requester_id`.
+
+
+                      The address is an individual's physical address, or a
+
+                      business's place of business. It is optional as a group
+                      but
+
+                      all-or-nothing: either omit the address entirely or send
+
+                      `street`, `city`, `state` and `zipcode` together. `unit`
+                      is
+
+                      always optional.
+                    allOf:
+                      - type: object
+                        properties:
+                          external_id:
+                            type: string
+                            description: >
+                              A unique identifier assigned to the requester in
+                              your
+
+                              system. Reusing an id you have sent before updates
+
+                              that requester's details rather than creating a
+                              second
+
+                              record, so the same id must always refer to the
+                              same
+
+                              requester.
+                            example: your_customer_42
+                          type:
+                            type: string
+                            description: >-
+                              Whether this end user is an individual person or a
+                              business, such as a property management company.
+                            enum:
+                              - individual
+                              - business
+                          name:
+                            type: string
+                            description: >-
+                              Name this end user does business under. Reported
+                              to consumers who request the identity of who
+                              procured their report.
+                            example: KimCo Property Management
+                          email:
+                            type: string
+                            format: email
+                            description: >-
+                              Optional contact email for this end user. Not used
+                              to contact them.
+                            example: ops@kimco.example
+                          phone_number:
+                            type: string
+                            description: >
+                              Optional contact phone number for this end user.
+                              US
+
+                              numbers only. Accepted in any common format (e.g.
+
+                              `(415) 555-0123`, `415-555-0123`, `+14155550123`)
+                              and
+
+                              returned in E.164.
+                            example: 415-555-0123
+                        required:
+                          - external_id
+                          - type
+                          - name
+                      - $ref: '#/components/schemas/requester-address'
+                  applicant_id:
+                    type: string
+                    description: >
+                      Id of an existing applicant record (e.g.
+                      `ap_F3hQ7wEsLp2xBnVcRuMyTk`)
+
+                      owned by your organization. Mutually exclusive with
+
+                      `applicant`. Returns 404 if the applicant does not exist
+                      or
+
+                      belongs to another organization, and 422 if the applicant
+                      is
+
+                      already attached to an order — applicants are 1:1 with
+
+                      orders.
+                    example: ap_F3hQ7wEsLp2xBnVcRuMyTk
+                  applicant:
+                    description: >
+                      Identity fields for the person being screened. A new
+
+                      applicant record is created from these fields. Mutually
+
+                      exclusive with `applicant_id`. `first_name` and
+                      `last_name`
+
+                      are preferred; legacy clients may still send `full_name`
+
+                      instead. Do not send both name forms. `email` is always
+
+                      required at create time. If `dob` and/or `ssn` are
+                      omitted,
+
+                      the applicant will be prompted to provide them when they
+
+                      complete the consent form. Values must match the
+                      applicant's
+
+                      legal identity.
+                    allOf:
+                      - type: object
+                        properties:
+                          email:
+                            type: string
+                            format: email
+                            description: >-
+                              Email address used to contact the applicant about
+                              their screening.
+                            example: jane@example.com
+                          dob:
+                            type: string
+                            format: date
+                            description: Date of birth in ISO-8601 format (`YYYY-MM-DD`).
+                            example: '1990-05-14'
+                          phone_number:
+                            type: string
+                            description: >
+                              Mobile phone number to contact the applicant about
+
+                              their screening. US numbers only. Accepted in any
+
+                              common format (e.g. `(415) 555-0100`,
+                              `415-555-0100`,
+
+                              `+14155550100`); normalized to E.164 before
+                              storage.
+                            example: 415-555-0100
+                          ssn:
+                            type: string
+                            description: >-
+                              Applicant's full 9-digit US Social Security
+                              Number. Accepted with or without dashes
+                              (`123-45-6789` or `123456789`). Subsequent reads
+                              only return a masked form.
+                            example: 123-45-6789
+                        required:
+                          - email
+                        oneOf:
+                          - title: Split applicant name
+                            type: object
+                            properties:
+                              first_name:
+                                type: string
+                                minLength: 1
+                                maxLength: 50
+                                description: Applicant's given name.
+                                example: Jane
+                              last_name:
+                                type: string
+                                minLength: 1
+                                maxLength: 50
+                                description: Applicant's family name.
+                                example: Doe
+                            required:
+                              - first_name
+                              - last_name
+                            not:
+                              properties:
+                                full_name: {}
+                              required:
+                                - full_name
+                          - title: Legacy full applicant name
+                            type: object
+                            properties:
+                              full_name:
+                                type: string
+                                minLength: 2
+                                maxLength: 100
+                                description: >-
+                                  Legacy alternative to `first_name` and
+                                  `last_name`. Mutually exclusive with
+                                  `first_name` and `last_name`; when split on
+                                  the first whitespace, it must produce at least
+                                  two name parts and each resulting part must be
+                                  1 to 50 characters.
+                                example: Jane Doe
+                            required:
+                              - full_name
+                            not:
+                              anyOf:
+                                - properties:
+                                    first_name: {}
+                                  required:
+                                    - first_name
+                                - properties:
+                                    last_name: {}
+                                  required:
+                                    - last_name
+                  add_on_products:
+                    type: array
+                    description: |
+                      Optional add-on products to run on the order in
+                      addition to the ones bundled into `package`. Unknown or
+                      non-add-on products return `422 validation_error`.
+                    uniqueItems: true
+                    items:
+                      type: string
+                      minLength: 1
+                    example:
+                      - identity_verification
+                  payer:
+                    type: string
+                    description: >
+                      Who pays for the order: `applicant` or `organization`.
+
+                      `applicant` requires the applicant to pay, when they reach
+                      the payment step
+
+                      of the apply flow. Live mode only. Not supported for
+                      invoiced
+
+                      organizations. Omit or set to `organization` to use your
+                      organization's
+
+                      default billing.
+                    example: organization
+                required:
+                  - package
+            required:
+              - order
+    post-property-request-body:
+      description: The request body for creating a new property.
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              property:
+                description: Address of the rental property.
+                allOf:
+                  - type: object
+                    properties:
+                      name:
+                        type:
+                          - string
+                          - 'null'
+                        description: >-
+                          Optional human-readable label for the property (e.g. a
+                          building or unit nickname). When set, it is shown to
+                          applicants and used in email/SMS communications in
+                          addition to the property address.
+                        example: Sunset Apartments
+                  - $ref: '#/components/schemas/property-address'
+                  - type: object
+                    required:
+                      - street
+                      - city
+                      - state
+                      - zipcode
+            required:
+              - property
+    post-applicant-request-body:
+      description: The request body for creating a new applicant.
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              applicant:
+                description: >
+                  Identity fields for the applicant. `first_name` and
+                  `last_name`
+
+                  are preferred; legacy clients may still send `full_name`
+                  instead.
+
+                  Do not send both name forms. `email` is always required.
+                  `phone_number` is optional. `dob` and `ssn` are also
+
+                  optional at create time — if not supplied here, the applicant
+
+                  will be prompted to provide them via the consent flow on their
+
+                  first order. Values must match the applicant's legal identity.
+                allOf:
+                  - type: object
+                    properties:
+                      email:
+                        type: string
+                        format: email
+                        description: >-
+                          Email address used to contact the applicant about
+                          their screening.
+                        example: jane@example.com
+                      dob:
+                        type: string
+                        format: date
+                        description: Date of birth in ISO-8601 format (`YYYY-MM-DD`).
+                        example: '1990-05-14'
+                      phone_number:
+                        type: string
+                        description: >
+                          Mobile phone number to contact the applicant about
+                          their
+
+                          screening. US numbers only. Accepted in any common
+                          format
+
+                          (e.g. `(415) 555-0100`, `415-555-0100`,
+                          `+14155550100`);
+
+                          normalized to E.164 before storage.
+                        example: 415-555-0100
+                      ssn:
+                        type: string
+                        description: >-
+                          Applicant's full 9-digit US Social Security Number.
+                          Accepted with or without dashes (`123-45-6789` or
+                          `123456789`). Subsequent reads only return a masked
+                          form.
+                        example: 123-45-6789
+                    required:
+                      - email
+                    oneOf:
+                      - title: Split applicant name
+                        type: object
+                        properties:
+                          first_name:
+                            type: string
+                            minLength: 1
+                            maxLength: 50
+                            description: Applicant's given name.
+                            example: Jane
+                          last_name:
+                            type: string
+                            minLength: 1
+                            maxLength: 50
+                            description: Applicant's family name.
+                            example: Doe
+                        required:
+                          - first_name
+                          - last_name
+                        not:
+                          properties:
+                            full_name: {}
+                          required:
+                            - full_name
+                      - title: Legacy full applicant name
+                        type: object
+                        properties:
+                          full_name:
+                            type: string
+                            minLength: 2
+                            maxLength: 100
+                            description: >-
+                              Legacy alternative to `first_name` and
+                              `last_name`. Mutually exclusive with `first_name`
+                              and `last_name`; when split on the first
+                              whitespace, it must produce at least two name
+                              parts and each resulting part must be 1 to 50
+                              characters.
+                            example: Jane Doe
+                        required:
+                          - full_name
+                        not:
+                          anyOf:
+                            - properties:
+                                first_name: {}
+                              required:
+                                - first_name
+                            - properties:
+                                last_name: {}
+                              required:
+                                - last_name
+            required:
+              - applicant
+  securitySchemes:
+    bearer-token:
+      type: http
+      scheme: bearer
+      description: >-
+        API key issued to your organization. Send it as `Authorization: Bearer
+        <token>`.

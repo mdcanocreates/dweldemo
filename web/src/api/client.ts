@@ -391,6 +391,51 @@ export const api = {
       expires_at: string | null;
     }>(`/v1/applications/${applicationId}/screening-eligibility`),
 
+  getCheckrScreening: (applicationId: string) =>
+    request<{
+      screening_id?: string;
+      application_id: string;
+      status: string;
+      application_url?: string | null;
+      environment?: string;
+      package_slug?: string;
+      checkr_order_id?: string | null;
+      checkr_report_id?: string | null;
+      overall_result?: string | null;
+      products?: Record<
+        string,
+        {
+          status: string | null;
+          result: string | null;
+          consider_reasons: Array<{ category: string | null; label: string | null }>;
+        }
+      >;
+      review_required?: boolean;
+      checkr_enabled?: boolean;
+      updated_at?: string;
+      completed_at?: string | null;
+    }>(`/v1/applications/${applicationId}/checkr-screening`),
+
+  initiateCheckrScreening: (
+    applicationId: string,
+    body?: { package?: 'starter' | 'essential' | 'complete' },
+  ) =>
+    request<{
+      screening_id: string;
+      application_id: string;
+      status: string;
+      checkr_order_id: string | null;
+      application_url: string | null;
+      environment: string;
+      duplicate: boolean;
+    }>(`/v1/applications/${applicationId}/checkr-screening/initiate`, {
+      method: 'POST',
+      body: JSON.stringify(body ?? {}),
+    }),
+
+  checkrReportPdfUrl: (applicationId: string) =>
+    `/v1/applications/${applicationId}/checkr-screening/pdf`,
+
   requestAccountDeletion: (body: { confirm: true; reason?: string }) =>
     request<{ request_id: string; status: string; message: string }>(
       '/v1/renter/account/deletion-request',

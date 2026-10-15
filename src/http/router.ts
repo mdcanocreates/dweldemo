@@ -15,9 +15,15 @@ import {
   handleListListings,
   handleRecordConsent,
   handleSubmitScreening,
-  handleCompleteDemoScreening,
   type HttpHandlerDeps,
 } from './handlers.js';
+import {
+  handleCheckrWebhookPost,
+  handleCheckrStatus,
+  handleDownloadCheckrReportPdf,
+  handleGetCheckrScreening,
+  handleInitiateCheckrScreening,
+} from './checkr-handlers.js';
 import {
   handleLandlordCreateListing,
   handleLandlordDecideApplicant,
@@ -835,7 +841,7 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
 
     const appMatch = path.match(
-      /^\/v1\/applications\/([0-9a-f-]{36})(?:\/(consent|submit-screening|pay-consent|complete-demo-screening|screening-eligibility))?$/i,
+      /^\/v1\/applications\/([0-9a-f-]{36})(?:\/(consent|submit-screening|pay-consent|screening-eligibility))?$/i,
     );
     if (appMatch) {
       const applicationId = appMatch[1]!;
@@ -865,10 +871,6 @@ export function createApiRouter(deps: HttpHandlerDeps) {
         await handleSubmitScreening(req, res, deps, applicationId);
         return true;
       }
-      if (method === 'POST' && action === 'complete-demo-screening') {
-        await handleCompleteDemoScreening(req, res, deps, applicationId);
-        return true;
-      }
     }
 
     if (path === '/v1/webhooks/certn') {
@@ -878,6 +880,41 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       }
       if (method === 'POST') {
         await handleCertnWebhookPost(req, res, deps);
+        return true;
+      }
+    }
+
+    if (method === 'POST' && path === '/v1/webhooks/checkr') {
+      await handleCheckrWebhookPost(req, res, deps);
+      return true;
+    }
+
+    if (method === 'GET' && path === '/v1/admin/integrations/checkr') {
+      await handleCheckrStatus(req, res);
+      return true;
+    }
+
+    const checkrAppMatch = path.match(
+      /^\/v1\/applications\/([0-9a-f-]{36})\/checkr-screening(?:\/(initiate|pdf))?$/i,
+    );
+    if (checkrAppMatch) {
+      const applicationId = checkrAppMatch[1]!;
+      const action = checkrAppMatch[2];
+      if (!UUID_RE.test(applicationId)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'validation_error', message: 'invalid application id' }));
+        return true;
+      }
+      if (method === 'GET' && !action) {
+        await handleGetCheckrScreening(req, res, deps, applicationId);
+        return true;
+      }
+      if (method === 'POST' && action === 'initiate') {
+        await handleInitiateCheckrScreening(req, res, deps, applicationId);
+        return true;
+      }
+      if (method === 'GET' && action === 'pdf') {
+        await handleDownloadCheckrReportPdf(req, res, deps, applicationId);
         return true;
       }
     }

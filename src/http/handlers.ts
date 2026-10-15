@@ -60,6 +60,7 @@ function checkAppRouteRateLimit(key: string): void {
 export type HttpHandlerDeps = {
   pool: DbPool;
   certnWebhookSecret?: string | null;
+  checkrWebhookSecret?: string | null;
 };
 
 function publicContext(req: IncomingMessage): PublicRequestContext {

@@ -66,3 +66,18 @@ export {
 } from './certn-availability.js';
 
 export { UnavailableTenantScreening } from './unavailable.js';
+
+export {
+  assessCheckrAvailability,
+  isCheckrEnabled,
+  checkrModeOrNull,
+  CheckrTenantClient,
+  createCheckrTenantClientFromEnv,
+  CheckrTenantScreening,
+  createCheckrTenantScreeningFromEnv,
+  sanitizeReportSummary,
+  verifyCheckrTenantSignature,
+  signCheckrTenantBody,
+  CHECKR_WEBHOOK_REPLAY_WINDOW_SECONDS,
+  type CheckrAvailability,
+} from './checkr/index.js';
