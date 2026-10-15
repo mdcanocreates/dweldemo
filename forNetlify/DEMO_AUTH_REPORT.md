@@ -112,4 +112,6 @@ Operator checklist:
 
 ## COMMIT SHA
 
-See git log on branch `feat/netlify-demo-fornetlify` after commit (filled in commit message / `git rev-parse HEAD`).
+`94a64c3998584f93c27ae71f617e60c006149e65` on branch `feat/netlify-demo-fornetlify`
+
+Note: `<NetlifyDemoChrome />` must remain mounted in `web/src/main.tsx` (present in current production web working tree; component + helpers are in this commit).
