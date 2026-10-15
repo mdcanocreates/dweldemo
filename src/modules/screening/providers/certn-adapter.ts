@@ -1,9 +1,9 @@
 import {
   createCertnSandboxFromEnv,
   verifyCertnWebhookSignature,
+  assessCertnAvailability,
   type CertnHttpFetch,
-} from '../../vendors/certn.js';
-import { assessCertnAvailability } from '../../vendors/certn-availability.js';
+} from '../../vendors/index.js';
 import { AppError } from '../../shared/errors.js';
 import type {
   CreateScreeningRequestInput,

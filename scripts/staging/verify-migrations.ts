@@ -26,6 +26,8 @@ async function main(): Promise<void> {
       '0064_charter_v3_transaction_spine.sql',
       '0065_partner_attribution_lease_delegation.sql',
       '0066_missing_info_documents.sql',
+      '0067_checkr_tenant_screening.sql',
+      '0068_screening_provider_orchestration.sql',
     ];
     for (const n of need) {
       if (!names.includes(n)) {
@@ -39,6 +41,9 @@ async function main(): Promise<void> {
       'application',
       'missing_info_request',
       'missing_info_request_document',
+      'checkr_tenant_screening',
+      'screening_provider_setting',
+      'provider_screening',
     ];
     for (const t of tables) {
       const r = await client.query(

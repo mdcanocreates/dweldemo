@@ -90,4 +90,5 @@ export {
   type CheckrPackageSlug,
   type CheckrOriginalRequesterInline,
   type CheckrWebhookEvent,
+  type CheckrHttpFetch,
 } from './checkr/index.js';

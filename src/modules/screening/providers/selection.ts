@@ -1,8 +1,10 @@
 import type { DbClient } from '../../../db/pool.js';
 import { AppError } from '../../shared/errors.js';
 import { emitDomainEvent } from '../../audit/index.js';
-import { assessCertnAvailability } from '../../vendors/certn-availability.js';
-import { assessCheckrAvailability } from '../../vendors/checkr/availability.js';
+import {
+  assessCertnAvailability,
+  assessCheckrAvailability,
+} from '../../vendors/index.js';
 import type {
   ScreeningProviderId,
   ScreeningProviderSelection,

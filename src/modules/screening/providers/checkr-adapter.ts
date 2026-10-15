@@ -2,10 +2,10 @@ import {
   createCheckrTenantClientFromEnv,
   sanitizeReportSummary,
   verifyCheckrTenantSignature,
+  assessCheckrAvailability,
   type CheckrHttpFetch,
   type CheckrPackageSlug,
-} from '../../vendors/checkr/index.js';
-import { assessCheckrAvailability } from '../../vendors/checkr/availability.js';
+} from '../../vendors/index.js';
 import { AppError } from '../../shared/errors.js';
 import type {
   CreateScreeningRequestInput,
