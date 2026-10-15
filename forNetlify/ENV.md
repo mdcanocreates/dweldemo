@@ -1,42 +1,35 @@
-# forNetlify environment configuration
+# forNetlify environment configuration (standalone demo)
 
-## Netlify site variables (build + runtime proxy target)
+## Netlify site variables
 
-| Variable | Required | Example | Purpose |
-|----------|----------|---------|---------|
-| `DWEL_API_ORIGIN` | **Yes** | `https://rbit-dev-821417220.us-east-2.elb.amazonaws.com` | Absolute origin of the Dwel API. Used to generate `_redirects` so browser calls stay same-origin (`/v1/...`). |
-| `VITE_DWEL_NETLIFY_DEMO` | Set by `netlify.toml` | `true` | Enables Demo chrome + role navigation. |
-| `VITE_APP_ENV` | Optional | `demo` | Environment labeling. |
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `VITE_DWEL_NETLIFY_DEMO` | Set by `netlify.toml` | Enables demo chrome, local email gate, offline API adapters |
+| `VITE_APP_ENV` | Optional (`demo`) | Environment labeling |
 
-**Do not** put database passwords, API keys, JWT secrets, AWS keys, or `.env` files into Netlify for this frontend.
+**Do not set** `DWEL_API_ORIGIN`. The standalone demo must not proxy to production.
 
-## Backend (Dwel API) variables required for demo auth
+**Do not** put database passwords, API keys, JWT secrets, AWS keys, or `.env` files into Netlify.
 
-Configure these on the **API** environment that `DWEL_API_ORIGIN` points at — not in the Netlify frontend secrets:
+## Demo access (local gate only)
 
-| Variable | Required value for rbitdemo |
-|----------|-----------------------------|
-| `PUBLIC_APP_URL` | `https://rbitdemo.netlify.app` |
-| `AUTH_EMAIL_ALLOWLIST` | Must include: `info@rbitfinancial.com`, `mdcano@rbitfinancial.com`, `addison@rbitfinancial.com`, `michaelsorge@rbitfinancial.com` |
-| `EMAIL_PROVIDER` / SES | Working so magic-link emails send |
-| `APP_ENV` | Not `production` if allowlist must stay enforced (typical for demo/staging API) |
+Allowlisted emails (not secure authentication):
 
-## Why a proxy
+- `info@rbitfinancial.com`
+- `mdcano@rbitfinancial.com`
+- `addison@rbitfinancial.com`
+- `michaelsorge@rbitfinancial.com`
 
-The production web client uses **relative** `fetch('/v1/...')` (same-origin). Without a Netlify rewrite, `https://rbitdemo.netlify.app/v1/auth/magic-link` hits Netlify (no API) → HTML 404 → UI shows `Request failed`.
+If you need real access control for these four people, use Netlify Identity, an IdP, or another server-validated mechanism — not this client-side gate.
 
-## Cookie / session notes
+## Backend / AWS
 
-- Session cookie: `rbit_session` (HttpOnly, SameSite=Lax, Secure in prod/dev NODE_ENV)
-- With Netlify `200` proxy rewrites, `Set-Cookie` is attributed to `rbitdemo.netlify.app`
-- Client also stores Bearer token in `localStorage` (`dwel.session_token`) after redeem — works with proxy
-- Always verify magic-link open in a **new tab** and refresh after login
+None required for the standalone demo. Do not change production `PUBLIC_APP_URL`, allowlists, or ECS for this deploy.
 
-## Local build smoke test
+## Local build
 
-```bash
+```powershell
 cd forNetlify
-set DWEL_API_ORIGIN=https://YOUR-API-HOST
 npm run build
-# Inspect dist/_redirects
+# Inspect dist/_redirects (SPA only) and dist/demo-build.json
 ```

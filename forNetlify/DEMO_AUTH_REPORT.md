@@ -1,117 +1,58 @@
-# Dwel Netlify Demo — Auth Repair Report
+# Dwel Netlify Demo — Standalone Mode Report
 
-## ROOT CAUSE
+## MODE
 
-`https://rbitdemo.netlify.app` serves the SPA correctly, but the auth client issues **same-origin relative** requests:
+**Standalone interactive demo** — no magic links, SES, AWS API, or `DWEL_API_ORIGIN`.
 
-`POST /v1/auth/magic-link`
+## ROOT CAUSE (historical)
 
-On Netlify there was **no API and no `/v1` rewrite**, so the browser received an HTML 404 (or similar non-JSON body). The client fell through to the generic message **`Request failed`**.
+Earlier `rbitdemo.netlify.app` failed auth because relative `/v1` had no API. That path is obsolete for this deploy: demo builds no longer call production `/v1`.
 
-Contributing factors:
+## ACCESS
 
-1. Production web assumes same-origin `/v1/*` (Vite proxy only exists in local `vite`/`preview`).
-2. No `forNetlify/`, `netlify.toml`, or `_redirects` in-repo for the demo site.
-3. Backend has **no CORS layer**; cross-origin absolute API URLs would also need cookie/CORS work. Same-origin Netlify `200` proxy is the correct fix for this client.
-4. Magic-link emails use `PUBLIC_APP_URL`; if that still points at localhost/production CDN, demo redeem URLs will be wrong even after proxy works.
+Client-side email gate only (not secure authentication):
 
-## FILES CHANGED
+- info@rbitfinancial.com
+- mdcano@rbitfinancial.com
+- addison@rbitfinancial.com
+- michaelsorge@rbitfinancial.com
 
-| Path | Change |
-|------|--------|
-| `forNetlify/` | New deployable Netlify package (build, `netlify.toml`, docs) |
-| `forNetlify/scripts/build.mjs` | Builds `web/` with demo flag; emits `_redirects` proxy |
-| `web/src/lib/netlify-demo.ts` | Demo mode helper + login deep links |
-| `web/src/components/demo/NetlifyDemoChrome.tsx` | Demo badge + role → real login navigation |
-| `web/src/main.tsx` | Mounts Netlify demo chrome |
-| `web/src/api/client.ts` | Clearer error when `/v1` returns HTML (proxy missing) |
-| `web/.env.example` | Vite/demo env documentation |
-| `.env.example` | Allowlist includes four demo RBIT emails + Netlify notes |
+For real access control, use Netlify Identity or an IdP.
 
-## AUTH/API TOPOLOGY
+## WHAT WORKS
 
-```text
-Browser https://rbitdemo.netlify.app
-    │  POST /v1/auth/magic-link   (relative, credentials: include)
-    ▼
-Netlify rewrite (200)  /v1/* → ${DWEL_API_ORIGIN}/v1/*
-    ▼
-Dwel API  (ALB/ECS)
-    ├── AUTH_EMAIL_ALLOWLIST
-    ├── PUBLIC_APP_URL=https://rbitdemo.netlify.app
-    └── Set-Cookie: rbit_session (proxied → Netlify host)
-```
+- Demo email entry → immediate local session
+- Rejection of other emails by the local gate
+- Renter / Broker / Home Provider portals via production UI
+- Instant role switching after demo access
+- In-memory listings, applications, screening states, dashboards (ui-preview fixtures)
+- Local mutations only (sessionStorage / in-memory universe)
 
-Role switcher only navigates to:
+## WHAT IS SIMULATED
 
-- Renter → `/#/auth/login?returnTo=%2Frenter&role=renter`
-- Broker → `/#/auth/login?returnTo=%2Fpartner%2Fbroker&role=broker`
-- Home Provider → `/#/auth/login?returnTo=%2Fpartner%2Flandlord&role=landlord`
+- Authentication (no magic link / no `rbit_session` cookie from API)
+- Screening provider calls (blocked)
+- Payments / Stripe (blocked)
+- Email delivery (none)
+- All `/v1` responses (offline adapters)
 
-Server session / `party_role` remains authoritative after redeem.
+## MISSING / THINNER COVERAGE
 
-## NETLIFY CONFIGURATION
+- Admin Control Center surfaces (not in demo chrome roles)
+- Any production endpoint not covered by `ui-preview-api` returns empty GET or 403 mutation
+- Real document binaries / signed URLs
 
-1. Base directory: `forNetlify` (or `apps/dwel/forNetlify`)
-2. Build: `npm run build` · Publish: `dist`
-3. **Required site env:** `DWEL_API_ORIGIN=https://<dwel-api-host>` (no trailing slash, no secrets)
-4. Generated `dist/_redirects` proxies `/v1/*` and `/health*` and SPA-falls back to `/index.html`
+## PRODUCTION SAFETY
 
-## BACKEND CONFIGURATION REQUIRED
+- `VITE_DWEL_NETLIFY_DEMO` build flag required
+- Production builds keep magic-link auth unchanged
+- Demo builds refuse outbound API (`shouldBlockOutboundApi`)
+- No AWS resources or production secrets required
 
-On the API pointed to by `DWEL_API_ORIGIN`:
+## NETLIFY SETTINGS
 
-| Setting | Value |
-|---------|--------|
-| `PUBLIC_APP_URL` | `https://rbitdemo.netlify.app` |
-| `AUTH_EMAIL_ALLOWLIST` | Must include the four emails below |
-| Email/SES | Must deliver magic links |
-| CORS | Not required if Netlify proxy is used |
-
-## ALLOWLIST VERIFIED
-
-Documented for demo API (code/example updated; **live API env not modified by this agent**):
-
-- `info@rbitfinancial.com`
-- `mdcano@rbitfinancial.com`
-- `addison@rbitfinancial.com`
-- `michaelsorge@rbitfinancial.com`
-
-Policy unchanged: allowlist still enforced in non-production `APP_ENV`; no global bypass.
-
-## ROLE ROUTES VERIFIED
-
-Code-level deep links and Demo chrome buttons verified in source/tests. Live browser E2E against Netlify was **not** completed here (external access).
-
-## BUILD RESULT
-
-Local `forNetlify` build succeeded with placeholder `DWEL_API_ORIGIN`:
-
-- `web` `tsc -b && vite build` OK
-- `dist/_redirects` generated
-- `dist/demo-build.json` written
-
-## LIVE DEMO RESULT
-
-### `CODE_READY_EXTERNAL_DEPENDENCY_BLOCKED`
-
-This agent does **not** have credentials/access to:
-
-1. Update Netlify site env (`DWEL_API_ORIGIN`) or trigger production Netlify deploy for `rbitdemo.netlify.app`
-2. Update AWS/ECS/API secrets for `PUBLIC_APP_URL` / `AUTH_EMAIL_ALLOWLIST` on the live demo API
-3. Send or receive real SES magic-link email in this session
-
-**Code is ready.** Until those external steps are applied, do **not** treat the live demo as operational.
-
-Operator checklist:
-
-1. Set Netlify `DWEL_API_ORIGIN` → deploy `forNetlify`
-2. Set API `PUBLIC_APP_URL=https://rbitdemo.netlify.app`
-3. Ensure API allowlist includes the four emails
-4. Smoke: Home Provider login path → magic link → redeem → refresh → logout → non-allowlisted email → 403
-
-## COMMIT SHA
-
-`94a64c3998584f93c27ae71f617e60c006149e65` on branch `feat/netlify-demo-fornetlify`
-
-Note: `<NetlifyDemoChrome />` must remain mounted in `web/src/main.tsx` (present in current production web working tree; component + helpers are in this commit).
+- Base directory: `forNetlify`
+- Build: `npm run build`
+- Publish: `dist`
+- Env: `VITE_DWEL_NETLIFY_DEMO=true` (from `netlify.toml`)
+- **Do not set** `DWEL_API_ORIGIN`

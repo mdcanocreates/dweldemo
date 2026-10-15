@@ -1,21 +1,33 @@
+import { useLocation } from 'wouter';
 import {
   isNetlifyDemoMode,
-  NETLIFY_DEMO_ROLE_LOGIN,
+  isNetlifyDemoSessionActive,
+  NETLIFY_DEMO_ROLE_ENTRY,
+  netlifyDemoHomeForRole,
+  setNetlifyDemoRole,
   type NetlifyDemoRole,
 } from '../../lib/netlify-demo';
+import { setPartyRole } from '../../lib/user-flow-store';
 
 /**
- * Demo-only chrome: environment badge + role navigation into real login.
- * Does not create sessions or skip allowlist/auth.
- * Uses hash navigation so it works with either router stack.
+ * Demo-only chrome: environment badge + instant role switching after demo access.
+ * Never creates production sessions or calls live APIs.
  */
 export function NetlifyDemoChrome() {
   if (!isNetlifyDemoMode()) return null;
+  const [, setLocation] = useLocation();
 
   function goRole(role: NetlifyDemoRole) {
-    const entry = NETLIFY_DEMO_ROLE_LOGIN[role];
-    // HashRouter / wouter hash location: keep #/… paths.
-    window.location.hash = `#${entry.href.startsWith('/') ? entry.href : `/${entry.href}`}`;
+    const home = netlifyDemoHomeForRole(role);
+    if (!isNetlifyDemoSessionActive()) {
+      setLocation(
+        `/auth/login?returnTo=${encodeURIComponent(home)}&role=${encodeURIComponent(role)}`,
+      );
+      return;
+    }
+    setNetlifyDemoRole(role);
+    setPartyRole(role === 'landlord' ? 'landlord' : role);
+    setLocation(home);
   }
 
   return (
@@ -28,25 +40,25 @@ export function NetlifyDemoChrome() {
         <div className="flex items-center gap-2 text-xs font-semibold tracking-wide sm:text-sm">
           <span className="rounded bg-dwel-mint/25 px-2 py-0.5 uppercase text-dwel-mint">Demo</span>
           <span className="text-dwel-gray-300">
-            Real sign-in required · role buttons only open login
+            Simulated data · not production · no live payments or screening
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(Object.keys(NETLIFY_DEMO_ROLE_LOGIN) as NetlifyDemoRole[]).map((role) => (
+          {(Object.keys(NETLIFY_DEMO_ROLE_ENTRY) as NetlifyDemoRole[]).map((role) => (
             <button
               key={role}
               type="button"
               onClick={() => goRole(role)}
               className="rounded-md border border-white/20 bg-white/5 px-2.5 py-1 text-xs font-semibold text-dwel-white hover:bg-white/15"
             >
-              {NETLIFY_DEMO_ROLE_LOGIN[role].label}
+              {NETLIFY_DEMO_ROLE_ENTRY[role].label}
             </button>
           ))}
           <a
-            href="#/"
+            href="#/auth/login"
             className="rounded-md px-2 py-1 text-xs font-medium text-dwel-gray-400 underline hover:text-white"
           >
-            Home
+            Demo access
           </a>
         </div>
       </div>

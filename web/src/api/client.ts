@@ -2,11 +2,17 @@ import type { MeResponse, MagicLinkPurpose, PartyRole } from '../types';
 import { getPartyRole } from '../lib/user-flow-store';
 import { isUiPreviewActive } from '../lib/ui-preview';
 import { tryUiPreviewRequest } from '../lib/ui-preview-api';
+import {
+  isNetlifyDemoMode,
+  isNetlifyDemoSessionActive,
+  shouldBlockOutboundApi,
+} from '../lib/netlify-demo';
 
 const SESSION_KEY = 'dwel.session_token';
 
 export function getSessionToken(): string | null {
   if (isUiPreviewActive()) return 'ui-preview-session';
+  if (isNetlifyDemoMode() && isNetlifyDemoSessionActive()) return 'netlify-demo-session';
   try {
     return localStorage.getItem(SESSION_KEY);
   } catch {
@@ -58,8 +64,8 @@ function mapAuthError(status: number, code?: string, fallback?: string): string 
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  // Local UI inspection: serve in-memory adapters; never hit live protected APIs.
-  if (isUiPreviewActive()) {
+  // Local UI inspection + standalone Netlify demo: in-memory adapters only.
+  if (isUiPreviewActive() || isNetlifyDemoMode()) {
     const preview = tryUiPreviewRequest(path, init);
     if (preview) {
       if (preview.status >= 400) {
@@ -71,6 +77,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         );
       }
       return preview.body as T;
+    }
+    if (shouldBlockOutboundApi()) {
+      throw new ApiError(
+        'This endpoint is not available in the standalone demo.',
+        501,
+        'demo_not_simulated',
+      );
     }
   }
 

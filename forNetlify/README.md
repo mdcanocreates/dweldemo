@@ -1,36 +1,40 @@
 # Dwel Netlify Demo (`forNetlify`)
 
-Deployable artifact for `https://rbitdemo.netlify.app` built from the **current production** `web/` app.
+Standalone interactive demo for `https://rbitdemo.netlify.app` built from the **production** `web/` app.
 
 ## What this is
 
-- Same production React app (auth, renter, broker, Home Provider, screening, legal)
-- **Only intentional UX divergence:** Demo chrome with Renter / Broker / Home Provider buttons that navigate into **real** `/auth/login?returnTo=...` flows
-- Same-origin `/v1/*` proxy via generated `_redirects` so authentication does not 404 on Netlify
+- Same production React UI (renter, broker, Home Provider portals)
+- Local demo email gate (four RBIT addresses) — **not** secure authentication
+- Instant role switching after demo access
+- In-memory / fixture data — no AWS, SES, magic links, or production API
 
 ## What this is not
 
-- Not a fake login or session bypass
-- Not a fork of stale demo pages as the product
+- Not production auth
+- Not connected to production databases, Stripe, Certn, or Checkr
 - Not a place for secrets
 
 ## Deploy
 
-1. Netlify site → Base directory: `forNetlify` (or `apps/dwel/forNetlify` in monorepo)
-2. Set **`DWEL_API_ORIGIN`** to the Dwel API HTTPS origin
-3. On that API, set `PUBLIC_APP_URL=https://rbitdemo.netlify.app` and the demo allowlist (see `ENV.md`)
-4. Build command: `npm run build` · Publish: `dist`
+1. Netlify base directory: `forNetlify` (or `apps/dwel/forNetlify`)
+2. Build: `npm run build` · Publish: `dist`
+3. **Do not set** `DWEL_API_ORIGIN`
+4. Env from `netlify.toml`: `VITE_DWEL_NETLIFY_DEMO=true`
 
-## Role entry paths
+## Demo access
 
-| Role | Login deep link |
-|------|-----------------|
-| Renter | `/#/auth/login?returnTo=%2Frenter&role=renter` |
-| Broker | `/#/auth/login?returnTo=%2Fpartner%2Fbroker&role=broker` |
-| Home Provider | `/#/auth/login?returnTo=%2Fpartner%2Flandlord&role=landlord` |
+Enter one of:
 
-After login, **server session roles** remain authoritative.
+- info@rbitfinancial.com
+- mdcano@rbitfinancial.com
+- addison@rbitfinancial.com
+- michaelsorge@rbitfinancial.com
+
+Then use the Demo chrome to switch Renter / Broker / Home Provider instantly.
+
+For real access control of those four people, use Netlify Identity or an IdP — not this client gate.
 
 ## Demo chrome mount
 
-`web/src/main.tsx` must render `<NetlifyDemoChrome />` inside the auth tree (already present in the current production web entry). Chrome is a no-op unless `VITE_DWEL_NETLIFY_DEMO=true` (set by `forNetlify` build).
+`web/src/main.tsx` must render `<NetlifyDemoChrome />` (no-op unless the Vite demo flag is set).
