@@ -5,8 +5,11 @@ export function sendJson(
   res: ServerResponse,
   statusCode: number,
   body: unknown,
+  extraHeaders?: Record<string, string>,
 ): void {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (extraHeaders) Object.assign(headers, extraHeaders);
+  res.writeHead(statusCode, headers);
   res.end(JSON.stringify(body));
 }
 

@@ -1,6 +1,6 @@
 /**
  * API client — same-origin (CloudFront proxies /v1 to ALB).
- * Session cookie is HttpOnly; also send Bearer session id when held in memory.
+ * Session cookie is HttpOnly. A tab-memory session id is sent only as a legacy bearer fallback.
  */
 export type ApiErrorBody = { error?: string; message?: string };
 
@@ -269,6 +269,35 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, purpose }),
     }),
+  emailCode: (
+    email: string,
+    purpose: 'sign_in' | 'landlord_sign_in' | 'broker_sign_in',
+    rememberDevice = false,
+  ) =>
+    request<{
+      ok: true;
+      message: string;
+      delivered: boolean;
+      retryAfterSeconds: number;
+      expiresInSeconds: number;
+      debug_code?: string;
+    }>('/v1/auth/email-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, purpose, rememberDevice }),
+    }),
+  verifyEmailCode: (
+    email: string,
+    code: string,
+    purpose: 'sign_in' | 'landlord_sign_in' | 'broker_sign_in',
+    rememberDevice = false,
+  ) =>
+    request<{ ok: true; authenticated: true; session_id: string; party_id: string }>(
+      '/v1/auth/email-code/verify',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email, code, purpose, rememberDevice }),
+      },
+    ),
   redeem: (token: string, purpose: 'sign_in' | 'landlord_sign_in' | 'broker_sign_in') =>
     request<{ session_id: string; party_id: string }>('/v1/auth/redeem', {
       method: 'POST',

@@ -22,6 +22,9 @@ export function HomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(() => profileComplete(loadAnswers()) && Boolean(user));
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [pendingAnswers, setPendingAnswers] = useState<RenterAnswers | null>(null);
+  const [code, setCode] = useState('');
   const showFrog = useDelayedPending(busy, 400);
 
   const persist = useCallback((next: RenterAnswers) => {
@@ -35,12 +38,15 @@ export function HomePage() {
     saveAnswers({ ...next, profile_complete: true });
     try {
       if (!user) {
-        const magic = await api.magicLink(next.email.trim(), 'sign_in');
-        if (!magic.redeem_token) {
-          throw new Error('Check your email for a private link, then return here to finish.');
+        const issued = await api.emailCode(next.email.trim(), 'sign_in');
+        if (!issued.debug_code) {
+          setPendingEmail(next.email.trim());
+          setPendingAnswers(next);
+          setError('Enter the 6-digit code sent to your email to finish.');
+          return;
         }
-        const redeemed = await api.redeem(magic.redeem_token, 'sign_in');
-        await setSession(redeemed.session_id);
+        const verified = await api.verifyEmailCode(next.email.trim(), issued.debug_code, 'sign_in');
+        await setSession(verified.session_id);
         await refresh();
       }
       const profile = await api.upsertRenterProfile(answersToProfilePayload(next));
@@ -130,6 +136,53 @@ export function HomePage() {
                 <div style={{ padding: '0.75rem 1rem 0', flexShrink: 0 }}>
                   <ErrorState title="Could not save profile">{error}</ErrorState>
                 </div>
+              )}
+              {pendingEmail && pendingAnswers && (
+                <form
+                  className="panel form-grid"
+                  style={{ margin: '0.75rem 1rem' }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void (async () => {
+                      setBusy(true);
+                      setError(null);
+                      try {
+                        const verified = await api.verifyEmailCode(pendingEmail, code, 'sign_in');
+                        await setSession(verified.session_id);
+                        await refresh();
+                        const profile = await api.upsertRenterProfile(
+                          answersToProfilePayload(pendingAnswers),
+                        );
+                        setDone(true);
+                        setPendingEmail(null);
+                        if (profile.profile.preferred_state === 'NY') {
+                          navigate('/screening-choice', { replace: true });
+                        } else {
+                          navigate('/listings', { replace: true });
+                        }
+                      } catch (err) {
+                        setError(err instanceof ApiError || err instanceof Error ? err.message : 'That code did not work.');
+                      } finally {
+                        setBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  <label>
+                    6-digit code
+                    <input
+                      type="text"
+                      required
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={code}
+                      onChange={(ev) => setCode(ev.target.value)}
+                    />
+                  </label>
+                  <button type="submit" className="btn btn-primary" disabled={busy}>
+                    {busy ? 'Checking…' : 'Continue'}
+                  </button>
+                </form>
               )}
               <GuidedChat
                 mode="profile"

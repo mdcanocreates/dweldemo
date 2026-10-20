@@ -103,6 +103,8 @@ export function ApplyPage() {
   const [loadingIntake, setLoadingIntake] = useState(true);
   const [chatKey, setChatKey] = useState(0);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const showSubmitFrog = useDelayedPending(hopping, 400);
   const showIntakeInline = useDelayedPending(loadingIntake && !hopping, 400);
 
@@ -159,13 +161,14 @@ export function ApplyPage() {
       setError('Finish homepage profile chat first — we need your email for a private link.');
       return false;
     }
-    const link = await api.magicLink(email, 'sign_in');
-    if (!link.redeem_token) {
-      setError('Check your email for a private link, then return here to finish.');
+    const issued = await api.emailCode(email, 'sign_in');
+    if (!issued.debug_code) {
+      setPendingEmail(email);
+      setError('Enter the 6-digit code sent to your email, then continue.');
       return false;
     }
-    const redeemed = await api.redeem(link.redeem_token, 'sign_in');
-    await setSession(redeemed.session_id);
+    const verified = await api.verifyEmailCode(email, issued.debug_code, 'sign_in');
+    await setSession(verified.session_id);
     await refresh();
     return true;
   }
@@ -264,6 +267,44 @@ export function ApplyPage() {
       </div>
 
       {error && <ErrorState title="Application error">{error}</ErrorState>}
+      {pendingEmail && (
+        <form
+          className="panel form-grid"
+          style={{ marginTop: '1rem', maxWidth: '28rem' }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void (async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                const verified = await api.verifyEmailCode(pendingEmail, code, 'sign_in');
+                await setSession(verified.session_id);
+                await refresh();
+                setPendingEmail(null);
+              } catch (err) {
+                setError(err instanceof ApiError ? err.message : 'That code did not work.');
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+        >
+          <label>
+            6-digit code
+            <input
+              type="text"
+              required
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(ev) => setCode(ev.target.value)}
+            />
+          </label>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? 'Checking…' : 'Verify and continue'}
+          </button>
+        </form>
+      )}
 
       {complete && !editOnly ? (
         <div className="panel stack" style={{ marginTop: '1.25rem', maxWidth: '40rem' }}>

@@ -144,6 +144,20 @@ tables:
 
       retention_class: identity
 
+  auth_email_challenge:
+
+    email_hmac:
+
+      classification: lookup_token
+
+      retention_class: identity
+
+    request_ip:
+
+      classification: operational
+
+      retention_class: identity
+
   notification_suppression:
 
     address_hmac:

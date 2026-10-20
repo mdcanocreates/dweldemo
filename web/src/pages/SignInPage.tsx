@@ -1,36 +1,66 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { ErrorState, Shell } from '../components/Shell';
 
+type Purpose = 'sign_in' | 'landlord_sign_in' | 'broker_sign_in';
+
 export function SignInPage() {
   const [params] = useSearchParams();
   const role = params.get('role');
-  const purpose = useMemo(() => {
-    if (role === 'landlord') return 'landlord_sign_in' as const;
-    if (role === 'broker') return 'broker_sign_in' as const;
-    return 'sign_in' as const;
+  const purpose = useMemo<Purpose>(() => {
+    if (role === 'landlord') return 'landlord_sign_in';
+    if (role === 'broker') return 'broker_sign_in';
+    return 'sign_in';
   }, [role]);
 
   const navigate = useNavigate();
-  const { setSession } = useAuth();
+  const { setSession, loading, user } = useAuth();
   const [email, setEmail] = useState('');
-  const [redeemToken, setRedeemToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [remember, setRemember] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
 
-  async function requestLink(e: React.FormEvent) {
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = window.setTimeout(() => setResendIn((n) => Math.max(0, n - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendIn]);
+
+  useEffect(() => {
+    if (loading || !user) return;
+    if (role === 'broker') navigate('/broker', { replace: true });
+    else if (role === 'landlord') navigate('/landlord', { replace: true });
+    else navigate('/', { replace: true });
+  }, [loading, user, role, navigate]);
+
+  function destination() {
+    if (role === 'broker') navigate('/broker');
+    else if (role === 'landlord') navigate('/landlord');
+    else navigate('/');
+  }
+
+  async function requestCode(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     setMessage(null);
-    setRedeemToken(null);
     try {
-      const res = await api.magicLink(email.trim(), purpose);
+      const res = await api.emailCode(email.trim(), purpose, remember);
       setMessage(res.message);
-      if (res.redeem_token) setRedeemToken(res.redeem_token);
+      setResendIn(res.retryAfterSeconds || 60);
+      if (res.debug_code) {
+        const verified = await api.verifyEmailCode(email.trim(), res.debug_code, purpose, remember);
+        await setSession(verified.session_id);
+        destination();
+        return;
+      }
+      setStep('code');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start sign-in.');
     } finally {
@@ -38,17 +68,16 @@ export function SignInPage() {
     }
   }
 
-  async function completeRedeem(token: string) {
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const redeemed = await api.redeem(token, purpose);
-      await setSession(redeemed.session_id);
-      if (role === 'broker') navigate('/broker');
-      else if (role === 'landlord') navigate('/landlord');
-      else navigate('/');
+      const verified = await api.verifyEmailCode(email.trim(), code, purpose, remember);
+      await setSession(verified.session_id);
+      destination();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Sign-in link is invalid or expired.');
+      setError(err instanceof ApiError ? err.message : 'That code is invalid or expired.');
     } finally {
       setBusy(false);
     }
@@ -59,44 +88,69 @@ export function SignInPage() {
       <div className="stack" style={{ maxWidth: '28rem', margin: '0 auto' }}>
         <p className="section-eyebrow">dwel.20 access</p>
         <h1>Sign in</h1>
-        <p className="muted">Passwordless email link. No passwords stored on dwel.20.</p>
-        <form className="panel form-grid" onSubmit={(e) => void requestLink(e)}>
-          <label>
-            Work email
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            {busy ? 'Sending…' : 'Email me a sign-in link'}
-          </button>
-        </form>
+        <p className="muted">
+          We email a 6-digit code. Enter it here. No extra browser tab.
+        </p>
+        {loading ? (
+          <p className="muted">Checking your session…</p>
+        ) : step === 'email' ? (
+          <form className="panel form-grid" onSubmit={(e) => void requestCode(e)}>
+            <label>
+              Email
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              Remember this device for 30 days
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'Sending…' : 'Email me a code'}
+            </button>
+          </form>
+        ) : (
+          <form className="panel form-grid" onSubmit={(e) => void submitCode(e)}>
+            <label>
+              6-digit code
+              <input
+                type="text"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                pattern="[0-9 ]{6,12}"
+                maxLength={12}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'Checking…' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || resendIn > 0}
+              onClick={() => void requestCode({ preventDefault() {} } as React.FormEvent)}
+            >
+              {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
+            </button>
+          </form>
+        )}
         {message && (
           <div className="callout">
             <strong className="callout-title">Check your email</strong>
             <div className="callout-body">{message}</div>
-          </div>
-        )}
-        {redeemToken && (
-          <div className="callout">
-            <strong className="callout-title">Continue on this device</strong>
-            <div className="callout-body">
-              Email delivery is not configured in this environment, so you can finish sign-in here.
-              <div style={{ marginTop: '0.75rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy}
-                  onClick={() => void completeRedeem(redeemToken)}
-                >
-                  Continue
-                </button>
-              </div>
-            </div>
           </div>
         )}
         {error && <ErrorState title="Sign-in blocked">{error}</ErrorState>}

@@ -17,9 +17,12 @@ export {
   type ValidateApplicationAccessInput,
 } from './application-access.js';
 
+export { issueEmailCode, verifyEmailCode } from './email-code.js';
+
 export {
   loadSessionIdentity,
   revokeSession,
   pickOrgForRole,
+  insertUserSession,
   type SessionIdentity,
 } from './session.js';

@@ -108,6 +108,42 @@ export async function sendMagicLinkEmail(
   });
 }
 
+export async function sendEmailCodeEmail(
+  to: string,
+  code: string,
+  expiresInSeconds: number,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const product = 'dwel' as const;
+  const minutes = Math.max(1, Math.round(expiresInSeconds / 60));
+  const subject = 'Your Dwel sign-in code';
+  const textBody = [
+    'Hello,',
+    '',
+    `Your Dwel sign-in code is ${code}.`,
+    '',
+    `It expires in ${minutes} minutes.`,
+    'Enter it on the sign-in page. This email is not a link.',
+    '',
+    'If you did not request this, you can ignore this email.',
+  ].join('\n');
+  const htmlBody = [
+    '<p>Hello,</p>',
+    `<p>Your Dwel sign-in code is <strong>${escapeHtmlText(code)}</strong>.</p>`,
+    `<p>It expires in ${minutes} minutes.</p>`,
+    '<p>Enter it on the sign-in page. This email is not a link.</p>',
+    '<p>If you did not request this, you can ignore this email.</p>',
+  ].join('\n');
+  await sendTransactionalEmail({
+    product,
+    to,
+    subject,
+    html: htmlBody,
+    text: textBody,
+    env,
+  });
+}
+
 function escapeHtmlAttr(value: string): string {
   return value
     .replace(/&/g, '&amp;')

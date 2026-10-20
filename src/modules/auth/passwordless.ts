@@ -11,6 +11,7 @@ import { resolveAuthSla } from '../config/index.js';
 import { createPartyWithIdentity } from '../identity/index.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { AppError } from '../shared/errors.js';
+import { insertUserSession } from './session.js';
 
 const MAX_ISSUES_PER_EMAIL_PER_HOUR = 5;
 const MAX_ISSUES_PER_IP_PER_HOUR = 20;
@@ -173,9 +174,10 @@ export async function redeemMagicToken(
     token: string;
     purpose: string;
     deviceFingerprint?: string | null;
+    remember?: boolean;
     clock?: Clock;
   },
-): Promise<{ sessionId: string; partyId: string }> {
+): Promise<{ sessionId: string; partyId: string; credential: string; absoluteExpiresAt: Date }> {
   const clock = input.clock ?? systemClock;
   const now = clock.now();
   const tokenBuf = Buffer.from(input.token, 'base64url');
@@ -250,21 +252,17 @@ export async function redeemMagicToken(
   ]);
 
   const sla = await resolveAuthSla(client, now);
-  const sessionId = (await client.query<{ id: string }>(
-    `insert into session (party_id, device_fingerprint, expires_at, elevated_until)
-     values ($1,$2,$3,$4)
-     returning id`,
-    [
-      row.party_id,
-      input.deviceFingerprint ?? null,
-      new Date(now.getTime() + sla.sessionTtlMs),
-      new Date(now.getTime() + sla.elevationTtlMs),
-    ],
-  )).rows[0]!.id;
+  const created = await insertUserSession(client, {
+    partyId: row.party_id,
+    remember: Boolean(input.remember),
+    deviceFingerprint: input.deviceFingerprint,
+    now,
+    elevationTtlMs: sla.elevationTtlMs,
+  });
 
   await emitDomainEvent(client, {
     aggregateType: 'session',
-    aggregateId: sessionId,
+    aggregateId: created.sessionId,
     eventType: 'session.created',
     payload: { party_id: row.party_id },
     actorPartyId: row.party_id,
@@ -272,5 +270,10 @@ export async function redeemMagicToken(
     occurredAt: now,
   });
 
-  return { sessionId, partyId: row.party_id };
+  return {
+    sessionId: created.sessionId,
+    partyId: row.party_id,
+    credential: created.credential,
+    absoluteExpiresAt: created.absoluteExpiresAt,
+  };
 }

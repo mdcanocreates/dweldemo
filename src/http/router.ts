@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
+  handleAuthEmailCode,
+  handleAuthEmailCodeVerify,
   handleAuthLogout,
   handleAuthMagicLink,
   handleAuthMe,
@@ -174,6 +176,14 @@ export function createApiRouter(deps: HttpHandlerDeps) {
 
     if (method === 'POST' && path === '/v1/auth/magic-link') {
       await handleAuthMagicLink(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/auth/email-code') {
+      await handleAuthEmailCode(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/auth/email-code/verify') {
+      await handleAuthEmailCodeVerify(req, res, deps);
       return true;
     }
     if (method === 'POST' && path === '/v1/auth/redeem') {

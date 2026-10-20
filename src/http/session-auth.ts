@@ -6,6 +6,7 @@ import {
   type SessionIdentity,
 } from '../modules/auth/session.js';
 import { AppError } from '../modules/shared/errors.js';
+import { buildHostOnlyCookie } from '../modules/auth/rbit-auth/index.js';
 
 function parseCookies(header: string | undefined): Record<string, string> {
   if (!header) return {};
@@ -21,13 +22,20 @@ function parseCookies(header: string | undefined): Record<string, string> {
 }
 
 export function extractSessionId(req: IncomingMessage): string | null {
+  const cookies = parseCookies(req.headers.cookie);
+  const cookie = cookies.rbit_session?.trim();
+  if (cookie) return cookie;
+  if (process.env.AUTH_LEGACY_SESSION_BEARER === '0') return null;
   const auth = req.headers.authorization;
   if (auth?.toLowerCase().startsWith('bearer ')) {
     const token = auth.slice(7).trim();
     if (token) return token;
   }
-  const cookies = parseCookies(req.headers.cookie);
-  return cookies.rbit_session?.trim() || null;
+  return null;
+}
+
+function cookieSecure(): boolean {
+  return process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'dev';
 }
 
 export async function requireSession(
@@ -41,20 +49,20 @@ export async function requireSession(
   return withSystemBypass(pool, (client) => loadSessionIdentity(client, sessionId));
 }
 
-export function sessionCookieHeader(sessionId: string, maxAgeSec: number): string {
-  const secure = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'dev';
-  return [
-    `rbit_session=${encodeURIComponent(sessionId)}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    `Max-Age=${maxAgeSec}`,
-    secure ? 'Secure' : '',
-  ]
-    .filter(Boolean)
-    .join('; ');
+export function sessionCookieHeader(credential: string, maxAgeSec: number): string {
+  return buildHostOnlyCookie({
+    name: 'rbit_session',
+    value: credential,
+    maxAgeSec,
+    secure: cookieSecure(),
+  });
 }
 
 export function clearSessionCookieHeader(): string {
-  return 'rbit_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
+  return buildHostOnlyCookie({
+    name: 'rbit_session',
+    value: '',
+    maxAgeSec: 0,
+    secure: cookieSecure(),
+  });
 }
