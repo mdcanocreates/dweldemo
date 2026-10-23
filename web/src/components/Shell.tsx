@@ -6,10 +6,6 @@ function isAdmin(roles: Array<{ role: string }>): boolean {
   return roles.some((r) => r.role === 'rbit_admin' || r.role === 'rbit_super_admin');
 }
 
-function isRenter(roles: Array<{ role: string }>): boolean {
-  return roles.some((r) => r.role === 'renter');
-}
-
 /** Part M-1 — role-aware primary nav. */
 export function PublicNav() {
   const { user, logout } = useAuth();
@@ -24,20 +20,21 @@ export function PublicNav() {
 
   if (!user) {
     links.push(
-      { to: '/listings', label: 'Find a home' },
-      { to: '/landlords', label: 'For landlords' },
-      { to: '/brokers', label: 'For brokers' },
+      { to: '/listings', label: 'Browse homes' },
+      { to: '/partner', label: 'Dwel Partner' },
+      { to: '/saved', label: 'Saved' },
       { to: '/sign-in', label: 'Sign in' },
     );
   } else {
-    links.push({ to: '/listings', label: 'Find a home' });
-    if (isRenter(user.roles) || (!landlord && !broker)) {
-      links.push({ to: '/applications', label: 'My applications' });
-    }
+    links.push(
+      { to: '/listings', label: 'Browse homes' },
+      { to: '/saved', label: 'Saved' },
+      { to: '/applications', label: 'My applications' },
+      { to: '/partner', label: 'Dwel Partner' },
+    );
     if (landlord) links.push({ to: '/landlord', label: 'Landlord portal' });
     if (broker) links.push({ to: '/broker', label: 'Broker portal' });
     if (admin) links.push({ to: '/admin', label: 'Admin' });
-    // NOI calculator is landlord/broker only — never public or tenant top nav
     if (landlord || broker) links.push({ to: '/calculator', label: 'NOI calculator' });
   }
 

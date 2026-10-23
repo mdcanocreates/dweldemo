@@ -79,17 +79,8 @@ export function LandlordGuard() {
   if (loading) {
     return <Shell>{showInline ? <InlineSpinner label="Checking sign-in…" /> : null}</Shell>;
   }
-  if (!user) return <Navigate to="/sign-in?role=landlord" replace />;
-  if (!user.landlordOrgId) {
-    return (
-      <Shell>
-        <EmptyState title="Landlord organization not linked">
-          You’re signed in, but this account has no landlord organization role yet. Ask an admin to
-          grant a landlord role on your org, then refresh.
-        </EmptyState>
-      </Shell>
-    );
-  }
+  if (!user) return <Navigate to="/sign-in?role=landlord&next=/partner/landlord" replace />;
+  if (!user.landlordOrgId) return <Navigate to="/partner/landlord" replace />;
   return (
     <LandlordFrame>
       <Outlet />

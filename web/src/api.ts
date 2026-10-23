@@ -29,6 +29,29 @@ function apiBase(): string {
   return raw?.trim() ? raw.replace(/\/$/, '') : '';
 }
 
+export type PartnerIntake = {
+  id: string;
+  role: 'landlord' | 'broker';
+  status: 'new' | 'under_review' | 'approved' | 'rejected';
+  full_name: string;
+  email: string;
+  phone: string;
+  organization_name: string;
+  market: string;
+  portfolio_size: string;
+  property_types: string | null;
+  notes: string | null;
+  org_id: string | null;
+};
+
+export type SavedListing = {
+  listing_id: string;
+  address_line1: string | null;
+  city: string | null;
+  state: string | null;
+  rent_amount_cents: number;
+};
+
 export type Listing = {
   id: string;
   rent_amount_cents: number;
@@ -117,6 +140,35 @@ export const api = {
       `/v1/listings?limit=${limit}&offset=${offset}`,
     ),
   getListing: (id: string) => request<{ listing: Listing }>(`/v1/listings/${id}`),
+  savedListings: () => request<{ saved: SavedListing[] }>('/v1/renter/saved'),
+  myPartnerIntake: (role: 'landlord' | 'broker') =>
+    request<{ intake: PartnerIntake | null }>(`/v1/partner-intakes/${role}`),
+  submitPartnerIntake: (
+    role: 'landlord' | 'broker',
+    body: {
+      full_name: string;
+      email: string;
+      phone: string;
+      organization_name: string;
+      market: string;
+      portfolio_size: string;
+      property_types?: string;
+      notes?: string;
+    },
+  ) =>
+    request<{ intake: PartnerIntake }>(`/v1/partner-intakes/${role}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  adminPartnerIntakes: (status = '') =>
+    request<{ items: PartnerIntake[] }>(
+      `/v1/admin/partner-intakes${status ? `?status=${encodeURIComponent(status)}` : ''}`,
+    ),
+  adminDecidePartnerIntake: (id: string, decision: 'under_review' | 'approved' | 'rejected') =>
+    request<{ intake: PartnerIntake }>(`/v1/admin/partner-intakes/${id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ decision }),
+    }),
   createApplication: (listingId: string) =>
     request<{
       application_id: string;

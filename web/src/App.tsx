@@ -11,6 +11,7 @@ import {
   AdminGuard,
   AdminIndexRedirect,
   AdminOrgsPage,
+  AdminPartnerIntakesPage,
   AdminSelfExecutionPage,
   AdminUsersPage,
 } from './pages/AdminPortal';
@@ -40,6 +41,8 @@ import { ListingDetailPage } from './pages/ListingDetailPage';
 import { ListingsPage } from './pages/ListingsPage';
 import { BrokersMarketingPage, LandlordsMarketingPage } from './pages/MarketingPages';
 import { OnboardPage, ScreeningChoicePage } from './pages/OnboardPage';
+import { PartnerChoicePage, PartnerIntakePage } from './pages/PartnerPages';
+import { SavedPage } from './pages/SavedPage';
 import { SignInPage } from './pages/SignInPage';
 
 export default function App() {
@@ -50,6 +53,10 @@ export default function App() {
       <Route path="/screening-choice" element={<ScreeningChoicePage />} />
       <Route path="/listings" element={<ListingsPage />} />
       <Route path="/listings/:id" element={<ListingDetailPage />} />
+      <Route path="/saved" element={<SavedPage />} />
+      <Route path="/partner" element={<PartnerChoicePage />} />
+      <Route path="/partner/landlord" element={<PartnerIntakePage role="landlord" />} />
+      <Route path="/partner/broker" element={<PartnerIntakePage role="broker" />} />
       <Route path="/apply/:listingId" element={<ApplyPage />} />
       <Route path="/applications/new/:listingId" element={<ApplyPage />} />
       <Route path="/applications" element={<ApplicationsPage />} />
@@ -92,6 +99,7 @@ export default function App() {
       <Route path="/admin" element={<AdminGuard />}>
         <Route index element={<AdminIndexRedirect />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="partner-intakes" element={<AdminPartnerIntakesPage />} />
         <Route path="orgs" element={<AdminOrgsPage />} />
         <Route path="config/consent" element={<AdminConsentPage />} />
         <Route path="integrations/certn" element={<AdminCertnPage />} />

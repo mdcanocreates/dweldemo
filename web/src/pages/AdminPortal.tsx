@@ -22,6 +22,7 @@ function AdminFrame({ children }: { children: ReactNode }) {
           <p className="section-eyebrow">RBIT ops</p>
           <nav className="admin-nav">
             <NavLink to="/admin/users">Users</NavLink>
+            <NavLink to="/admin/partner-intakes">Partner intakes</NavLink>
             <NavLink to="/admin/orgs">Orgs</NavLink>
             <NavLink to="/admin/config/consent">Consent</NavLink>
             <NavLink to="/admin/integrations/certn">Certn</NavLink>
@@ -630,6 +631,101 @@ export function AdminAuditPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+export function AdminPartnerIntakesPage() {
+  const [items, setItems] = useState<Array<Record<string, unknown>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function load() {
+    const data = await api.adminPartnerIntakes();
+    setItems(data.items as unknown as Array<Record<string, unknown>>);
+  }
+
+  useEffect(() => {
+    void load().catch((err) => {
+      setError(err instanceof ApiError ? err.message : 'Could not load intakes.');
+    });
+  }, []);
+
+  async function decide(id: string, decision: 'under_review' | 'approved' | 'rejected') {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.adminDecidePartnerIntake(id, decision);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update intake.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <AdminFrame>
+      <h1 className="section-title">Partner intakes</h1>
+      {error && <ErrorState title="Partner intakes">{error}</ErrorState>}
+      {!items && !error && <InlineSpinner label="Loading intakes…" />}
+      {items && items.length === 0 && <p className="muted">No partner intakes yet.</p>}
+      {items && items.length > 0 && (
+        <div className="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Organization</th>
+                <th>Market</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((row) => {
+                const id = String(row.id);
+                const status = String(row.status);
+                return (
+                  <tr key={id}>
+                    <td>
+                      {String(row.full_name)}
+                      <div className="muted">{String(row.email)}</div>
+                    </td>
+                    <td>{String(row.role)}</td>
+                    <td>{String(row.organization_name)}</td>
+                    <td>{String(row.market)}</td>
+                    <td>{status}</td>
+                    <td>
+                      {status !== 'approved' && (
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={busyId === id}
+                          onClick={() => void decide(id, 'approved')}
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {status !== 'approved' && status !== 'rejected' && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={busyId === id}
+                          onClick={() => void decide(id, 'rejected')}
+                        >
+                          Reject
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </AdminFrame>
   );
 }
 

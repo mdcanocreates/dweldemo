@@ -38,16 +38,8 @@ export function BrokerGuard() {
   if (loading) {
     return <Shell>{showInline ? <InlineSpinner label="Checking sign-in…" /> : null}</Shell>;
   }
-  if (!user) return <Navigate to="/sign-in?role=broker" replace />;
-  if (!user.brokerOrgId) {
-    return (
-      <Shell>
-        <EmptyState title="Broker organization not linked">
-          You’re signed in, but this account has no broker organization role yet.
-        </EmptyState>
-      </Shell>
-    );
-  }
+  if (!user) return <Navigate to="/sign-in?role=broker&next=/partner/broker" replace />;
+  if (!user.brokerOrgId) return <Navigate to="/partner/broker" replace />;
   return (
     <BrokerFrame>
       <Outlet />

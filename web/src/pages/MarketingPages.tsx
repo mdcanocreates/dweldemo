@@ -21,8 +21,8 @@ export function LandlordsMarketingPage() {
               owner workspace built for operators.
             </p>
             <div className="home-hero-actions">
-              <Link className="btn btn-primary" to="/sign-in?role=landlord">
-                Sign in
+              <Link className="btn btn-primary" to="/partner/landlord">
+                Start home provider intake
               </Link>
               <Link className="btn btn-ghost-on-dark" to="/calculator">
                 NOI calculator
@@ -39,8 +39,8 @@ export function LandlordsMarketingPage() {
             Sign in, manage listings you own, and run portfolio NOI math. Applicant review is live:
             masked cards until you approve, with contact shared only after screening and approval.
           </p>
-          <Link className="btn btn-secondary" to="/sign-in?role=landlord">
-            Open landlord portal
+          <Link className="btn btn-secondary" to="/partner/landlord">
+            Start home provider intake
           </Link>
         </section>
       </div>
@@ -68,8 +68,8 @@ export function BrokersMarketingPage() {
               lead purchase, and payouts stay BOR-gated via per-org broker_payouts_enabled.
             </p>
             <div className="home-hero-actions">
-              <Link className="btn btn-primary" to="/sign-in?role=broker">
-                Sign in
+              <Link className="btn btn-primary" to="/partner/broker">
+                Start broker intake
               </Link>
             </div>
           </div>
@@ -87,8 +87,8 @@ export function BrokersMarketingPage() {
             </span>{' '}
             per org).
           </p>
-          <Link className="btn btn-secondary" to="/sign-in?role=broker">
-            Open broker desk
+          <Link className="btn btn-secondary" to="/partner/broker">
+            Start broker intake
           </Link>
         </section>
       </div>

@@ -6,9 +6,15 @@ import { ErrorState, Shell } from '../components/Shell';
 
 type Purpose = 'sign_in' | 'landlord_sign_in' | 'broker_sign_in';
 
+function safeNext(raw: string | null): string | null {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
+  return raw;
+}
+
 export function SignInPage() {
   const [params] = useSearchParams();
   const role = params.get('role');
+  const next = safeNext(params.get('next'));
   const purpose = useMemo<Purpose>(() => {
     if (role === 'landlord') return 'landlord_sign_in';
     if (role === 'broker') return 'broker_sign_in';
@@ -34,15 +40,17 @@ export function SignInPage() {
 
   useEffect(() => {
     if (loading || !user) return;
-    if (role === 'broker') navigate('/broker', { replace: true });
+    if (next) navigate(next, { replace: true });
+    else if (role === 'broker') navigate('/broker', { replace: true });
     else if (role === 'landlord') navigate('/landlord', { replace: true });
     else navigate('/', { replace: true });
-  }, [loading, user, role, navigate]);
+  }, [loading, user, role, navigate, next]);
 
   function destination() {
-    if (role === 'broker') navigate('/broker');
-    else if (role === 'landlord') navigate('/landlord');
-    else navigate('/');
+    if (next) navigate(next, { replace: true });
+    else if (role === 'broker') navigate('/broker', { replace: true });
+    else if (role === 'landlord') navigate('/landlord', { replace: true });
+    else navigate('/', { replace: true });
   }
 
   async function requestCode(e: React.FormEvent) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
 import { FrogPageLoader } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
@@ -29,6 +29,8 @@ function ListingCard({ listing }: { listing: Listing }) {
 }
 
 export function ListingsPage() {
+  const [params] = useSearchParams();
+  const initialQuery = params.get('q') ?? '';
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -36,8 +38,8 @@ export function ListingsPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchPending, setSearchPending] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [query, setQuery] = useState('');
-  const [queryApplied, setQueryApplied] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [queryApplied, setQueryApplied] = useState(initialQuery);
   const [beds, setBeds] = useState('');
   const [baths, setBaths] = useState('');
   const [propertyType, setPropertyType] = useState('');

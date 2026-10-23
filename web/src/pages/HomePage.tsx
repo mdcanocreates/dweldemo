@@ -97,21 +97,42 @@ export function HomePage() {
             </svg>
           </div>
           <div className="home-hero-inner">
+            <p className="section-eyebrow" style={{ color: 'hsl(var(--primary))' }}>
+              Rent smarter · Save more · Move easier
+            </p>
             <h1 className="home-hero-title">
               Move with
               <br />
               <span>more back.</span>
             </h1>
             <p className="home-hero-copy">
-              Tell Dwel what you need — we save your profile with a private link, then you browse and
-              apply without re-entering the basics.
+              Search homes, save the ones you like, and tell Dwel what you need. Your profile stays
+              with you when you apply.
             </p>
+            <form
+              className="hero-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const data = new FormData(event.currentTarget);
+                const q = String(data.get('q') ?? '').trim();
+                navigate(q ? `/listings?q=${encodeURIComponent(q)}` : '/listings');
+              }}
+            >
+              <input
+                name="q"
+                aria-label="Search homes"
+                placeholder="City, neighborhood, or address"
+              />
+              <button className="btn btn-primary" type="submit">
+                Search homes
+              </button>
+            </form>
             <div className="home-hero-actions">
-              <a className="btn btn-primary" href="#dwel-chat">
+              <a className="btn btn-ghost-on-dark" href="#dwel-chat">
                 Start matching
               </a>
-              <Link className="btn btn-ghost-on-dark" to="/landlords">
-                For landlords
+              <Link className="btn btn-ghost-on-dark" to="/partner">
+                Dwel Partner
               </Link>
             </div>
           </div>

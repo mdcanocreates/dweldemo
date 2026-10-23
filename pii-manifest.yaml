@@ -729,3 +729,29 @@ tables:
 
       retention_class: identity
 
+  partner_intake:
+
+    full_name:
+
+      classification: identity
+
+      retention_class: identity
+
+    email:
+
+      classification: contact
+
+      retention_class: identity
+
+    phone:
+
+      classification: contact
+
+      retention_class: identity
+
+    notes:
+
+      classification: free_text
+
+      retention_class: identity
+

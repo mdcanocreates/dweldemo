@@ -141,6 +141,12 @@ import {
   handleAdminPutConsent,
   handleAdminSetFlag,
 } from './admin-handlers.js';
+import {
+  handleAdminDecidePartnerIntake,
+  handleAdminListPartnerIntakes,
+  handleGetMyPartnerIntake,
+  handleSubmitPartnerIntake,
+} from './partner-handlers.js';
 import { handleInternalPreviewAccess, handleInternalPreviewSetRole } from './preview-handlers.js';
 import {
   handleInternalCaseAction,
@@ -985,6 +991,27 @@ export function createApiRouter(deps: HttpHandlerDeps) {
         await handleDownloadCheckrReportPdf(req, res, deps, applicationId);
         return true;
       }
+    }
+
+    const partnerMine = path.match(/^\/v1\/partner-intakes\/(landlord|broker)$/);
+    if (partnerMine) {
+      if (method === 'GET') {
+        await handleGetMyPartnerIntake(req, res, deps, partnerMine[1]!);
+        return true;
+      }
+      if (method === 'POST') {
+        await handleSubmitPartnerIntake(req, res, deps, partnerMine[1]!);
+        return true;
+      }
+    }
+    if (method === 'GET' && path === '/v1/admin/partner-intakes') {
+      await handleAdminListPartnerIntakes(req, res, deps);
+      return true;
+    }
+    const partnerDecision = path.match(/^\/v1\/admin\/partner-intakes\/([0-9a-f-]{36})\/decision$/i);
+    if (method === 'POST' && partnerDecision) {
+      await handleAdminDecidePartnerIntake(req, res, deps, partnerDecision[1]!);
+      return true;
     }
 
     if (method === 'GET' && path === '/v1/admin/users') {
