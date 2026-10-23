@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
-import { FrogPageLoader } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
@@ -10,19 +9,24 @@ function ListingCard({ listing }: { listing: Listing }) {
   const title = formatAddress(listing);
   const img = listing.media?.[0]?.url;
   const cash = listing.cashback_cents ?? 0;
+  const city = [listing.address.city, listing.address.state].filter(Boolean).join(', ');
   return (
-    <Link to={`/listings/${listing.id}`} className="listing-card" data-testid={`card-listing-${listing.id}`}>
-      <div className="media">
-        {img ? <img src={img} alt={title} /> : <div style={{ width: '100%', height: '100%' }} />}
-        <span className="badge-cash">{moneyFromCents(cash)} back</span>
-        {listing.property_type && (
-          <span className="badge-type">{titleCaseType(listing.property_type)}</span>
-        )}
+    <Link to={`/listings/${listing.id}`} className="landing-card" data-testid={`card-listing-${listing.id}`}>
+      <div className="landing-card-media">
+        {img ? <img src={img} alt={title} /> : <div className="landing-card-fallback" />}
+        {cash > 0 && <span className="landing-card-cash">{moneyFromCents(cash)} back</span>}
       </div>
-      <div className="body">
-        <div className="rent">{moneyFromCents(listing.rent_amount_cents)}/mo</div>
-        <div className="meta">{title}</div>
-        <div className="meta">{formatBedsBaths(listing.bedrooms, listing.bathrooms)}</div>
+      <div className="landing-card-body">
+        <p className="landing-card-meta">
+          {titleCaseType(listing.property_type) ?? 'Home'}
+          {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
+        </p>
+        <p className="landing-card-title">{title}</p>
+        <p className="landing-card-place">{city}</p>
+        <div className="landing-card-row">
+          <span>{moneyFromCents(listing.rent_amount_cents)}/mo</span>
+          <span>View home →</span>
+        </div>
       </div>
     </Link>
   );
@@ -141,8 +145,8 @@ export function ListingsPage() {
 
   return (
     <Shell>
-      {showFrog && <FrogPageLoader />}
-      <div className="dwel-cube-bg listings-page-wash">
+      {showFrog ? <p className="muted">Loading homes…</p> : null}
+      <div className="listings-page-wash">
         {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
         <h1 className="section-title">Find a home</h1>
         <div className="search-row">
@@ -224,7 +228,7 @@ export function ListingsPage() {
 
         {filtered && filtered.length > 0 && (
           <>
-            <div className="listing-grid" style={{ marginTop: '1.25rem' }}>
+            <div className="landing-grid" style={{ marginTop: '1.25rem' }}>
               {filtered.map((listing) => (
                 <ListingCard key={listing.id} listing={listing} />
               ))}

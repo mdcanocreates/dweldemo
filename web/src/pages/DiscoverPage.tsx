@@ -72,7 +72,7 @@ export function DiscoverPage() {
   }
 
   return (
-    <Shell lockViewport>
+    <Shell>
       <div className="hero-chat-section">
         <section className="hero-panel home-hero-dark">
           <div className="home-hero-glow" aria-hidden />

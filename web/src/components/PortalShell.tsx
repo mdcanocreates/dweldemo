@@ -36,7 +36,7 @@ export function PortalShell({
   const { logout } = useAuth();
 
   return (
-    <div className="landlord-shell dwel-cube-bg-dark">
+    <div className="landlord-shell">
       {mobileOpen && (
         <button
           type="button"
@@ -48,7 +48,8 @@ export function PortalShell({
       <aside className={`landlord-side ${mobileOpen ? 'open' : ''}`} aria-label={navLabel}>
         <div className="landlord-side-top">
           <Link to="/" className="landlord-brand">
-            dwel<em>.20</em>
+            <img src="/faviconrbit.png" alt="" width={20} height={20} />
+            Dwel
           </Link>
           <button type="button" className="landlord-side-close" onClick={() => setMobileOpen(false)}>
             Close

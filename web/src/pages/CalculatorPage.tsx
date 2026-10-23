@@ -109,7 +109,7 @@ export function CalculatorPage() {
                 <input type="number" min={0} value={currentConcession} onChange={(e) => setCurrentConcession(Number(e.target.value))} />
               </label>
               <label>
-                dwel.20 listing fee ($)
+                Dwel listing fee ($)
                 <input type="number" min={0} value={dwelListingFee} onChange={(e) => setDwelListingFee(Number(e.target.value))} />
               </label>
               <label>
@@ -136,7 +136,7 @@ export function CalculatorPage() {
               <span>{moneyFromDollars(math.traditional)}</span>
             </div>
             <div className="math-row">
-              <span>dwel.20 turnover cost</span>
+              <span>Dwel turnover cost</span>
               <span>{moneyFromDollars(math.dwelCost)}</span>
             </div>
             <div className="math-row">

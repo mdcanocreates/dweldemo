@@ -90,7 +90,7 @@ export function ConsentPage() {
           Pay ${dollars} and submit
         </p>
         <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
-          This fee is credited toward your first month&apos;s rent if placed through dwel.20.
+          This fee is credited toward your first month&apos;s rent if placed through Dwel.
         </p>
         {/* Stripe Elements preferred when publishable key is configured; DEV uses payment rail stub. */}
         <div className="field" style={{ marginTop: '0.85rem' }}>

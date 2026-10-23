@@ -94,11 +94,9 @@ export function SignInPage() {
   return (
     <Shell>
       <div className="stack" style={{ maxWidth: '28rem', margin: '0 auto' }}>
-        <p className="section-eyebrow">dwel.20 access</p>
+        <p className="landing-hero-eyebrow">Dwel</p>
         <h1>Sign in</h1>
-        <p className="muted">
-          We email a 6-digit code. Enter it here. No extra browser tab.
-        </p>
+        <p className="muted">Enter your email. We send a 6-digit code to this page.</p>
         {loading ? (
           <p className="muted">Checking your session…</p>
         ) : step === 'email' ? (

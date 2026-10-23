@@ -9,31 +9,29 @@ import { useDelayedPending } from '../hooks/useDelayedPending';
 export function PartnerChoicePage() {
   return (
     <Shell>
-      <section className="home-hero-dark" style={{ borderRadius: '1.75rem' }}>
-        <div className="home-hero-glow" aria-hidden />
-        <div className="home-hero-inner">
-          <p className="section-eyebrow" style={{ color: 'hsl(var(--primary))' }}>
-            Dwel Partner
-          </p>
-          <h1 className="home-hero-title">
-            Put homes in front of
-            <br />
-            <span>renters ready to move.</span>
-          </h1>
-          <p className="home-hero-copy">
-            Home providers and brokers start with a short intake. After review, the right dashboard
-            opens on this account.
-          </p>
-          <div className="home-hero-actions">
-            <Link className="btn btn-primary" to="/partner/landlord">
-              Continue as a home provider
-            </Link>
-            <Link className="btn btn-ghost-on-dark" to="/partner/broker">
-              Continue as a broker
-            </Link>
-          </div>
-        </div>
-      </section>
+      <p className="landing-hero-eyebrow">Dwel Partner</p>
+      <h1 className="landing-how-title" style={{ marginTop: 0 }}>
+        Continue as a home provider or a broker.
+      </h1>
+      <p className="muted" style={{ maxWidth: '36rem' }}>
+        Start a short intake. After review, the matching dashboard opens on this account.
+      </p>
+      <div className="partner-choice">
+        <article className="partner-choice-card">
+          <h2>Home provider</h2>
+          <p>List homes, review applicants, and manage your portfolio.</p>
+          <Link className="product-pill" to="/partner/landlord">
+            Continue as a home provider
+          </Link>
+        </article>
+        <article className="partner-choice-card">
+          <h2>Broker</h2>
+          <p>Represent clients, share listings, and track placements.</p>
+          <Link className="product-pill" to="/partner/broker">
+            Continue as a broker
+          </Link>
+        </article>
+      </div>
     </Shell>
   );
 }

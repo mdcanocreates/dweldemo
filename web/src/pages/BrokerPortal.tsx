@@ -23,7 +23,7 @@ function BrokerFrame({ children }: { children: ReactNode }) {
       navLabel="Broker desk"
       topEyebrow=""
       topTitle="Broker portal"
-      footTitle="dwel.20 for brokers"
+      footTitle="Broker desk"
       footBody="Track leads, performance, and payouts."
       links={BROKER_NAV}
     >
@@ -79,7 +79,7 @@ export function BrokerOverviewPage() {
   return (
     <div className="stack">
       <h1>Get started</h1>
-      <p className="muted">Complete these steps to activate your brokerage on dwel.20.</p>
+      <p className="muted">Complete these steps to activate your brokerage on Dwel.</p>
       {error && <ErrorState title="Overview unavailable">{error}</ErrorState>}
       {data && (
         <div className="panel stack onboarding-checklist">

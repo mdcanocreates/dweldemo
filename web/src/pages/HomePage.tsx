@@ -1,13 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, type Listing } from '../api';
-import { useAuth } from '../auth';
+import { ProductFooter, ProductHeader } from '../components/ProductChrome';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
 
 /** Marketing landing — same composition as the Netlify reference. */
 export function HomePage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
   const [homes, setHomes] = useState<Listing[] | null>(null);
 
   useEffect(() => {
@@ -33,33 +32,7 @@ export function HomePage() {
 
   return (
     <div className="landing">
-      <header className="landing-header">
-        <div className="landing-header-inner">
-          <Link to="/" className="landing-brand" aria-label="Dwel home">
-            <img src="/faviconrbit.png" alt="" width={22} height={22} />
-            <span>Dwel</span>
-          </Link>
-          <nav className="landing-nav" aria-label="Primary">
-            <NavLink to="/listings">Browse homes</NavLink>
-            <NavLink to="/partner" className="landing-nav-partner">
-              Dwel Partner
-            </NavLink>
-            <NavLink to="/saved">Saved</NavLink>
-            {user ? (
-              <>
-                <NavLink to="/applications">My applications</NavLink>
-                <button type="button" className="landing-signin" onClick={() => void logout()}>
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <Link to="/sign-in" className="landing-signin">
-                Sign in
-              </Link>
-            )}
-          </nav>
-        </div>
-      </header>
+      <ProductHeader />
 
       <section className="landing-hero" aria-label="Dwel">
         <div
@@ -160,22 +133,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <footer className="landing-footer">
-        <div>
-          <Link to="/" className="landing-brand" aria-label="Dwel home">
-            <img src="/faviconrbit.png" alt="" width={22} height={22} />
-            <span>Dwel</span>
-          </Link>
-          <p>Dwel, a product of RBIT Financial Inc.</p>
-          <p>© 2026 RBIT Financial Inc.</p>
-        </div>
-        <nav>
-          <Link to="/listings">Browse homes</Link>
-          <Link to="/partner">Dwel Partner</Link>
-          <Link to="/discover">Start your profile</Link>
-          <Link to="/sign-in">Sign in</Link>
-        </nav>
-      </footer>
+      <ProductFooter />
     </div>
   );
 }

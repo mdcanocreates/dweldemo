@@ -64,7 +64,7 @@ function LandlordFrame({ children }: { children: ReactNode }) {
       navLabel="Workspace"
       topEyebrow=""
       topTitle="Landlord portal"
-      footTitle="dwel.20 for owners"
+      footTitle="Home provider"
       footBody="Fill your next vacancy with a better signal."
       links={LANDLORD_NAV}
     >
