@@ -25,6 +25,7 @@ import {
 } from './pages/BrokerPortal';
 import { CalculatorPage } from './pages/CalculatorPage';
 import { ConsentPage } from './pages/ConsentPage';
+import { DiscoverPage } from './pages/DiscoverPage';
 import { HomePage } from './pages/HomePage';
 import {
   LandlordApplicantsPage,
@@ -49,6 +50,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/discover" element={<DiscoverPage />} />
       <Route path="/onboard" element={<OnboardPage />} />
       <Route path="/screening-choice" element={<ScreeningChoicePage />} />
       <Route path="/listings" element={<ListingsPage />} />

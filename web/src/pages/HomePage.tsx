@@ -1,221 +1,206 @@
-import { useCallback, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { api, type Listing } from '../api';
 import { useAuth } from '../auth';
-import { FrogPageLoader } from '../components/FrogPageLoader';
-import { GuidedChat } from '../components/GuidedChat';
-import { ErrorState, Shell } from '../components/Shell';
-import { useDelayedPending } from '../hooks/useDelayedPending';
-import {
-  answersToProfilePayload,
-  loadAnswers,
-  profileComplete,
-  saveAnswers,
-  type RenterAnswers,
-} from '../intake/answers';
+import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
 
-/** Homepage — matching profile chat locked beside hero (viewport-pinned). */
+/** Marketing landing — same composition as the Netlify reference. */
 export function HomePage() {
-  const { user, setSession, refresh } = useAuth();
   const navigate = useNavigate();
-  const [answers, setAnswers] = useState<RenterAnswers>(() => loadAnswers());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(() => profileComplete(loadAnswers()) && Boolean(user));
-  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
-  const [pendingAnswers, setPendingAnswers] = useState<RenterAnswers | null>(null);
-  const [code, setCode] = useState('');
-  const showFrog = useDelayedPending(busy, 400);
+  const { user, logout } = useAuth();
+  const [homes, setHomes] = useState<Listing[] | null>(null);
 
-  const persist = useCallback((next: RenterAnswers) => {
-    setAnswers(next);
-    saveAnswers(next);
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .listListings(6, 0)
+      .then((data) => {
+        if (!cancelled) setHomes(data.listings);
+      })
+      .catch(() => {
+        if (!cancelled) setHomes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  async function finishProfile(next: RenterAnswers) {
-    setBusy(true);
-    setError(null);
-    saveAnswers({ ...next, profile_complete: true });
-    try {
-      if (!user) {
-        const issued = await api.emailCode(next.email.trim(), 'sign_in');
-        if (!issued.debug_code) {
-          setPendingEmail(next.email.trim());
-          setPendingAnswers(next);
-          setError('Enter the 6-digit code sent to your email to finish.');
-          return;
-        }
-        const verified = await api.verifyEmailCode(next.email.trim(), issued.debug_code, 'sign_in');
-        await setSession(verified.session_id);
-        await refresh();
-      }
-      const profile = await api.upsertRenterProfile(answersToProfilePayload(next));
-      setDone(true);
-      if (profile.profile.preferred_state === 'NY') {
-        navigate('/screening-choice', { replace: true });
-      } else {
-        navigate('/listings', { replace: true });
-      }
-    } catch (err) {
-      setError(err instanceof ApiError || err instanceof Error ? err.message : 'Could not save profile.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (showFrog) {
-    return (
-      <Shell>
-        <FrogPageLoader />
-      </Shell>
-    );
+  function onSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const q = String(new FormData(event.currentTarget).get('q') ?? '').trim();
+    navigate(q ? `/listings?q=${encodeURIComponent(q)}` : '/listings');
   }
 
   return (
-    <Shell lockViewport>
-      <div className="hero-chat-section">
-        <section className="hero-panel home-hero-dark">
-          <div className="home-hero-glow" aria-hidden />
-          <div className="home-hero-art" aria-hidden>
-            <svg className="hero-line-art" viewBox="0 0 420 320" fill="none">
-              <path
-                d="M40 260 C90 200, 130 220, 160 180 C190 140, 210 100, 250 90 C290 80, 310 120, 340 110"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                opacity="0.45"
-              />
-              <path d="M70 250 V180 H120 V250" stroke="currentColor" strokeWidth="1.5" opacity="0.55" />
-              <path d="M80 200 H110 M80 220 H110" stroke="currentColor" strokeWidth="1.2" opacity="0.45" />
-              <path
-                d="M200 250 L230 210 H290 L320 250 Z M230 210 V190 H290 V210"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                opacity="0.55"
-              />
-              <circle cx="360" cy="70" r="18" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-              <path d="M352 70 H368 M360 62 V78" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
-            </svg>
-          </div>
-          <div className="home-hero-inner">
-            <p className="section-eyebrow" style={{ color: 'hsl(var(--primary))' }}>
-              Rent smarter · Save more · Move easier
-            </p>
-            <h1 className="home-hero-title">
+    <div className="landing">
+      <header className="landing-header">
+        <div className="landing-header-inner">
+          <Link to="/" className="landing-brand" aria-label="Dwel home">
+            <img src="/faviconrbit.png" alt="" width={22} height={22} />
+            <span>Dwel</span>
+          </Link>
+          <nav className="landing-nav" aria-label="Primary">
+            <NavLink to="/listings">Browse homes</NavLink>
+            <NavLink to="/partner" className="landing-nav-partner">
+              Dwel Partner
+            </NavLink>
+            <NavLink to="/saved">Saved</NavLink>
+            {user ? (
+              <>
+                <NavLink to="/applications">My applications</NavLink>
+                <button type="button" className="landing-signin" onClick={() => void logout()}>
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <Link to="/sign-in" className="landing-signin">
+                Sign in
+              </Link>
+            )}
+          </nav>
+        </div>
+      </header>
+
+      <section className="landing-hero" aria-label="Dwel">
+        <div
+          className="landing-hero-bg"
+          style={{ backgroundImage: 'url(/dwelBackdrop.png)' }}
+          aria-hidden
+        />
+        <div className="landing-hero-scrim" aria-hidden />
+        <div className="landing-hero-content">
+          <div className="landing-hero-pane">
+            <p className="landing-hero-eyebrow">Rent smarter · Save more · Move easier</p>
+            <h1 className="landing-hero-title">
               Move with
               <br />
-              <span>more back.</span>
+              <span className="landing-hero-accent">more back.</span>
             </h1>
-            <p className="home-hero-copy">
-              Search homes, save the ones you like, and tell Dwel what you need. Your profile stays
-              with you when you apply.
+            <p className="landing-hero-copy">
+              One Dwel application. Unlimited listings. When your rental qualifies, receive the
+              stated cashback benefit.
             </p>
-            <form
-              className="hero-search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const data = new FormData(event.currentTarget);
-                const q = String(data.get('q') ?? '').trim();
-                navigate(q ? `/listings?q=${encodeURIComponent(q)}` : '/listings');
-              }}
-            >
+            <form className="landing-hero-search" onSubmit={onSearch}>
               <input
                 name="q"
-                aria-label="Search homes"
-                placeholder="City, neighborhood, or address"
+                aria-label="Where do you want to move?"
+                placeholder="Where do you want to move?  e.g. Austin, TX or 78704"
+                autoComplete="off"
               />
-              <button className="btn btn-primary" type="submit">
-                Search homes
-              </button>
+              <button type="submit">Search</button>
             </form>
-            <div className="home-hero-actions">
-              <a className="btn btn-ghost-on-dark" href="#dwel-chat">
-                Start matching
-              </a>
-              <Link className="btn btn-ghost-on-dark" to="/partner">
-                Dwel Partner
-              </Link>
+            <p className="landing-hero-alt">
+              <a href="#how-dwel-works">How cashback works</a>
+              {' · '}
+              Prefer guided matching? <Link to="/discover">Start your profile →</Link>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-section">
+        <div className="landing-section-head">
+          <div>
+            <h2>Featured homes</h2>
+            <p>
+              {homes === null
+                ? 'Loading…'
+                : homes.length > 0
+                  ? 'A sample of places available to browse'
+                  : 'No listings available yet'}
+            </p>
+          </div>
+          <Link to="/listings">View all →</Link>
+        </div>
+        {homes && homes.length === 0 && (
+          <div className="landing-empty">
+            <p>Nothing listed in this market yet</p>
+            <p>Check back soon, or broaden your search.</p>
+            <Link to="/listings">Browse all filters</Link>
+          </div>
+        )}
+        {homes && homes.length > 0 && (
+          <div className="landing-grid">
+            {homes.map((listing) => (
+              <FeaturedHome key={listing.id} listing={listing} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="landing-how" aria-labelledby="how-dwel-works">
+        <div className="landing-section">
+          <h2 id="how-dwel-works">How Dwel works</h2>
+          <p className="landing-how-lead">
+            Expressing interest does not guarantee a home, an approval, or cashback.
+          </p>
+          <div className="landing-steps">
+            <div>
+              <p>01</p>
+              <h3>Find a home</h3>
+              <p>Browse available listings without creating an account.</p>
+            </div>
+            <div>
+              <p>02</p>
+              <h3>Express interest</h3>
+              <p>Create a renter profile and submit interest to participating home providers.</p>
+            </div>
+            <div>
+              <p>03</p>
+              <h3>Move with more back</h3>
+              <p>
+                If your rental qualifies and you complete required steps, receive the stated
+                cashback benefit.
+              </p>
             </div>
           </div>
-        </section>
-        <section className="chat-panel">
-          {done ? (
-            <div className="panel stack chat-done">
-              <h2 className="font-display" style={{ fontSize: '1.5rem' }}>
-                You&apos;re ready to browse.
-              </h2>
-              <p className="muted">
-                Your matching preferences are saved. When you find a home, screening happens after you
-                express interest.
-              </p>
-              <Link className="btn btn-primary" to="/listings">
-                Find a home
-              </Link>
-            </div>
-          ) : (
-            <>
-              {error && (
-                <div style={{ padding: '0.75rem 1rem 0', flexShrink: 0 }}>
-                  <ErrorState title="Could not save profile">{error}</ErrorState>
-                </div>
-              )}
-              {pendingEmail && pendingAnswers && (
-                <form
-                  className="panel form-grid"
-                  style={{ margin: '0.75rem 1rem' }}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void (async () => {
-                      setBusy(true);
-                      setError(null);
-                      try {
-                        const verified = await api.verifyEmailCode(pendingEmail, code, 'sign_in');
-                        await setSession(verified.session_id);
-                        await refresh();
-                        const profile = await api.upsertRenterProfile(
-                          answersToProfilePayload(pendingAnswers),
-                        );
-                        setDone(true);
-                        setPendingEmail(null);
-                        if (profile.profile.preferred_state === 'NY') {
-                          navigate('/screening-choice', { replace: true });
-                        } else {
-                          navigate('/listings', { replace: true });
-                        }
-                      } catch (err) {
-                        setError(err instanceof ApiError || err instanceof Error ? err.message : 'That code did not work.');
-                      } finally {
-                        setBusy(false);
-                      }
-                    })();
-                  }}
-                >
-                  <label>
-                    6-digit code
-                    <input
-                      type="text"
-                      required
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      value={code}
-                      onChange={(ev) => setCode(ev.target.value)}
-                    />
-                  </label>
-                  <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy ? 'Checking…' : 'Continue'}
-                  </button>
-                </form>
-              )}
-              <GuidedChat
-                mode="profile"
-                initialAnswers={answers}
-                busy={busy}
-                onAnswersChange={persist}
-                onComplete={(a) => void finishProfile(a)}
-              />
-            </>
-          )}
-        </section>
+          <p className="landing-how-link">
+            <a href="#how-dwel-works">How cashback works →</a>
+          </p>
+        </div>
+      </section>
+
+      <footer className="landing-footer">
+        <div>
+          <Link to="/" className="landing-brand" aria-label="Dwel home">
+            <img src="/faviconrbit.png" alt="" width={22} height={22} />
+            <span>Dwel</span>
+          </Link>
+          <p>Dwel, a product of RBIT Financial Inc.</p>
+          <p>© 2026 RBIT Financial Inc.</p>
+        </div>
+        <nav>
+          <Link to="/listings">Browse homes</Link>
+          <Link to="/partner">Dwel Partner</Link>
+          <Link to="/discover">Start your profile</Link>
+          <Link to="/sign-in">Sign in</Link>
+        </nav>
+      </footer>
+    </div>
+  );
+}
+
+function FeaturedHome({ listing }: { listing: Listing }) {
+  const photo = listing.media?.[0]?.url;
+  const city = [listing.address.city, listing.address.state].filter(Boolean).join(', ');
+  return (
+    <Link to={`/listings/${listing.id}`} className="landing-card">
+      <div className="landing-card-media">
+        {photo ? <img src={photo} alt="" /> : <div className="landing-card-fallback" />}
+        <span className="landing-card-cash">{moneyFromCents(listing.cashback_cents)} back</span>
       </div>
-    </Shell>
+      <div className="landing-card-body">
+        <p className="landing-card-meta">
+          {titleCaseType(listing.property_type) ?? 'Home'}
+          {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
+        </p>
+        <p className="landing-card-title">{formatAddress(listing)}</p>
+        <p className="landing-card-place">{city}</p>
+        <div className="landing-card-row">
+          <span>{moneyFromCents(listing.rent_amount_cents)}/mo</span>
+          <span>View home →</span>
+        </div>
+      </div>
+    </Link>
   );
 }

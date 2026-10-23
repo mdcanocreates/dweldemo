@@ -4,12 +4,12 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { ErrorState, Shell } from '../components/Shell';
 
-/** /onboard retired — G-0 lives in homepage hero chat. */
+/** /onboard retired — guided matching lives at /discover. */
 export function OnboardPage() {
   const [params] = useSearchParams();
   const returnTo = params.get('return');
   const qs = returnTo ? `?return=${encodeURIComponent(returnTo)}` : '';
-  return <Navigate to={`/${qs}`} replace />;
+  return <Navigate to={`/discover${qs}`} replace />;
 }
 
 export function ScreeningChoicePage() {
@@ -24,7 +24,7 @@ export function ScreeningChoicePage() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      navigate('/?need_profile=1', { replace: true });
+      navigate('/discover', { replace: true });
       return;
     }
     void api.screeningChoice().then((data) => {

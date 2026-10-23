@@ -213,7 +213,7 @@ export function ApplyPage() {
   }
 
   if (!authLoading && !loadingIntake && bootAnswers && !profileComplete(bootAnswers) && !editOnly) {
-    return <Navigate to="/?need_profile=1" replace />;
+    return <Navigate to="/discover" replace />;
   }
 
   if (submittedId) {
