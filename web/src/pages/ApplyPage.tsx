@@ -4,7 +4,6 @@ import { api, ApiError, type RenterProfile } from '../api';
 import { rememberAccessToken } from '../accessToken';
 import { useAuth } from '../auth';
 import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
-import { GuidedChat } from '../components/GuidedChat';
 import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
@@ -101,7 +100,6 @@ export function ApplyPage() {
   const [busy, setBusy] = useState(false);
   const [hopping, setHopping] = useState(false);
   const [loadingIntake, setLoadingIntake] = useState(true);
-  const [chatKey, setChatKey] = useState(0);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -330,16 +328,9 @@ export function ApplyPage() {
             /mo
           </p>
           <div className="row-between" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setComplete(false);
-                setChatKey((k) => k + 1);
-              }}
-            >
-              Edit via chat
-            </button>
+            <Link className="btn btn-secondary" to="/discover">
+              Edit profile
+            </Link>
             <button
               type="button"
               className="btn btn-primary"
@@ -351,15 +342,11 @@ export function ApplyPage() {
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: '1.25rem', maxWidth: '40rem' }}>
-          <GuidedChat
-            key={chatKey}
-            mode="application"
-            initialAnswers={bootAnswers}
-            busy={busy}
-            onAnswersChange={persist}
-            onComplete={(a) => void submitAndInterest(a)}
-          />
+        <div className="panel stack" style={{ marginTop: '1.25rem', maxWidth: '40rem' }}>
+          <p>Finish your renter profile, then come back to send interest.</p>
+          <Link className="btn btn-primary" to="/discover">
+            Open profile form
+          </Link>
         </div>
       )}
     </Shell>

@@ -1371,6 +1371,12 @@ a.landing-card { display: block; color: inherit; text-decoration: none; }
 .partner-choice-card p { margin: 0; }
 .partner-choice-card p { color: #6b747f; }
 .partner-choice-card .product-pill { margin-top: auto; align-self: flex-start; }
+.partner-choice-card > a:not(.product-pill) {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .landlord-side { background: #091521; color: #fff; }
 .landlord-brand {
   color: #fff;

@@ -13,23 +13,25 @@ export function PartnerChoicePage() {
       <h1 className="landing-how-title" style={{ marginTop: 0 }}>
         Continue as a home provider or a broker.
       </h1>
-      <p className="muted" style={{ maxWidth: '36rem' }}>
-        Start a short intake. After review, the matching dashboard opens on this account.
+      <p className="muted" style={{ maxWidth: '40rem' }}>
+        New here? Start an intake. Already approved? Sign in and open the dashboard.
       </p>
       <div className="partner-choice">
         <article className="partner-choice-card">
           <h2>Home provider</h2>
           <p>List homes, review applicants, and manage your portfolio.</p>
-          <Link className="product-pill" to="/partner/landlord">
-            Continue as a home provider
+          <Link className="product-pill" to="/sign-in?role=landlord&next=/landlord">
+            Sign in as a home provider
           </Link>
+          <Link to="/partner/landlord">Start home provider intake</Link>
         </article>
         <article className="partner-choice-card">
           <h2>Broker</h2>
           <p>Represent clients, share listings, and track placements.</p>
-          <Link className="product-pill" to="/partner/broker">
-            Continue as a broker
+          <Link className="product-pill" to="/sign-in?role=broker&next=/broker">
+            Sign in as a broker
           </Link>
+          <Link to="/partner/broker">Start broker intake</Link>
         </article>
       </div>
     </Shell>

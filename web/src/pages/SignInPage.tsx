@@ -94,9 +94,23 @@ export function SignInPage() {
   return (
     <Shell>
       <div className="stack" style={{ maxWidth: '28rem', margin: '0 auto' }}>
-        <p className="landing-hero-eyebrow">Dwel</p>
-        <h1>Sign in</h1>
-        <p className="muted">Enter your email. We send a 6-digit code to this page.</p>
+        <p className="landing-hero-eyebrow">
+          {role === 'landlord' ? 'Home provider' : role === 'broker' ? 'Broker' : 'Dwel'}
+        </p>
+        <h1>
+          {role === 'landlord'
+            ? 'Home provider sign in'
+            : role === 'broker'
+              ? 'Broker sign in'
+              : 'Sign in'}
+        </h1>
+        <p className="muted">
+          {role === 'landlord'
+            ? 'Use the email on your home provider account. We send a 6-digit code to this page, then open your dashboard.'
+            : role === 'broker'
+              ? 'Use the email on your broker account. We send a 6-digit code to this page, then open your dashboard.'
+              : 'Enter your email. We send a 6-digit code to this page.'}
+        </p>
         {loading ? (
           <p className="muted">Checking your session…</p>
         ) : step === 'email' ? (
@@ -160,6 +174,16 @@ export function SignInPage() {
           </div>
         )}
         {error && <ErrorState title="Sign-in blocked">{error}</ErrorState>}
+        {role !== 'landlord' && (
+          <p>
+            <Link to="/sign-in?role=landlord&next=/landlord">Sign in as a home provider</Link>
+          </p>
+        )}
+        {role !== 'broker' && (
+          <p>
+            <Link to="/sign-in?role=broker&next=/broker">Sign in as a broker</Link>
+          </p>
+        )}
         <p>
           <Link to="/">Back home</Link>
         </p>

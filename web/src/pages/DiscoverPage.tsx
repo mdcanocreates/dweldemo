@@ -1,36 +1,29 @@
-import { useCallback, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
-import { FrogPageLoader } from '../components/FrogPageLoader';
-import { GuidedChat } from '../components/GuidedChat';
 import { ErrorState, Shell } from '../components/Shell';
-import { useDelayedPending } from '../hooks/useDelayedPending';
 import {
   answersToProfilePayload,
   loadAnswers,
-  profileComplete,
   saveAnswers,
   type RenterAnswers,
 } from '../intake/answers';
 
-/** Guided matching — kept off the marketing landing. */
+/** Renter profile form. The old chat intake is not the public path. */
 export function DiscoverPage() {
   const { user, setSession, refresh } = useAuth();
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<RenterAnswers>(() => loadAnswers());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(() => profileComplete(loadAnswers()) && Boolean(user));
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [pendingAnswers, setPendingAnswers] = useState<RenterAnswers | null>(null);
   const [code, setCode] = useState('');
-  const showFrog = useDelayedPending(busy, 400);
 
-  const persist = useCallback((next: RenterAnswers) => {
-    setAnswers(next);
-    saveAnswers(next);
-  }, []);
+  function setField<K extends keyof RenterAnswers>(key: K, value: RenterAnswers[K]) {
+    setAnswers((prev) => ({ ...prev, [key]: value }));
+  }
 
   async function finishProfile(next: RenterAnswers) {
     setBusy(true);
@@ -50,7 +43,6 @@ export function DiscoverPage() {
         await refresh();
       }
       const profile = await api.upsertRenterProfile(answersToProfilePayload(next));
-      setDone(true);
       if (profile.profile.preferred_state === 'NY') {
         navigate('/screening-choice', { replace: true });
       } else {
@@ -63,158 +55,160 @@ export function DiscoverPage() {
     }
   }
 
-  if (showFrog) {
-    return (
-      <Shell>
-        <FrogPageLoader />
-      </Shell>
-    );
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    void finishProfile(answers);
   }
 
   return (
     <Shell>
-      <div className="hero-chat-section">
-        <section className="hero-panel home-hero-dark">
-          <div className="home-hero-glow" aria-hidden />
-          <div className="home-hero-art" aria-hidden>
-            <svg className="hero-line-art" viewBox="0 0 420 320" fill="none">
-              <path
-                d="M40 260 C90 200, 130 220, 160 180 C190 140, 210 100, 250 90 C290 80, 310 120, 340 110"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                opacity="0.45"
-              />
-              <path d="M70 250 V180 H120 V250" stroke="currentColor" strokeWidth="1.5" opacity="0.55" />
-              <path d="M80 200 H110 M80 220 H110" stroke="currentColor" strokeWidth="1.2" opacity="0.45" />
-              <path
-                d="M200 250 L230 210 H290 L320 250 Z M230 210 V190 H290 V210"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                opacity="0.55"
-              />
-              <circle cx="360" cy="70" r="18" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-              <path d="M352 70 H368 M360 62 V78" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
-            </svg>
-          </div>
-          <div className="home-hero-inner">
-            <p className="section-eyebrow" style={{ color: 'hsl(var(--primary))' }}>
-              Rent smarter · Save more · Move easier
-            </p>
-            <h1 className="home-hero-title">
-              Move with
-              <br />
-              <span>more back.</span>
-            </h1>
-            <p className="home-hero-copy">
-              Search homes, save the ones you like, and tell Dwel what you need. Your profile stays
-              with you when you apply.
-            </p>
-            <form
-              className="hero-search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const data = new FormData(event.currentTarget);
-                const q = String(data.get('q') ?? '').trim();
-                navigate(q ? `/listings?q=${encodeURIComponent(q)}` : '/listings');
-              }}
-            >
+      <div className="stack" style={{ maxWidth: '36rem' }}>
+        <p className="landing-hero-eyebrow">Renter profile</p>
+        <h1>Tell Dwel what you need.</h1>
+        <p className="muted">
+          This is a short form. When you finish, we email a 6-digit code so the profile stays on
+          your account.
+        </p>
+        {error && <ErrorState title="Profile not saved">{error}</ErrorState>}
+        {pendingEmail && pendingAnswers && (
+          <form
+            className="panel form-grid"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void (async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  const verified = await api.verifyEmailCode(pendingEmail, code, 'sign_in');
+                  await setSession(verified.session_id);
+                  await refresh();
+                  const profile = await api.upsertRenterProfile(
+                    answersToProfilePayload(pendingAnswers),
+                  );
+                  setPendingEmail(null);
+                  if (profile.profile.preferred_state === 'NY') {
+                    navigate('/screening-choice', { replace: true });
+                  } else {
+                    navigate('/listings', { replace: true });
+                  }
+                } catch (err) {
+                  setError(err instanceof ApiError || err instanceof Error ? err.message : 'That code did not work.');
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
+            <label>
+              6-digit code
               <input
-                name="q"
-                aria-label="Search homes"
-                placeholder="City, neighborhood, or address"
+                type="text"
+                required
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(ev) => setCode(ev.target.value)}
               />
-              <button className="btn btn-primary" type="submit">
-                Search homes
-              </button>
-            </form>
-            <div className="home-hero-actions">
-              <a className="btn btn-ghost-on-dark" href="#dwel-chat">
-                Start matching
-              </a>
-              <Link className="btn btn-ghost-on-dark" to="/partner">
-                Dwel Partner
-              </Link>
-            </div>
-          </div>
-        </section>
-        <section className="chat-panel">
-          {done ? (
-            <div className="panel stack chat-done">
-              <h2 className="font-display" style={{ fontSize: '1.5rem' }}>
-                You&apos;re ready to browse.
-              </h2>
-              <p className="muted">
-                Your matching preferences are saved. When you find a home, screening happens after you
-                express interest.
-              </p>
-              <Link className="btn btn-primary" to="/listings">
-                Find a home
-              </Link>
-            </div>
-          ) : (
-            <>
-              {error && (
-                <div style={{ padding: '0.75rem 1rem 0', flexShrink: 0 }}>
-                  <ErrorState title="Could not save profile">{error}</ErrorState>
-                </div>
-              )}
-              {pendingEmail && pendingAnswers && (
-                <form
-                  className="panel form-grid"
-                  style={{ margin: '0.75rem 1rem' }}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void (async () => {
-                      setBusy(true);
-                      setError(null);
-                      try {
-                        const verified = await api.verifyEmailCode(pendingEmail, code, 'sign_in');
-                        await setSession(verified.session_id);
-                        await refresh();
-                        const profile = await api.upsertRenterProfile(
-                          answersToProfilePayload(pendingAnswers),
-                        );
-                        setDone(true);
-                        setPendingEmail(null);
-                        if (profile.profile.preferred_state === 'NY') {
-                          navigate('/screening-choice', { replace: true });
-                        } else {
-                          navigate('/listings', { replace: true });
-                        }
-                      } catch (err) {
-                        setError(err instanceof ApiError || err instanceof Error ? err.message : 'That code did not work.');
-                      } finally {
-                        setBusy(false);
-                      }
-                    })();
-                  }}
-                >
-                  <label>
-                    6-digit code
-                    <input
-                      type="text"
-                      required
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      value={code}
-                      onChange={(ev) => setCode(ev.target.value)}
-                    />
-                  </label>
-                  <button type="submit" className="btn btn-primary" disabled={busy}>
-                    {busy ? 'Checking…' : 'Continue'}
-                  </button>
-                </form>
-              )}
-              <GuidedChat
-                mode="profile"
-                initialAnswers={answers}
-                busy={busy}
-                onAnswersChange={persist}
-                onComplete={(a) => void finishProfile(a)}
-              />
-            </>
-          )}
-        </section>
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'Checking…' : 'Continue'}
+            </button>
+          </form>
+        )}
+        <form className="panel form-grid" onSubmit={onSubmit}>
+          <label>
+            First name
+            <input
+              required
+              value={answers.given_name ?? ''}
+              onChange={(e) => setField('given_name', e.target.value)}
+            />
+          </label>
+          <label>
+            Last name
+            <input
+              required
+              value={answers.family_name ?? ''}
+              onChange={(e) => setField('family_name', e.target.value)}
+            />
+          </label>
+          <label>
+            Phone
+            <input
+              required
+              type="tel"
+              autoComplete="tel"
+              value={answers.phone ?? ''}
+              onChange={(e) => setField('phone', e.target.value)}
+            />
+          </label>
+          <label>
+            Email
+            <input
+              required
+              type="email"
+              autoComplete="email"
+              value={answers.email ?? ''}
+              onChange={(e) => setField('email', e.target.value)}
+            />
+          </label>
+          <label>
+            When do you need to move?
+            <select
+              required
+              value={answers.move_in_urgency ?? ''}
+              onChange={(e) => setField('move_in_urgency', e.target.value)}
+            >
+              <option value="">Choose one</option>
+              <option value="immediate">ASAP</option>
+              <option value="within_30_days">Within 30 days</option>
+              <option value="within_60_days">Within 60 days</option>
+              <option value="flexible">Flexible</option>
+            </select>
+          </label>
+          <label>
+            Max monthly rent
+            <input
+              required
+              inputMode="decimal"
+              value={answers.rent_max_dollars ?? ''}
+              onChange={(e) => setField('rent_max_dollars', e.target.value)}
+            />
+          </label>
+          <label>
+            Minimum bedrooms
+            <input
+              required
+              inputMode="numeric"
+              value={answers.bedrooms_min ?? ''}
+              onChange={(e) => setField('bedrooms_min', e.target.value)}
+            />
+          </label>
+          <label>
+            State
+            <input
+              required
+              maxLength={2}
+              value={answers.preferred_state ?? ''}
+              onChange={(e) => setField('preferred_state', e.target.value.toUpperCase())}
+              placeholder="TX"
+            />
+          </label>
+          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={Boolean(answers.has_pets)}
+              onChange={(e) => setField('has_pets', e.target.checked)}
+            />
+            I have pets
+          </label>
+          <button type="submit" className="btn btn-primary" disabled={busy || Boolean(pendingEmail)}>
+            {busy ? 'Saving…' : 'Save profile'}
+          </button>
+        </form>
+        <p>
+          <Link to="/listings">Browse homes</Link>
+        </p>
       </div>
     </Shell>
   );
