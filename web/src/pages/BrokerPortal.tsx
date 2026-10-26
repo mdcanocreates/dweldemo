@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { track } from '../lib/analytics';
 import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
 import { PortalShell } from '../components/PortalShell';
 import { EmptyState, ErrorState, Shell } from '../components/Shell';
@@ -58,6 +59,10 @@ export function BrokerGuard() {
 export function BrokerOverviewPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.brokerOverview>> | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    track('dwel_broker_intake_started', { flow: 'broker_checklist' });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

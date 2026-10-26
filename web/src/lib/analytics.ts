@@ -32,7 +32,18 @@ export function sanitizeProps(
       continue;
     }
     if (typeof value === 'string') {
-      if (value.includes('@') || value.length > 120) continue;
+      const lower = value.toLowerCase();
+      if (
+        value.includes('@') ||
+        value.includes('?') ||
+        value.includes('#') ||
+        value.length > 120 ||
+        lower.includes('token') ||
+        lower.includes('bearer') ||
+        lower.startsWith('http')
+      ) {
+        continue;
+      }
       out[key] = value.slice(0, 80);
     } else if (typeof value === 'number' && Number.isFinite(value)) {
       out[key] = value;
@@ -47,7 +58,20 @@ export function sanitizeProps(
 export function safePath(href: string): string {
   try {
     const url = new URL(href, 'https://rbit.local');
-    return url.pathname || '/';
+    const path = url.pathname
+      .split('/')
+      .map((segment) => {
+        if (!segment) return segment;
+        if (
+          segment.length >= 16 ||
+          /^[0-9a-f]{8}-[0-9a-f-]{20,}$/i.test(segment)
+        ) {
+          return ':id';
+        }
+        return segment;
+      })
+      .join('/');
+    return path || '/';
   } catch {
     return '/';
   }
@@ -63,7 +87,24 @@ let enabled = false;
 let apiKey = '';
 let host = 'https://us.i.posthog.com';
 let product: AnalyticsProduct = 'admin';
-const queue: Capture[] = [];
+const CONSENT_KEY = 'rbit_analytics_consent';
+
+export function analyticsConsentGranted(): boolean {
+  try {
+    return localStorage.getItem(CONSENT_KEY) === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+/** Defaults to denied. Collection stays off until a person grants consent. */
+export function setAnalyticsConsent(granted: boolean): void {
+  try {
+    localStorage.setItem(CONSENT_KEY, granted ? 'granted' : 'denied');
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 export function configureAnalytics(input: {
   enabled: boolean;
@@ -82,7 +123,7 @@ export function analyticsIsEnabled(): boolean {
 }
 
 export function track(event: string, properties?: Record<string, unknown>): void {
-  if (!enabled || !event) return;
+  if (!enabled || !event || !analyticsConsentGranted()) return;
   const payload: Capture = {
     event,
     product,
@@ -92,8 +133,27 @@ export function track(event: string, properties?: Record<string, unknown>): void
       ...properties,
     }),
   };
-  queue.push(payload);
   void flush(payload);
+}
+
+export function startEngagementTracking(): void {
+  if (typeof document === 'undefined') return;
+  let visibleSince = document.visibilityState === 'visible' ? Date.now() : 0;
+  let accumulated = 0;
+  const flushEngaged = () => {
+    if (visibleSince) {
+      accumulated += Date.now() - visibleSince;
+      visibleSince = 0;
+    }
+    const seconds = Math.min(1800, Math.round(accumulated / 1000));
+    accumulated = 0;
+    if (seconds > 0) track('page_engaged', { path: safePath(window.location.href), seconds });
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushEngaged();
+    else visibleSince = Date.now();
+  });
+  window.addEventListener('pagehide', flushEngaged);
 }
 
 async function flush(payload: Capture): Promise<void> {

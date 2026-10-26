@@ -8,6 +8,7 @@ import {
 } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { track } from '../lib/analytics';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { PortalShell } from '../components/PortalShell';
 import { EmptyState, ErrorState, Shell } from '../components/Shell';
@@ -514,6 +515,10 @@ export function LandlordNewListingPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    track('dwel_landlord_intake_started', { flow: 'new_listing' });
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -542,6 +547,7 @@ export function LandlordNewListingPage() {
           file_base64,
         });
       }
+      track('dwel_landlord_intake_submitted', { flow: 'new_listing', status });
       navigate('/landlord/listings');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create listing.');

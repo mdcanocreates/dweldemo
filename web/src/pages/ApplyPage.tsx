@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { api, ApiError, type RenterProfile } from '../api';
 import { rememberAccessToken } from '../accessToken';
 import { useAuth } from '../auth';
+import { track } from '../lib/analytics';
 import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
 import { GuidedChat } from '../components/GuidedChat';
 import { ErrorState, Shell } from '../components/Shell';
@@ -106,6 +107,10 @@ export function ApplyPage() {
   const showSubmitFrog = useDelayedPending(hopping, 400);
   const showIntakeInline = useDelayedPending(loadingIntake && !hopping, 400);
 
+  useEffect(() => {
+    if (listingId && !editOnly) track('dwel_application_started', { flow: 'apply' });
+  }, [listingId, editOnly]);
+
   const persist = useCallback((next: RenterAnswers) => {
     setAnswers(next);
     saveAnswers(next);
@@ -181,6 +186,7 @@ export function ApplyPage() {
     const result = await api.expressInterest(listingId);
     rememberAccessToken(result.application_id, result.access_token);
     setSubmittedId(result.application_id);
+    track('dwel_application_submitted', { flow: 'apply' });
   }
 
   async function submitAndInterest(fromAnswers: RenterAnswers = answers) {

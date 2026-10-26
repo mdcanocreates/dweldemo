@@ -4,6 +4,7 @@ import { api, ApiError, type Listing } from '../api';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
+import { track } from '../lib/analytics';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 
 export function ListingDetailPage() {
@@ -23,6 +24,10 @@ export function ListingDetailPage() {
         if (!cancelled) {
           setListing(data.listing);
           setError(null);
+          track('dwel_listing_viewed', {
+            property_type: data.listing.property_type || 'unknown',
+            bedrooms: data.listing.bedrooms ?? 0,
+          });
         }
       } catch (err) {
         if (!cancelled) {

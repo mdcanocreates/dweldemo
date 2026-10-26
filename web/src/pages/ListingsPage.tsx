@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
+import { track } from '../lib/analytics';
 import { FrogPageLoader } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
@@ -44,6 +45,20 @@ export function ListingsPage() {
   const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('cashback');
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
+  const filtersReady = useRef(false);
+
+  useEffect(() => {
+    if (!filtersReady.current) {
+      filtersReady.current = true;
+      return;
+    }
+    track('dwel_listing_filter', {
+      bedrooms: beds || 'any',
+      bathrooms: baths || 'any',
+      property_type: propertyType || 'any',
+      sort,
+    });
+  }, [beds, baths, propertyType, sort]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +93,13 @@ export function ListingsPage() {
       setListings(data.listings);
       setTotal(data.pagination.total);
       setOffset(data.listings.length);
+      track('dwel_listing_search', {
+        bedrooms: beds || 'any',
+        bathrooms: baths || 'any',
+        property_type: propertyType || 'any',
+        sort,
+        result_count: data.listings.length,
+      });
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Search failed.');
