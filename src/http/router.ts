@@ -28,6 +28,11 @@ import {
   handleInitiateCheckrScreening,
 } from './checkr-handlers.js';
 import {
+  handleCreateSandboxPaymentIntent,
+  handleStripePaymentConfig,
+  handleStripeWebhook,
+} from './stripe-payment-handlers.js';
+import {
   handleInitiateProviderScreening,
   handleGetProviderScreening,
   handleAdminGetScreeningProviders,
@@ -845,6 +850,15 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       return true;
     }
 
+    if (method === 'GET' && path === '/v1/payments/stripe/config') {
+      await handleStripePaymentConfig(req, res);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/payments/stripe/payment-intent') {
+      await handleCreateSandboxPaymentIntent(req, res, deps);
+      return true;
+    }
+
     if (method === 'GET' && path === '/v1/listings') {
       await handleListListings(req, res, deps);
       return true;
@@ -917,6 +931,11 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     if (method === 'POST' && path === '/v1/webhooks/checkr') {
       // Checkr Tenant webhooks — continue for historical orders even if disabled for new ones
       await handleCheckrWebhookPost(req, res, deps);
+      return true;
+    }
+
+    if (method === 'POST' && path === '/v1/webhooks/stripe') {
+      await handleStripeWebhook(req, res, deps);
       return true;
     }
 

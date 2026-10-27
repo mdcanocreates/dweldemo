@@ -6,6 +6,7 @@ import { useAuth } from '../auth';
 import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
+import { track } from '../lib/analytics';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 import {
   answersToIntakePayload,
@@ -106,6 +107,10 @@ export function ApplyPage() {
   const showSubmitFrog = useDelayedPending(hopping, 400);
   const showIntakeInline = useDelayedPending(loadingIntake && !hopping, 400);
 
+  useEffect(() => {
+    if (listingId) track('application_started', { product: 'dwel', flow: 'apply' });
+  }, [listingId]);
+
   const persist = useCallback((next: RenterAnswers) => {
     setAnswers(next);
     saveAnswers(next);
@@ -182,6 +187,7 @@ export function ApplyPage() {
     const result = await api.expressInterest(listingId);
     rememberAccessToken(result.application_id, result.access_token);
     setSubmittedId(result.application_id);
+    track('application_submitted', { product: 'dwel', flow: 'apply' });
   }
 
   async function submitAndInterest(fromAnswers: RenterAnswers = answers) {

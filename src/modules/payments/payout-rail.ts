@@ -10,6 +10,7 @@ import { emitDomainEvent } from '../audit/index.js';
 import { getVendorRegistry } from '../vendors/index.js';
 import { AppError } from '../shared/errors.js';
 import { systemClock, type Clock } from '../shared/clock.js';
+import { readStripePaymentMode } from './stripe-mode.js';
 
 export type PayoutConsumer = 'screening_rebate' | 'solar_homeowner';
 
@@ -95,6 +96,9 @@ export async function executePayout(
 
   if (input.amountCents <= 0) {
     throw new AppError('payout amount must be positive', 'payout_invalid_amount', 400);
+  }
+  if (readStripePaymentMode().mode === 'live') {
+    throw new AppError('Real Stripe payouts are disabled', 'payouts_not_approved', 403);
   }
 
   const result = await rail.createPayout({

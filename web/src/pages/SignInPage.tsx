@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { ErrorState, Shell } from '../components/Shell';
+import { track } from '../lib/analytics';
 
 type Purpose = 'sign_in' | 'landlord_sign_in' | 'broker_sign_in';
 
@@ -59,12 +60,14 @@ export function SignInPage() {
     setError(null);
     setMessage(null);
     try {
+      track('signup_started', { product: 'dwel', purpose });
       const res = await api.emailCode(email.trim(), purpose, remember);
       setMessage(res.message);
       setResendIn(res.retryAfterSeconds || 60);
       if (res.debug_code) {
         const verified = await api.verifyEmailCode(email.trim(), res.debug_code, purpose, remember);
         await setSession(verified.session_id);
+        track('signup_completed', { product: 'dwel', purpose });
         destination();
         return;
       }
@@ -83,6 +86,7 @@ export function SignInPage() {
     try {
       const verified = await api.verifyEmailCode(email.trim(), code, purpose, remember);
       await setSession(verified.session_id);
+      track('signup_completed', { product: 'dwel', purpose });
       destination();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'That code is invalid or expired.');

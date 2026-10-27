@@ -7,6 +7,8 @@ import {
 } from '../screening/index.js';
 import { AppError } from '../shared/errors.js';
 import { getVendorRegistry } from '../vendors/index.js';
+import { readStripePaymentMode } from '../payments/stripe-mode.js';
+import { assertSandboxPaymentSucceeded } from '../payments/stripe-sandbox.js';
 import {
   recordApplicantPurchasedReport,
   screeningFeeForState,
@@ -60,13 +62,12 @@ export async function payAndRecordConsent(
   void input.paymentConfirmed; // never authoritative
   const preview = Boolean(input.preview);
 
-  if (input.paymentIntentId && !preview) {
-    // Placeholder until real Stripe verification lands in Part I.
-    throw new AppError(
-      'payment_intent verification not yet enabled — DEV uses PaymentRail charge only',
-      'payment_intent_unsupported',
-      501,
-    );
+  const stripeMode = readStripePaymentMode();
+  if (stripeMode.invalid && !preview) {
+    throw new AppError('Stripe payment mode is invalid', 'stripe_mode_invalid', 503);
+  }
+  if (stripeMode.mode === 'live' && !preview) {
+    throw new AppError('Live Stripe charges are not approved', 'live_payments_not_approved', 403);
   }
 
   const { rows: apps } = await client.query<{
@@ -109,8 +110,21 @@ export async function payAndRecordConsent(
       // Successful share of a live report — do not open a second Certn order.
       sharedExistingReport = grant.granted === true && grant.repull === false;
     }
+  } else if (stripeMode.mode === 'test' && !preview) {
+    if (!input.paymentIntentId) {
+      throw new AppError('A succeeded sandbox PaymentIntent is required', 'payment_required', 402);
+    }
+    const verified = await assertSandboxPaymentSucceeded(client, {
+      partyId: input.partyId,
+      purpose: 'applicant_screening_fee',
+      applicationId: input.applicationId,
+      paymentIntentId: input.paymentIntentId,
+      state: profile?.preferred_state ?? null,
+    });
+    chargeId = verified.paymentIntentId;
+    feeCharged = verified.amountCents;
   } else {
-    // Server-side charge is the payment verification (stub in DEV / preview).
+    // Disabled mode keeps the in-memory rail. Sandbox mode never posts that rail to the ledger.
     const rail = getVendorRegistry().paymentRail();
     const charge = await rail.createCharge({
       amountCents: fee.amount_cents,

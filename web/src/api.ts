@@ -237,7 +237,7 @@ export const api = {
     }>('/v1/renter/applications'),
   payAndConsent: (
     id: string,
-    body: { agreed: true; ny_path2?: boolean },
+    body: { agreed: true; ny_path2?: boolean; payment_intent_id?: string },
     accessToken?: string,
   ) =>
     request<{
@@ -248,6 +248,26 @@ export const api = {
     }>(`/v1/applications/${id}/pay-consent`, {
       method: 'POST',
       accessToken,
+      body: JSON.stringify(body),
+    }),
+  stripePaymentConfig: () =>
+    request<{
+      mode: 'disabled' | 'test' | 'live';
+      sandbox: boolean;
+      publishable_key: string | null;
+    }>('/v1/payments/stripe/config'),
+  createSandboxPaymentIntent: (body: {
+    purpose: 'applicant_screening_fee' | 'ny_path2_screening';
+    application_id?: string;
+  }) =>
+    request<{
+      payment_intent_id: string;
+      client_secret: string;
+      amount_cents: number;
+      sandbox: true;
+      mode: 'test';
+    }>('/v1/payments/stripe/payment-intent', {
+      method: 'POST',
       body: JSON.stringify(body),
     }),
   /** @deprecated Free consent is rejected (402). Use payAndConsent. */
@@ -308,12 +328,12 @@ export const api = {
       '/v1/renter/screening-reports',
       { method: 'POST', body: JSON.stringify(body) },
     ),
-  purchaseNyPath2: () =>
+  purchaseNyPath2: (paymentIntentId?: string) =>
     request<{ fee_cents: number; tag: string; report: { id: string } }>(
       '/v1/renter/screening-path2',
       {
         method: 'POST',
-        body: JSON.stringify({ agreed: true }),
+        body: JSON.stringify({ agreed: true, payment_intent_id: paymentIntentId }),
       },
     ),
   magicLink: (email: string, purpose: 'sign_in' | 'landlord_sign_in' | 'broker_sign_in') =>

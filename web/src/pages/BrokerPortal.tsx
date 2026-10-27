@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
+import { track } from '../lib/analytics';
 import { useAuth } from '../auth';
 import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
 import { PortalShell } from '../components/PortalShell';
@@ -429,7 +430,13 @@ export function ConnectPaymentsPage({ audience }: { audience: 'broker' | 'landlo
     (async () => {
       try {
         const s = await api.connectAccount();
-        if (!cancelled) setStatus(s);
+        if (!cancelled) {
+          setStatus(s);
+          if (s.charges_enabled && s.details_submitted && sessionStorage.getItem('rbit_connect_completed') !== '1') {
+            sessionStorage.setItem('rbit_connect_completed', '1');
+            track('connect_onboarding_completed', { product: 'dwel', audience });
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : 'Could not load Connect status.');
@@ -445,6 +452,7 @@ export function ConnectPaymentsPage({ audience }: { audience: 'broker' | 'landlo
     setBusy(true);
     setError(null);
     try {
+      track('connect_onboarding_started', { product: 'dwel', audience });
       const link = await api.connectOnboardingLink();
       window.location.assign(link.url);
     } catch (err) {

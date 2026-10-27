@@ -16,6 +16,7 @@ import {
   LiveStripeConnectAdapter,
   setStripeConnectAdapter,
 } from './modules/payments/index.js';
+import { readStripePaymentMode, secretMatchesMode } from './modules/payments/stripe-mode.js';
 import {
   resetVendorRegistry,
   assessCertnAvailability,
@@ -149,13 +150,20 @@ async function main(): Promise<void> {
     );
   }
 
-  if (config.stripeSecretKey.startsWith('sk_')) {
+  const stripeMode = readStripePaymentMode();
+  const connectKeyOk =
+    config.stripeSecretKey.startsWith('sk_') &&
+    (stripeMode.mode === 'disabled' || secretMatchesMode(config.stripeSecretKey, stripeMode.mode));
+  if (stripeMode.invalid) {
+    logger.error({ event: 'stripe_mode_invalid' }, 'STRIPE_PAYMENT_MODE is invalid; payments fail closed');
+  }
+  if (connectKeyOk) {
     setStripeConnectAdapter(new LiveStripeConnectAdapter(config.stripeSecretKey));
-    logger.info({ vendor: 'stripe_connect' }, 'Stripe Connect adapter configured');
+    logger.info({ vendor: 'stripe_connect', payment_mode: stripeMode.mode }, 'Stripe Connect adapter configured');
   } else {
     logger.warn(
-      { event: 'stripe_connect_memory' },
-      'Stripe secret not live — using memory Connect adapter',
+      { event: 'stripe_connect_memory', payment_mode: stripeMode.mode },
+      'Stripe Connect left on the memory adapter',
     );
   }
 

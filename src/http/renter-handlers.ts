@@ -645,6 +645,7 @@ export async function handleNyPath2Purchase(
         agreed: z.literal(true),
         /** @deprecated Ignored — server charges PaymentRail. */
         payment_confirmed: z.boolean().optional(),
+        payment_intent_id: z.string().min(3).max(200).optional(),
       })
       .parse(await readJsonBody(req));
     void body;
@@ -658,6 +659,37 @@ export async function handleNyPath2Purchase(
           throw new AppError('Path 2 is NY-only', 'validation_error', 400);
         }
         const fee = await screeningFeeForState(client, 'NY');
+        const { readStripePaymentMode } = await import('../modules/payments/stripe-mode.js');
+        const stripeMode = readStripePaymentMode();
+        if (stripeMode.invalid) {
+          throw new AppError('Stripe payment mode is invalid', 'stripe_mode_invalid', 503);
+        }
+        if (stripeMode.mode === 'live') {
+          throw new AppError('Live Stripe charges are not approved', 'live_payments_not_approved', 403);
+        }
+        if (stripeMode.mode === 'test') {
+          if (!body.payment_intent_id) {
+            throw new AppError('A succeeded sandbox PaymentIntent is required', 'payment_required', 402);
+          }
+          const { assertSandboxPaymentSucceeded } = await import('../modules/payments/stripe-sandbox.js');
+          const verified = await assertSandboxPaymentSucceeded(client, {
+            partyId: identity.partyId,
+            purpose: 'ny_path2_screening',
+            paymentIntentId: body.payment_intent_id,
+            state: 'NY',
+          });
+          const report = await recordApplicantPurchasedReport(client, {
+            partyId: identity.partyId,
+            stateJurisdiction: 'NY',
+          });
+          return {
+            fee_cents: verified.amountCents,
+            charge_id: verified.paymentIntentId,
+            report,
+            sandbox: true as const,
+            tag: 'interim_v1' as const,
+          };
+        }
         const { getVendorRegistry } = await import('../modules/vendors/index.js');
         const { postLedgerTransaction } = await import('../modules/ledger/index.js');
         const rail = getVendorRegistry().paymentRail();
