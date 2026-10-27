@@ -28,7 +28,14 @@ export function sanitizeProps(
   if (!input) return out;
   for (const [key, value] of Object.entries(input)) {
     const normalized = key.trim().toLowerCase();
-    if (DENY.has(normalized) || normalized.includes('token') || normalized.includes('email')) {
+    if (
+      DENY.has(normalized) ||
+      normalized.includes('token') ||
+      normalized.includes('email') ||
+      normalized.includes('secret') ||
+      normalized.includes('card') ||
+      normalized.includes('password')
+    ) {
       continue;
     }
     if (typeof value === 'string') {
@@ -40,6 +47,8 @@ export function sanitizeProps(
         value.length > 120 ||
         lower.includes('token') ||
         lower.includes('bearer') ||
+        lower.includes('secret') ||
+        /\d{12,}/.test(value) ||
         lower.startsWith('http')
       ) {
         continue;
