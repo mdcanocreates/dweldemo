@@ -197,7 +197,12 @@ export async function decidePartnerIntake(
   input: {
     intakeId: string;
     decision: 'under_review' | 'approved' | 'rejected';
-    actorPartyId: string;
+    /** Dwel party that is allowed to be stored on partner_intake.reviewed_by. Null for Control Center staff who are not Dwel parties. */
+    actorPartyId: string | null;
+    /** Audit-log actor. Defaults to actorPartyId. Not a foreign key. */
+    auditActorId?: string | null;
+    note?: string | null;
+    actorSubject?: string | null;
   },
 ): Promise<PartnerIntakeRecord> {
   const { rows } = await client.query<IntakeRow>(
@@ -248,6 +253,10 @@ export async function decidePartnerIntake(
     [row.id, input.decision, orgId, input.actorPartyId],
   );
   const record = toRecord(updated[0]!);
+  const auditActorId = input.auditActorId ?? input.actorPartyId;
+  if (!auditActorId) {
+    throw new AppError('actor required for intake decision', 'actor_required', 403);
+  }
   await emitDomainEvent(client, {
     aggregateType: 'partner_intake',
     aggregateId: record.id,
@@ -257,17 +266,24 @@ export async function decidePartnerIntake(
       role: record.role,
       status: record.status,
       org_id: record.org_id,
+      actor_subject: input.actorSubject ?? null,
+      note: input.note ?? null,
     },
     actorPartyId: input.actorPartyId,
     actorKind: 'admin',
   });
   await appendAdminAction(client, {
-    actorPartyId: input.actorPartyId,
+    actorPartyId: auditActorId,
     action: 'partner_intake.decide',
     targetType: 'partner_intake',
     targetId: record.id,
     beforeState: { status: row.status },
-    afterState: { status: record.status, org_id: record.org_id },
+    afterState: {
+      status: record.status,
+      org_id: record.org_id,
+      note: input.note ?? null,
+      actor_subject: input.actorSubject ?? null,
+    },
     reasonCode: input.decision,
   });
   return record;

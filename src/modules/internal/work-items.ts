@@ -433,17 +433,104 @@ export async function getApplicationIntakeSnapshot(
   };
 }
 
+export const HOME_PROVIDER_INTAKE_KIND = 'home_provider_partner_review';
+export const BROKER_INTAKE_KIND = 'broker_partner_review';
+
+type IntakeListRow = {
+  id: string;
+  role: 'landlord' | 'broker';
+  status: string;
+  full_name: string;
+  organization_name: string;
+  market: string;
+  portfolio_size: string;
+  created_at: Date;
+  updated_at: Date;
+};
+
+/**
+ * Admin asks for status=pending. Onboarding intakes are stored as new or
+ * under_review. License self-execution reviews stay on their own pending status.
+ */
+function intakeStatusSql(status: string): { sql: string; params: unknown[] } {
+  if (status === 'pending') {
+    return { sql: `status in ('new', 'under_review')`, params: [] };
+  }
+  if (status === 'all') return { sql: 'true', params: [] };
+  return { sql: 'status = $1', params: [status] };
+}
+
+function selfExecutionStatusForFilter(status: string): string | null {
+  if (status === 'pending' || status === 'verified' || status === 'rejected') return status;
+  if (status === 'approved') return 'verified';
+  return null;
+}
+
+function intakeKind(role: string): string {
+  return role === 'broker' ? BROKER_INTAKE_KIND : HOME_PROVIDER_INTAKE_KIND;
+}
+
+function intakeWorkState(status: string): WorkItemState {
+  if (status === 'approved') return 'done';
+  if (status === 'rejected') return 'blocked';
+  return 'needs_review';
+}
+
+export function toPartnerIntakeWorkItem(row: IntakeListRow): WorkItem {
+  const createdAt = iso(row.created_at);
+  const updatedAt = iso(row.updated_at);
+  const kind = intakeKind(row.role);
+  return {
+    id: `dwel:partner-intake:${row.id}`,
+    product: 'dwel',
+    sourceId: `partner-intake:${row.id}`,
+    kind,
+    displayName: row.organization_name,
+    summary: [row.full_name, row.market, row.portfolio_size, row.status].filter(Boolean).join(' · '),
+    state: intakeWorkState(row.status),
+    sourceStatus: row.status,
+    ownerId: null,
+    ownerLabel: null,
+    createdAt,
+    updatedAt,
+    lastActivityAt: updatedAt,
+    requiresAttention: row.status === 'new' || row.status === 'under_review',
+    slaDueAt: null,
+    version: updatedAt,
+    regionLabel: row.market,
+    metaLabel: row.role === 'broker' ? 'Broker' : 'Home provider',
+  };
+}
+
 export async function listPartnerReviewWorkItems(
   client: DbClient,
   input: { status?: string | null; limit?: number; offset?: number },
 ): Promise<{ items: WorkItem[]; total: number; sourceHealth: 'ok' }> {
-  const result = await listSelfExecutionReviews(client, {
-    status: input.status ?? 'pending',
-    limit: input.limit,
-    offset: input.offset,
-  });
+  const status = input.status?.trim() || 'pending';
+  const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
+  const offset = Math.max(input.offset ?? 0, 0);
+  const intakeFilter = intakeStatusSql(status);
+  const intakeCount = await client.query<{ n: string }>(
+    `select count(*)::text as n from partner_intake where ${intakeFilter.sql}`,
+    intakeFilter.params,
+  );
+  const intakeRows = await client.query<IntakeListRow>(
+    `select id, role, status, full_name, organization_name, market, portfolio_size,
+            created_at, updated_at
+     from partner_intake
+     where ${intakeFilter.sql}
+     order by created_at desc
+     limit 200`,
+    intakeFilter.params,
+  );
 
-  const items: WorkItem[] = (result.items as Array<Record<string, unknown>>).map((row) => {
+  const selfStatus = selfExecutionStatusForFilter(status);
+  const selfResult = selfStatus
+    ? await listSelfExecutionReviews(client, { status: selfStatus, limit: 200, offset: 0 })
+    : { items: [], total: 0 };
+
+  const intakeItems = intakeRows.rows.map(toPartnerIntakeWorkItem);
+  const selfItems: WorkItem[] = (selfResult.items as Array<Record<string, unknown>>).map((row) => {
     const sourceStatus = String(row.status ?? 'pending');
     const createdAt = iso(row.created_at as Date | string);
     const updatedAt = row.reviewed_at ? iso(row.reviewed_at as Date | string) : createdAt;
@@ -451,20 +538,18 @@ export async function listPartnerReviewWorkItems(
     const displayName =
       (row.business_entity_name ? String(row.business_entity_name) : null) ??
       (row.license_number ? `License ${String(row.license_number)}` : null);
+    const id = String(row.id);
 
     return {
-      id: `dwel:partner-review:${row.id}`,
+      id: `dwel:partner-review:${id}`,
       product: 'dwel',
-      sourceId: String(row.id),
+      sourceId: `partner-review:${id}`,
       kind: 'partner_review',
       displayName,
-      summary: [
-        licenseState,
-        row.license_type ? String(row.license_type) : null,
-        'self-execution',
-      ]
-        .filter(Boolean)
-        .join(' · ') || null,
+      summary:
+        [licenseState, row.license_type ? String(row.license_type) : null, 'self-execution']
+          .filter(Boolean)
+          .join(' · ') || null,
       state: mapSelfExecutionStatusToWorkState(sourceStatus),
       sourceStatus,
       ownerId: null,
@@ -480,7 +565,14 @@ export async function listPartnerReviewWorkItems(
     };
   });
 
-  return { items, total: result.total, sourceHealth: 'ok' };
+  const merged = [...intakeItems, ...selfItems].sort(
+    (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+  );
+  return {
+    items: merged.slice(offset, offset + limit),
+    total: Number(intakeCount.rows[0]?.n ?? 0) + selfResult.total,
+    sourceHealth: 'ok',
+  };
 }
 
 export async function pingDb(client: DbClient): Promise<void> {

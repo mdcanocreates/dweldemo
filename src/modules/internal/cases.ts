@@ -3,9 +3,11 @@
  * Never puts FCRA screening report bodies into case/party/event payloads.
  */
 
+import { createHash } from 'node:crypto';
 import type { DbClient } from '../../db/pool.js';
-import { decideSelfExecutionReview } from '../admin/index.js';
+import { assertAdmin, decideSelfExecutionReview } from '../admin/index.js';
 import { decideOnApplicant } from '../landlord/index.js';
+import { decidePartnerIntake } from '../partner/index.js';
 import {
   listMissingInfoDocuments,
   reviewMissingInfoResponse,
@@ -19,6 +21,7 @@ import {
   listApplicationWorkItems,
   listPartnerReviewWorkItems,
   mapApplicationStatusToWorkState,
+  toPartnerIntakeWorkItem,
 } from './work-items.js';
 
 const UUID_RE =
@@ -37,11 +40,12 @@ const FORBIDDEN_EVENT_KEYS = new Set([
   'vendor_payload',
 ]);
 
-export type CaseType = 'application' | 'partner_review';
+export type CaseType = 'application' | 'partner_review' | 'partner_intake';
 
 export type ParsedCaseId =
   | { caseType: 'application'; id: string; sourceCaseId: string }
-  | { caseType: 'partner_review'; id: string; sourceCaseId: string };
+  | { caseType: 'partner_review'; id: string; sourceCaseId: string }
+  | { caseType: 'partner_intake'; id: string; sourceCaseId: string };
 
 export type CcCase = {
   sourceCaseId: string;
@@ -58,6 +62,9 @@ export type CcCase = {
   createdAt: string;
   workState?: string;
   requiresAttention?: boolean;
+  /** WorkItem-shaped copy so older Control Center case readers can show the record. */
+  item?: Record<string, unknown>;
+  fields?: Array<Record<string, unknown>>;
 };
 
 function iso(value: Date | string | null | undefined): string {
@@ -66,8 +73,29 @@ function iso(value: Date | string | null | undefined): string {
   return new Date(value).toISOString();
 }
 
+function auditActorIdFromSubject(subject: string | null): string {
+  if (subject && UUID_RE.test(subject)) return subject;
+  const hash = createHash('sha256')
+    .update(subject ?? 'control-center')
+    .digest()
+    .subarray(0, 16);
+  const bytes = Buffer.from(hash);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function parseSourceCaseId(raw: string): ParsedCaseId {
   const s = decodeURIComponent(raw).trim();
+  const intake =
+    /^(?:dwel:)?partner-intake:([0-9a-f-]{36})$/i.exec(s) ??
+    /^dwel:partner-intake:([0-9a-f-]{36})$/i.exec(s);
+  if (intake) {
+    const id = intake[1]!;
+    if (!UUID_RE.test(id)) throw new AppError('invalid case id', 'validation_error', 400);
+    return { caseType: 'partner_intake', id, sourceCaseId: `partner-intake:${id}` };
+  }
   const partner =
     /^(?:dwel:)?partner-review:([0-9a-f-]{36})$/i.exec(s) ??
     /^dwel:partner-review:([0-9a-f-]{36})$/i.exec(s);
@@ -445,9 +473,123 @@ async function loadPartnerCase(client: DbClient, id: string): Promise<CcCase> {
   };
 }
 
+function partnerIntakeAllowedActions(status: string): string[] {
+  if (status === 'new' || status === 'under_review') {
+    return ['approve', 'decline', 'request_information'];
+  }
+  if (status === 'rejected') return ['approve'];
+  return [];
+}
+
+function intakeField(
+  key: string,
+  label: string,
+  value: string | null,
+  valueType: 'text' | 'email' | 'phone' = 'text',
+): Record<string, unknown> {
+  return { key, label, value, valueType, section: 'intake' };
+}
+
+async function loadPartnerIntakeCase(client: DbClient, id: string): Promise<CcCase> {
+  const { rows } = await client.query<{
+    id: string;
+    party_id: string;
+    role: 'landlord' | 'broker';
+    status: string;
+    full_name: string;
+    email: string;
+    phone: string;
+    organization_name: string;
+    market: string;
+    portfolio_size: string;
+    property_types: string | null;
+    notes: string | null;
+    org_id: string | null;
+    created_at: Date;
+    updated_at: Date;
+    reviewed_at: Date | null;
+  }>(
+    `select id, party_id, role, status, full_name, email, phone, organization_name,
+            market, portfolio_size, property_types, notes, org_id, created_at, updated_at, reviewed_at
+     from partner_intake
+     where id = $1`,
+    [id],
+  );
+  const row = rows[0];
+  if (!row) throw new AppError('case not found', 'not_found', 404);
+  const updated = row.reviewed_at ?? row.updated_at;
+  const version = iso(updated);
+  const allowed = partnerIntakeAllowedActions(row.status);
+  const item = toPartnerIntakeWorkItem({
+    id: row.id,
+    role: row.role,
+    status: row.status,
+    full_name: row.full_name,
+    organization_name: row.organization_name,
+    market: row.market,
+    portfolio_size: row.portfolio_size,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  });
+  return {
+    sourceCaseId: `partner-intake:${row.id}`,
+    caseType: 'partner_intake',
+    productStage: row.status,
+    version,
+    etag: version,
+    party: { sourcePartyId: row.party_id },
+    display: {
+      displayName: row.organization_name,
+      fullName: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      role: row.role,
+      market: row.market,
+      portfolioSize: row.portfolio_size,
+      propertyTypes: row.property_types,
+      notes: row.notes,
+      orgId: row.org_id,
+      status: row.status,
+    },
+    documents: [],
+    allowedActions: allowed,
+    allowed_actions: allowed,
+    updatedAt: version,
+    createdAt: iso(row.created_at),
+    workState: item.state,
+    requiresAttention: item.requiresAttention,
+    item: item as unknown as Record<string, unknown>,
+    fields: [
+      intakeField('status', 'Status', row.status),
+      intakeField('role', 'Role', row.role === 'landlord' ? 'Home provider' : 'Broker'),
+      intakeField('full_name', 'Full name', row.full_name),
+      intakeField('email', 'Email', row.email, 'email'),
+      intakeField('phone', 'Phone', row.phone, 'phone'),
+      intakeField('organization_name', 'Organization', row.organization_name),
+      intakeField('market', 'Market', row.market),
+      intakeField('portfolio_size', 'Portfolio size', row.portfolio_size),
+      intakeField('property_types', 'Property types', row.property_types),
+      intakeField('notes', 'Notes', row.notes),
+    ],
+  };
+}
+
+async function resolveIntakeActor(
+  client: DbClient,
+  subject: string | null,
+): Promise<{ partyId: string | null; auditActorId: string }> {
+  const auditActorId = auditActorIdFromSubject(subject);
+  if (!subject || !UUID_RE.test(subject)) return { partyId: null, auditActorId };
+  const { rows } = await client.query<{ id: string }>(`select id from party where id = $1`, [
+    subject,
+  ]);
+  return { partyId: rows[0]?.id ?? null, auditActorId };
+}
+
 export async function getCaseDetail(client: DbClient, rawId: string): Promise<CcCase> {
   const parsed = parseSourceCaseId(rawId);
   if (parsed.caseType === 'application') return loadApplicationCase(client, parsed.id);
+  if (parsed.caseType === 'partner_intake') return loadPartnerIntakeCase(client, parsed.id);
   return loadPartnerCase(client, parsed.id);
 }
 
@@ -488,7 +630,16 @@ export async function listCases(
       offset: 0,
     });
     for (const w of partners.items) {
-      const detail = await loadPartnerCase(client, w.sourceId);
+      if (
+        w.kind === 'home_provider_partner_review' ||
+        w.kind === 'broker_partner_review'
+      ) {
+        continue;
+      }
+      const selfId = w.sourceId.startsWith('partner-review:')
+        ? w.sourceId.slice('partner-review:'.length)
+        : w.sourceId;
+      const detail = await loadPartnerCase(client, selfId);
       if (input.q?.trim()) {
         const q = input.q.trim().toLowerCase();
         const hay = JSON.stringify(detail.display).toLowerCase();
@@ -517,7 +668,11 @@ export async function listCaseEvents(
   const parsed = parseSourceCaseId(rawId);
   const limit = Math.min(Math.max(input?.limit ?? 50, 1), 100);
   const aggregateType =
-    parsed.caseType === 'application' ? 'application' : 'landlord_self_execution';
+    parsed.caseType === 'application'
+      ? 'application'
+      : parsed.caseType === 'partner_intake'
+        ? 'partner_intake'
+        : 'landlord_self_execution';
 
   const { rows } = await client.query<{
     id: string;
@@ -815,6 +970,83 @@ export async function executeCaseAction(
 
   const action = input.action.trim().toLowerCase();
   const expected = extractExpectedVersion(input.headers, input.body);
+
+  if (parsed.caseType === 'partner_intake') {
+    const current = await loadPartnerIntakeCase(client, parsed.id);
+    if (expected != null && expected !== current.version && expected !== current.etag) {
+      return {
+        status: 409,
+        body: {
+          error: 'version_conflict',
+          message: 'case changed; refresh and retry',
+          version: current.version,
+          etag: current.etag,
+        },
+      };
+    }
+    const allowed = new Set(current.allowedActions);
+    let decision: 'under_review' | 'approved' | 'rejected';
+    if (action === 'approve' && allowed.has('approve')) decision = 'approved';
+    else if ((action === 'decline' || action === 'reject') && allowed.has('decline')) {
+      decision = 'rejected';
+    } else if (
+      (action === 'request_information' || action === 'mark_under_review') &&
+      allowed.has('request_information')
+    ) {
+      decision = 'under_review';
+    } else {
+      throw new AppError(
+        `unsupported action '${input.action}' for partner_intake`,
+        'unsupported_action',
+        400,
+      );
+    }
+    const note =
+      typeof input.body.notes === 'string'
+        ? input.body.notes
+        : typeof input.body.reason === 'string'
+          ? input.body.reason
+          : typeof input.body.message === 'string'
+            ? input.body.message
+            : null;
+    const actor = await resolveIntakeActor(client, input.actorSubject);
+    if (actor.partyId) await assertAdmin(client, actor.partyId);
+    const record = await decidePartnerIntake(client, {
+      intakeId: parsed.id,
+      decision,
+      actorPartyId: actor.partyId,
+      auditActorId: actor.auditActorId,
+      note,
+      actorSubject: input.actorSubject,
+    });
+    const updated = await loadPartnerIntakeCase(client, parsed.id);
+    await writeCcOutboxEvent(client, {
+      eventType: 'case.stage_changed',
+      sourceCaseId: parsed.sourceCaseId,
+      sourceVersion: updated.version,
+      payload: {
+        caseType: 'partner_intake',
+        action,
+        fromStage: current.productStage,
+        toStage: record.status,
+        orgId: record.org_id,
+      },
+    });
+    const body = {
+      ok: true,
+      sourceCaseId: parsed.sourceCaseId,
+      action,
+      result: { id: record.id, status: record.status, org_id: record.org_id },
+      case: updated,
+    };
+    await storeIdempotentResponse(client, {
+      idempotencyKey: input.idempotencyKey,
+      routeKey,
+      status: 200,
+      body,
+    });
+    return { status: 200, body };
+  }
 
   if (parsed.caseType === 'partner_review') {
     const current = await loadPartnerCase(client, parsed.id);

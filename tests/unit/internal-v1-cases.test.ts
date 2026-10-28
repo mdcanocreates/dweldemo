@@ -116,6 +116,11 @@ describe('internal v1 cases contract', () => {
       sourceCaseId: `partner-review:${id}`,
     });
     expect(parseSourceCaseId(`dwel:partner-review:${id}`).caseType).toBe('partner_review');
+    expect(parseSourceCaseId(`partner-intake:${id}`)).toEqual({
+      caseType: 'partner_intake',
+      id,
+      sourceCaseId: `partner-intake:${id}`,
+    });
   });
 
   it('sanitizeOutboxPayload strips screening bodies', () => {

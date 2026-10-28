@@ -128,11 +128,15 @@ export function PartnerIntakePage({ role }: { role: Role }) {
           <h1 className="section-title">Intake submitted</h1>
           <p>
             Thanks, {intake.full_name}. We have your {role === 'landlord' ? 'home provider' : 'broker'}{' '}
-            request for {intake.organization_name} and it is pending review.
+            request for {intake.organization_name}.
+          </p>
+          <p>
+            Saved status: {intake.status === 'under_review' ? 'under review' : 'new'}.
           </p>
           <p className="muted">
-            You&apos;ll be able to open the dashboard from this account after approval. No further
-            action is needed right now.
+            {intake.status === 'under_review'
+              ? 'A reviewer is looking at this request. The dashboard stays closed until it is approved.'
+              : 'This request is pending review. The dashboard stays closed until it is approved.'}
           </p>
         </div>
       </Shell>
@@ -146,7 +150,7 @@ export function PartnerIntakePage({ role }: { role: Role }) {
         <h1 className="section-title">{copy.title}</h1>
         <p className="muted">
           {intake?.status === 'rejected'
-            ? 'The last request was not approved. You can send an updated intake.'
+            ? 'Saved status: rejected. The last request was not approved. You can send an updated intake.'
             : 'Tell us about your portfolio. We review each request before opening the dashboard.'}
         </p>
         {error && <ErrorState title="Could not submit">{error}</ErrorState>}
