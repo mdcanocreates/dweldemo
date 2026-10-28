@@ -68,6 +68,31 @@ describe('buildApplicationProgress', () => {
     expect(p.status_label).toMatch(/information/i);
   });
 
+  it('draft is not described as interest already sent', () => {
+    const p = buildApplicationProgress({
+      status: 'draft',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    expect(p.status_label).toBe('Started, not sent');
+    expect(p.current_label).toBe('Not submitted');
+    expect(p.next_action_owner).toBe('renter');
+    expect(p.next_step).toMatch(/send interest/i);
+    expect(p.stages.some((stage) => stage.key === 'interest_sent')).toBe(false);
+    expect(p.primary_action?.href_hint).toBe('apply');
+  });
+
+  it('declined names the outcome and a next step', () => {
+    const p = buildApplicationProgress({
+      status: 'declined',
+      created_at: '2026-01-01T00:00:00.000Z',
+      move_forward_at: '2026-01-02T00:00:00.000Z',
+      screened_at: '2026-01-03T00:00:00.000Z',
+      closed_at: '2026-01-04T00:00:00.000Z',
+    });
+    expect(p.status_label).toBe('Not selected');
+    expect(p.next_step).toMatch(/not selected for this home/i);
+  });
+
   it('awaiting_landlord_interest waits on home provider', () => {
     const p = buildApplicationProgress({
       status: 'awaiting_landlord_interest',

@@ -3,7 +3,7 @@
 export type StatusTone = 'neutral' | 'mint' | 'amber' | 'red' | 'blue' | 'gray';
 
 const LABELS: Record<string, string> = {
-  draft: 'Draft',
+  draft: 'Started, not sent',
   awaiting_landlord_interest: 'Interest sent',
   mutual_interest: 'Home provider is interested',
   prescreen: 'Pre-screen in progress',
@@ -23,8 +23,9 @@ const LABELS: Record<string, string> = {
   info_requested: 'More information requested',
   more_info_requested: 'More information requested',
   interested: 'Interest sent',
-  submitted: 'Waiting for Home Provider',
+  submitted: 'Submitted',
   screening_error: 'Screening unavailable',
+  prescreen_failed: 'Pre-screen did not pass',
   active: 'Active',
   paused: 'Paused',
   rented: 'Rented',
@@ -57,6 +58,22 @@ const TONES: Record<string, StatusTone> = {
 
 export function applicationStatusLabel(status: string): string {
   return LABELS[status] ?? status.replaceAll('_', ' ');
+}
+
+const LISTING_STATUS_LABELS: Record<string, string> = {
+  draft: 'Not published',
+  active: 'Available',
+  paused: 'Paused',
+  stale: 'Needs confirmation',
+  expired: 'Expired',
+  rented: 'Rented',
+  removed: 'Removed',
+  archived: 'Archived',
+};
+
+export function listingStatusLabel(status: string | null | undefined): string {
+  if (!status?.trim()) return 'Not recorded';
+  return LISTING_STATUS_LABELS[status] ?? status.replaceAll('_', ' ');
 }
 
 export function nextActorLabel(owner: string | null | undefined): string {

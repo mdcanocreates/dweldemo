@@ -16,6 +16,7 @@ export { payAndRecordConsent } from './pay-consent.js';
 
 export {
   buildApplicationProgress,
+  presentRenterProgress,
   type ApplicationProgress,
   type ProgressStage,
   type ProgressStageStatus,

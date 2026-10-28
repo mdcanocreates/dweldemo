@@ -6,6 +6,7 @@ import {
   intakeFieldsReady,
   mergeServerRecords,
   profileComplete,
+  serverProfileSaved,
   type RenterAnswers,
 } from '../../web/src/intake/answers.js';
 
@@ -32,6 +33,32 @@ describe('renter answer payloads', () => {
     expect(payload.state).toBe('TX');
     expect(payload.move_in_urgency).toBe('flexible');
     expect(payload.rent_max_cents).toBe(180000);
+  });
+
+  it('does not copy the preferred state into the current address', () => {
+    const payload = answersToIntakePayload(
+      answers({ preferred_state: 'TX', current_address_state: '' }),
+      false,
+    );
+    expect(payload.current_address_state).toBeUndefined();
+  });
+
+  it('does not treat an empty profile row as a saved account', () => {
+    expect(
+      serverProfileSaved({
+        given_name: null,
+        family_name: null,
+        phone_e164: null,
+        email: null,
+        annual_income_cents: null,
+        move_in_urgency: null,
+        bedrooms_min: null,
+        rent_max_cents: null,
+        preferred_state: null,
+        has_pets: null,
+        household_size: 1,
+      }),
+    ).toBe(false);
   });
 
   it('does not derive monthly intake income from annual income', () => {

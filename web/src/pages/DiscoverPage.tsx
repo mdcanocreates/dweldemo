@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
@@ -9,6 +9,7 @@ import {
   mergeServerRecords,
   profileFieldsComplete,
   saveAnswers,
+  serverProfileSaved,
   type RenterAnswers,
 } from '../intake/answers';
 
@@ -35,6 +36,12 @@ export function DiscoverPage() {
   const { user, loading, setSession, refresh } = useAuth();
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<RenterAnswers>(() => loadAnswers());
+  const answersRef = useRef(answers);
+  const editGeneration = useRef(0);
+  function remember(next: RenterAnswers) {
+    answersRef.current = next;
+    setAnswers(next);
+  }
   const [baseline, setBaseline] = useState<RenterAnswers>(() => loadAnswers());
   const [hydrated, setHydrated] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -47,11 +54,12 @@ export function DiscoverPage() {
   useEffect(() => {
     if (loading) return;
     let cancelled = false;
+    const generation = editGeneration.current;
     (async () => {
       const local = loadAnswers();
       if (!user) {
         if (cancelled) return;
-        setAnswers(local);
+        remember(local);
         setBaseline(local);
         setAccountProfile('unknown');
         setHydrated(true);
@@ -60,24 +68,25 @@ export function DiscoverPage() {
       }
       try {
         const data = await api.getRenterProfile();
-        if (cancelled) return;
+        if (cancelled || editGeneration.current !== generation) return;
         const merged = mergeServerRecords(local, data.profile, null);
-        setAnswers(merged);
+        const savedOnAccount = serverProfileSaved(data.profile);
+        remember(merged);
         setBaseline(merged);
         saveAnswers(merged);
-        setAccountProfile('loaded');
-        setSaveState(profileFieldsComplete(merged) ? 'saved' : 'unsaved');
+        setAccountProfile(savedOnAccount ? 'loaded' : 'missing');
+        setSaveState(savedOnAccount ? 'saved' : 'unsaved');
         setError(null);
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.status === 404) {
-          setAnswers(local);
+          remember(local);
           setBaseline(local);
           setAccountProfile('missing');
           setSaveState('unsaved');
           setError(null);
         } else {
-          setAnswers(local);
+          remember(local);
           setBaseline(local);
           setAccountProfile('load_failed');
           setSaveState('error');
@@ -97,9 +106,10 @@ export function DiscoverPage() {
   }, [user, loading]);
 
   function setField<K extends keyof RenterAnswers>(key: K, value: RenterAnswers[K]) {
-    const next = { ...answers, [key]: value, profile_complete: false };
+    editGeneration.current += 1;
+    const next = { ...answersRef.current, [key]: value, profile_complete: false };
+    remember(next);
     saveAnswers(next);
-    setAnswers(next);
     setSaveState(sameDraft(next, baseline) && accountProfile === 'loaded' ? 'saved' : 'unsaved');
   }
 
@@ -114,7 +124,7 @@ export function DiscoverPage() {
     const profile = await api.upsertRenterProfile(answersToProfilePayload(next));
     const merged = mergeServerRecords(next, profile.profile, null);
     saveAnswers(merged);
-    setAnswers(merged);
+    remember(merged);
     setBaseline(merged);
     setAccountProfile('loaded');
     setSaveState('saved');
@@ -150,9 +160,25 @@ export function DiscoverPage() {
     }
   }
 
-  function onSubmit(e: FormEvent) {
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    void finishProfile(answers);
+    const form = e.currentTarget;
+    const value = (name: string) =>
+      (form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null)?.value ?? '';
+    const next = {
+      ...answersRef.current,
+      given_name: value('given_name'),
+      family_name: value('family_name'),
+      phone: value('phone'),
+      email: value('email'),
+      move_in_urgency: value('move_in_urgency'),
+      rent_max_dollars: value('rent_max_dollars'),
+      bedrooms_min: value('bedrooms_min'),
+      preferred_state: value('preferred_state').toUpperCase(),
+      has_pets: (form.elements.namedItem('has_pets') as HTMLInputElement | null)?.checked ?? false,
+    };
+    answersRef.current = next;
+    void finishProfile(next);
   }
 
   const incomplete = hydrated && !profileFieldsComplete(answers);
@@ -236,6 +262,7 @@ export function DiscoverPage() {
           <label>
             First name
             <input
+              name="given_name"
               required
               value={answers.given_name ?? ''}
               onChange={(e) => setField('given_name', e.target.value)}
@@ -244,6 +271,7 @@ export function DiscoverPage() {
           <label>
             Last name
             <input
+              name="family_name"
               required
               value={answers.family_name ?? ''}
               onChange={(e) => setField('family_name', e.target.value)}
@@ -252,6 +280,7 @@ export function DiscoverPage() {
           <label>
             Phone
             <input
+              name="phone"
               required
               type="tel"
               autoComplete="tel"
@@ -262,6 +291,7 @@ export function DiscoverPage() {
           <label>
             Email
             <input
+              name="email"
               required
               type="email"
               autoComplete="email"
@@ -272,6 +302,7 @@ export function DiscoverPage() {
           <label>
             When do you need to move?
             <select
+              name="move_in_urgency"
               required
               value={answers.move_in_urgency ?? ''}
               onChange={(e) => setField('move_in_urgency', e.target.value)}
@@ -286,6 +317,7 @@ export function DiscoverPage() {
           <label>
             Max monthly rent
             <input
+              name="rent_max_dollars"
               required
               inputMode="decimal"
               value={answers.rent_max_dollars ?? ''}
@@ -295,6 +327,7 @@ export function DiscoverPage() {
           <label>
             Minimum bedrooms
             <input
+              name="bedrooms_min"
               required
               inputMode="numeric"
               value={answers.bedrooms_min ?? ''}
@@ -304,6 +337,7 @@ export function DiscoverPage() {
           <label>
             State
             <input
+              name="preferred_state"
               required
               maxLength={2}
               value={answers.preferred_state ?? ''}
@@ -313,6 +347,7 @@ export function DiscoverPage() {
           </label>
           <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <input
+              name="has_pets"
               type="checkbox"
               checked={Boolean(answers.has_pets)}
               onChange={(e) => setField('has_pets', e.target.checked)}

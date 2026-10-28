@@ -4,6 +4,7 @@
  */
 
 import type { DbClient } from '../../db/pool.js';
+import { applicationStatusLabel, submittedContactName } from '../renter/lifecycle.js';
 import { AppError } from '../shared/errors.js';
 import { listSelfExecutionReviews } from '../admin/index.js';
 
@@ -36,6 +37,7 @@ export type WorkItem = {
   version: string;
   regionLabel: string | null;
   metaLabel: string | null;
+  statusLabel: string;
 };
 
 function iso(value: Date | string | null | undefined): string {
@@ -110,13 +112,17 @@ type ApplicationListRow = {
   email: string | null;
   preferred_state: string | null;
   badge_state: string | null;
+  listing_line1: string | null;
   listing_city: string | null;
   listing_state: string | null;
+  intake_snapshot: unknown;
   org_display_name: string | null;
   email_ref: string | null;
 };
 
 function displayNameFromRow(row: ApplicationListRow): string | null {
+  const submitted = submittedContactName(row.intake_snapshot);
+  if (submitted) return submitted;
   const name = [row.given_name, row.family_name].filter(Boolean).join(' ').trim();
   if (name) return name;
   if (row.email?.trim()) return row.email.trim();
@@ -125,7 +131,9 @@ function displayNameFromRow(row: ApplicationListRow): string | null {
 }
 
 function regionFromRow(row: ApplicationListRow): string | null {
-  const listingRegion = [row.listing_city, row.listing_state].filter(Boolean).join(', ');
+  const listingRegion = [row.listing_line1, row.listing_city, row.listing_state]
+    .filter(Boolean)
+    .join(', ');
   if (listingRegion) return listingRegion;
   return row.preferred_state ?? null;
 }
@@ -141,7 +149,9 @@ function toApplicationWorkItem(row: ApplicationListRow): WorkItem {
   const sourceStatus = row.status;
   const updated = updatedAtFromRow(row);
   const regionLabel = regionFromRow(row);
+  const statusLabel = applicationStatusLabel(sourceStatus);
   const summaryParts = [
+    statusLabel,
     regionLabel,
     row.entry_point,
     row.source_channel,
@@ -167,6 +177,7 @@ function toApplicationWorkItem(row: ApplicationListRow): WorkItem {
     version: iso(updated),
     regionLabel,
     metaLabel: row.org_display_name ?? null,
+    statusLabel,
   };
 }
 
@@ -197,8 +208,10 @@ const APPLICATION_LIST_SELECT = `
     rp.email,
     rp.preferred_state,
     rp.badge_state,
+    coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as listing_line1,
     addr.city as listing_city,
     addr.state as listing_state,
+    a.intake_snapshot,
     o.display_name as org_display_name,
     (select e.vendor_subject_id from external_identity_ref e
      where e.party_id = a.party_id and e.vendor = 'email'
@@ -476,6 +489,17 @@ function intakeWorkState(status: string): WorkItemState {
   return 'needs_review';
 }
 
+function partnerStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    new: 'New',
+    under_review: 'Under review',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    pending: 'Pending review',
+  };
+  return labels[status] ?? status.replaceAll('_', ' ');
+}
+
 export function toPartnerIntakeWorkItem(row: IntakeListRow): WorkItem {
   const createdAt = iso(row.created_at);
   const updatedAt = iso(row.updated_at);
@@ -486,7 +510,9 @@ export function toPartnerIntakeWorkItem(row: IntakeListRow): WorkItem {
     sourceId: `partner-intake:${row.id}`,
     kind,
     displayName: row.organization_name,
-    summary: [row.full_name, row.market, row.portfolio_size, row.status].filter(Boolean).join(' · '),
+    summary: [row.full_name, row.market, row.portfolio_size, partnerStatusLabel(row.status)]
+      .filter(Boolean)
+      .join(' · '),
     state: intakeWorkState(row.status),
     sourceStatus: row.status,
     ownerId: null,
@@ -499,6 +525,7 @@ export function toPartnerIntakeWorkItem(row: IntakeListRow): WorkItem {
     version: updatedAt,
     regionLabel: row.market,
     metaLabel: row.role === 'broker' ? 'Broker' : 'Home provider',
+    statusLabel: partnerStatusLabel(row.status),
   };
 }
 
@@ -562,6 +589,7 @@ export async function listPartnerReviewWorkItems(
       version: updatedAt,
       regionLabel: licenseState,
       metaLabel: row.compliance_tag ? String(row.compliance_tag) : null,
+      statusLabel: partnerStatusLabel(sourceStatus),
     };
   });
 

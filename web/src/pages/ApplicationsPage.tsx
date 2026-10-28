@@ -4,12 +4,16 @@ import { api, ApiError, type RenterApplicationSummary } from '../api';
 import { useAuth } from '../auth';
 import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
-import { applicationStatusLabel, nextActorLabel } from '../lib/application-status';
+import { applicationStatusLabel, listingStatusLabel, nextActorLabel } from '../lib/application-status';
 
-function actionHref(appId: string, hint: string | null | undefined): string {
-  if (hint === 'screening') return `/applications/${appId}/consent`;
+function actionHref(
+  app: { application_id: string; listing_id: string | null },
+  hint: string | null | undefined,
+): string {
+  if (hint === 'apply' && app.listing_id) return `/applications/new/${app.listing_id}`;
+  if (hint === 'screening') return `/applications/${app.application_id}/consent`;
   if (hint === 'search') return '/listings';
-  return `/applications/${appId}/details`;
+  return `/applications/${app.application_id}/details`;
 }
 
 function formatWhen(iso: string | null | undefined): string {
@@ -112,6 +116,9 @@ export function ApplicationsPage() {
                 </div>
                 <p style={{ fontWeight: 700, marginTop: '0.85rem' }}>{label}</p>
                 <p className="muted" style={{ margin: '0.2rem 0' }}>
+                  Listing: {listingStatusLabel(app.listing?.status)}
+                </p>
+                <p className="muted" style={{ margin: '0.2rem 0' }}>
                   Applied {formatWhen(app.created_at)}
                 </p>
                 <p className="muted" style={{ margin: '0.2rem 0' }}>
@@ -121,6 +128,9 @@ export function ApplicationsPage() {
                   Most recent update: {formatWhen(app.progress?.last_update_at ?? app.created_at)}
                 </p>
                 <p style={{ margin: '0.2rem 0' }}>
+                  Next step: {app.progress?.next_step ?? 'No next step is recorded for this application.'}
+                </p>
+                <p style={{ margin: '0.2rem 0' }}>
                   Next action: {nextActorLabel(app.progress?.next_action_owner)}
                 </p>
                 {app.progress?.action_required && (
@@ -128,7 +138,7 @@ export function ApplicationsPage() {
                 )}
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
                   {action && (
-                    <Link className="btn btn-primary" to={actionHref(app.application_id, action.href_hint)}>
+                    <Link className="btn btn-primary" to={actionHref(app, action.href_hint)}>
                       {action.label}
                     </Link>
                   )}

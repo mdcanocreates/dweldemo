@@ -2,6 +2,7 @@
  * State-derived renter application progress timeline.
  * No hardcoded demo stages — branches from application + screening + lease + cashback status.
  */
+import { applicationStatusLabel } from '../renter/lifecycle.js';
 
 export type ProgressStageStatus = 'complete' | 'current' | 'upcoming' | 'skipped' | 'blocked';
 
@@ -74,32 +75,11 @@ type Input = {
   cashback_status?: string | null;
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  awaiting_landlord_interest: 'Interest sent',
-  mutual_interest: 'Home provider is interested',
-  prescreen: 'Pre-screen in progress',
-  interested: 'Interest sent',
-  awaiting_consent: 'Screening authorization needed',
-  screening_authorized: 'Screening authorized',
-  screening_running: 'Screening in progress',
-  screening_in_progress: 'Screening in progress',
-  awaiting_provider_configuration: 'Screening unavailable',
-  screened: 'Screening complete',
-  screening_complete: 'Screening complete',
-  info_requested: 'More information requested',
-  more_info_requested: 'More information requested',
-  landlord_passed: 'Passed for now',
-  approved: 'Approved',
-  declined: 'Not selected',
-  withdrawn: 'Withdrawn',
-  closed: 'Closed',
-};
-
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? status.replaceAll('_', ' ');
+  return applicationStatusLabel(status);
 }
+
+export { applicationStatusLabel };
 
 function stage(
   key: string,
@@ -120,6 +100,7 @@ function stage(
 
 function ownerForStatus(s: string): NextActionOwner {
   if (
+    s === 'draft' ||
     s === 'info_requested' ||
     s === 'more_info_requested' ||
     s === 'awaiting_consent' ||
@@ -150,6 +131,13 @@ function primaryFor(
   s: string,
   lease: string | null | undefined,
 ): PrimaryAction {
+  if (s === 'draft') {
+    return {
+      key: 'finish_application',
+      label: 'Finish and send interest',
+      href_hint: 'apply',
+    };
+  }
   if (s === 'info_requested' || s === 'more_info_requested') {
     return {
       key: 'respond_missing_info',
@@ -209,6 +197,27 @@ export function buildApplicationProgress(input: Input): ApplicationProgress {
     contact_revealed_at: input.contact_revealed_at ?? null,
     closed_at: input.closed_at ?? null,
   };
+
+  if (s === 'draft') {
+    stages.push(
+      stage(
+        'not_submitted',
+        'Not submitted',
+        'current',
+        'This application has not been sent to the home provider.',
+        { action_required: 'Finish and send your interest for this home.' },
+      ),
+    );
+    return summarize(
+      stages,
+      'not_submitted',
+      input.created_at,
+      'Finish and send your interest for this home.',
+      'Open this application, confirm your details, and send interest for this home.',
+      input,
+      timestamps,
+    );
+  }
 
   stages.push(
     stage('interest_sent', 'Interest sent', 'complete', 'Your interest was sent to the Home Provider.', {
@@ -309,7 +318,7 @@ export function buildApplicationProgress(input: Input): ApplicationProgress {
       'hp_review',
       input.created_at,
       null,
-      'Wait for the Home Provider to review your interest.',
+      'Wait for the home provider to review your interest in this home.',
       input,
       timestamps,
     );
@@ -438,7 +447,7 @@ export function buildApplicationProgress(input: Input): ApplicationProgress {
       'decision',
       input.closed_at ?? input.screened_at ?? null,
       null,
-      null,
+      'This application was not selected for this home. You can apply to a different property.',
       input,
       timestamps,
     );
@@ -591,5 +600,23 @@ function summarize(
     stages,
     is_terminal: terminal,
     timestamps,
+  };
+}
+
+/** Adjust renter copy when the linked listing can no longer accept interest. */
+export function presentRenterProgress(
+  progress: ApplicationProgress,
+  listingStatus: string | null | undefined,
+): ApplicationProgress {
+  if (progress.status !== 'draft' || !listingStatus || listingStatus === 'active') {
+    return progress;
+  }
+  return {
+    ...progress,
+    next_action_owner: 'none',
+    primary_action: null,
+    action_required: null,
+    outstanding_steps: [],
+    next_step: 'This home is no longer available. The application you started is still on file.',
   };
 }

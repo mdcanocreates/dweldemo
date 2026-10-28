@@ -146,6 +146,22 @@ export function profileComplete(a: RenterAnswers): boolean {
   return profileFieldsComplete(a);
 }
 
+/** A profile row exists for many applicants who never saved identity fields. */
+export function serverProfileSaved(profile: ServerProfileFields | null | undefined): boolean {
+  if (!profile) return false;
+  return Boolean(
+    profile.given_name?.trim() &&
+      profile.family_name?.trim() &&
+      profile.email?.trim() &&
+      profile.phone_e164?.trim() &&
+      profile.move_in_urgency?.trim() &&
+      profile.bedrooms_min != null &&
+      profile.rent_max_cents != null &&
+      profile.rent_max_cents > 0 &&
+      profile.preferred_state?.trim().length === 2,
+  );
+}
+
 /** Address and employment collected on the application form, not inferred from rent. */
 export function intakeFieldsReady(a: RenterAnswers): boolean {
   return Boolean(
@@ -195,7 +211,7 @@ export function mergeServerRecords(
       next.current_address_city,
     );
     next.current_address_state = preferText(
-      (intake.current_address_state as string | null) ?? profile?.preferred_state,
+      intake.current_address_state as string | null,
       next.current_address_state,
     );
     next.current_address_postal = preferText(
@@ -264,7 +280,7 @@ export function answersToIntakePayload(a: RenterAnswers, markComplete: boolean) 
   return {
     current_address_line1: a.current_address_line1 || undefined,
     current_address_city: a.current_address_city || undefined,
-    current_address_state: a.current_address_state || a.preferred_state || undefined,
+    current_address_state: a.current_address_state || undefined,
     current_address_postal: a.current_address_postal || undefined,
     current_address_move_in: a.current_address_move_in || undefined,
     employer_name: a.employer_name || undefined,

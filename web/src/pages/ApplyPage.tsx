@@ -36,6 +36,9 @@ export function ApplyPage() {
   const [busy, setBusy] = useState(false);
   const [hopping, setHopping] = useState(false);
   const [loadingIntake, setLoadingIntake] = useState(true);
+  const [accountLoad, setAccountLoad] = useState<'unknown' | 'ok' | 'failed' | 'signed_out'>(
+    'unknown',
+  );
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -63,6 +66,7 @@ export function ApplyPage() {
             setBootAnswers(local);
             setAnswers(local);
             setComplete(false);
+            setAccountLoad('signed_out');
           }
           return;
         }
@@ -77,11 +81,12 @@ export function ApplyPage() {
         setBootAnswers(merged);
         setAnswers(merged);
         setComplete(data.complete);
+        setAccountLoad('ok');
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : 'Could not load intake.');
-          setBootAnswers(local);
-          setAnswers(local);
+          setBootAnswers(null);
+          setAccountLoad('failed');
         }
       } finally {
         if (!cancelled) setLoadingIntake(false);
@@ -184,6 +189,17 @@ export function ApplyPage() {
     return (
       <Shell>
         <FrogPageLoader />
+      </Shell>
+    );
+  }
+
+  if (accountLoad === 'failed') {
+    return (
+      <Shell>
+        <ErrorState title="Account not loaded">
+          {error ?? 'Your account could not be loaded.'} This page will not use a browser draft as
+          your saved application.
+        </ErrorState>
       </Shell>
     );
   }

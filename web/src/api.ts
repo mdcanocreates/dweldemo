@@ -105,6 +105,7 @@ export type ApplicationProgressView = {
   primary_action: { key: string; label: string; href_hint: string | null } | null;
   last_update_at: string | null;
   action_required: string | null;
+  next_step?: string | null;
 };
 
 export type ListingSummary = {
@@ -115,6 +116,7 @@ export type ListingSummary = {
   property_type: string | null;
   thumbnail_url: string | null;
   rent_amount_cents: number | null;
+  status?: string | null;
 };
 
 export type RenterApplicationSummary = {
@@ -135,7 +137,7 @@ export type ApplicationDetail = {
   live_profile: RenterProfile | null;
   snapshot_is_frozen: boolean;
   dossier?: {
-    mode: 'frozen_snapshot' | 'live_dossier';
+    mode: 'frozen_snapshot' | 'snapshot_absent' | 'live_dossier';
     captured_at: string | null;
     snapshot_shape: string;
     snapshot_readable: boolean;

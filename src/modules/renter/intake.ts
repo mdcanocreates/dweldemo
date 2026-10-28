@@ -1,7 +1,13 @@
 import type { DbClient } from '../../db/pool.js';
+import { emitDomainEvent } from '../audit/index.js';
 import { AppError } from '../shared/errors.js';
 import { computeAndStoreRulesMatchScore } from '../matching/index.js';
 import { shouldFreezeIntakeSnapshot } from './dossier-view.js';
+import {
+  INTAKE_FROZEN_EVENT,
+  classifySnapshotRecovery,
+  type SnapshotRecovery,
+} from './lifecycle.js';
 import { getRenterProfile } from './profile.js';
 
 export type IntakePayload = {
@@ -223,7 +229,7 @@ export async function snapshotIntakeOnApplication(
     profile?.preferred_lease_term_months ??
     null;
 
-  await client.query(
+  const written = await client.query<{ id: string }>(
     `update application
      set intake_snapshot = $2::jsonb,
          preferred_lease_term_months = coalesce(
@@ -231,7 +237,8 @@ export async function snapshotIntakeOnApplication(
            $3
          )
      where id = $1
-       and (intake_snapshot is null)`,
+       and (intake_snapshot is null)
+     returning id`,
     [
       applicationId,
       JSON.stringify(snapshot),
@@ -240,6 +247,70 @@ export async function snapshotIntakeOnApplication(
         : null,
     ],
   );
+  if (!written.rows[0]) return;
+  await emitDomainEvent(client, {
+    aggregateType: 'application',
+    aggregateId: applicationId,
+    eventType: INTAKE_FROZEN_EVENT,
+    payload: {
+      source: INTAKE_FROZEN_EVENT,
+      snapshot,
+    },
+    actorPartyId: partyId,
+    actorKind: 'user',
+  });
+}
+
+/**
+ * Fill a null snapshot from the freeze event for this application.
+ * A stored snapshot is never replaced. A current profile or intake row is never copied in.
+ */
+export async function restoreSnapshotFromFreezeEvent(
+  client: DbClient,
+  applicationId: string,
+): Promise<SnapshotRecovery & { written: boolean }> {
+  const existing = await client.query<{ intake_snapshot: unknown }>(
+    `select intake_snapshot from application where id = $1 for update`,
+    [applicationId],
+  );
+  if (!existing.rows[0]) {
+    throw new AppError('application not found', 'application_not_found', 404);
+  }
+  if (existing.rows[0].intake_snapshot != null) {
+    return {
+      ...classifySnapshotRecovery({
+        intakeSnapshot: existing.rows[0].intake_snapshot,
+        freezeEventPayload: null,
+      }),
+      written: false,
+    };
+  }
+  const events = await client.query<{ payload: unknown }>(
+    `select payload
+       from domain_event
+      where aggregate_type = 'application'
+        and aggregate_id = $1
+        and event_type = $2
+      order by seq desc
+      limit 1`,
+    [applicationId, INTAKE_FROZEN_EVENT],
+  );
+  const decision = classifySnapshotRecovery({
+    intakeSnapshot: null,
+    freezeEventPayload: events.rows[0]?.payload ?? null,
+  });
+  if (decision.classification !== 'recoverable_from_freeze_event' || !decision.snapshot) {
+    return { ...decision, written: false };
+  }
+  const updated = await client.query<{ id: string }>(
+    `update application
+        set intake_snapshot = $2::jsonb
+      where id = $1
+        and intake_snapshot is null
+      returning id`,
+    [applicationId, JSON.stringify(decision.snapshot)],
+  );
+  return { ...decision, written: updated.rows.length === 1 };
 }
 
 export async function getApplicationIntakeDetail(

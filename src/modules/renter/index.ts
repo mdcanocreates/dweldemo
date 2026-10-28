@@ -28,9 +28,18 @@ export {
   intakeRowReady,
   isIntakeComplete,
   snapshotIntakeOnApplication,
+  restoreSnapshotFromFreezeEvent,
   getApplicationIntakeDetail,
   type IntakePayload,
 } from './intake.js';
+export {
+  applicationStatusLabel,
+  listingStatusLabel,
+  classifySnapshotRecovery,
+  submittedContactName,
+  INTAKE_FROZEN_EVENT,
+  type SnapshotRecovery,
+} from './lifecycle.js';
 export {
   presentApplicationDossier,
   recordedStatusUpdates,

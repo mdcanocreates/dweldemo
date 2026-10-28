@@ -15,6 +15,14 @@ import {
   validateRequiredDocumentTypes,
 } from '../renter/index.js';
 import { AppError } from '../shared/errors.js';
+import {
+  applicationStatusLabel,
+  classifySnapshotRecovery,
+  listingStatusLabel,
+  submittedContactEmail,
+  submittedContactName,
+  INTAKE_FROZEN_EVENT,
+} from '../renter/lifecycle.js';
 import { findIdempotentResponse, storeIdempotentResponse } from './idempotency.js';
 import { writeCcOutboxEvent } from './outbox.js';
 import {
@@ -248,8 +256,11 @@ type AppCaseRow = {
   email: string | null;
   preferred_state: string | null;
   badge_state: string | null;
+  listing_line1: string | null;
   listing_city: string | null;
   listing_state: string | null;
+  listing_status: string | null;
+  intake_snapshot: unknown;
   org_display_name: string | null;
 };
 
@@ -263,11 +274,17 @@ function updatedAtFromApp(row: AppCaseRow): Date {
 function toApplicationCase(
   row: AppCaseRow,
   documents: Array<Record<string, unknown>>,
+  recovery: ReturnType<typeof classifySnapshotRecovery>,
 ): CcCase {
   const updated = updatedAtFromApp(row);
   const version = iso(updated);
-  const displayName = [row.given_name, row.family_name].filter(Boolean).join(' ').trim() || null;
+  const submittedName = submittedContactName(row.intake_snapshot);
+  const liveName = [row.given_name, row.family_name].filter(Boolean).join(' ').trim() || null;
+  const displayName = submittedName ?? liveName;
   const allowed = applicationAllowedActions(row.status);
+  const statusLabel = applicationStatusLabel(row.status);
+  const regionLabel =
+    [row.listing_line1, row.listing_city, row.listing_state].filter(Boolean).join(', ') || null;
   return {
     sourceCaseId: row.id,
     caseType: 'application',
@@ -277,7 +294,8 @@ function toApplicationCase(
     party: { sourcePartyId: row.party_id },
     display: {
       displayName,
-      email: row.email,
+      nameSource: submittedName ? 'submitted_snapshot' : liveName ? 'current_account' : 'not_on_file',
+      email: submittedContactEmail(row.intake_snapshot) ?? row.email,
       preferredState: row.preferred_state,
       badgeState: row.badge_state,
       entryPoint: row.entry_point,
@@ -285,7 +303,13 @@ function toApplicationCase(
       listingId: row.listing_id,
       orgId: row.org_id,
       orgDisplayName: row.org_display_name,
-      regionLabel: [row.listing_city, row.listing_state].filter(Boolean).join(', ') || null,
+      regionLabel,
+      statusLabel,
+      summary: [statusLabel, regionLabel].filter(Boolean).join(' · ') || statusLabel,
+      listingStatus: row.listing_status,
+      listingStatusLabel: listingStatusLabel(row.listing_status),
+      snapshotRecovery: recovery.classification,
+      snapshotRecoveryReasons: recovery.reasons,
       // Timestamps only — no screening score/report body
       submittedAt: row.submitted_at ? iso(row.submitted_at) : null,
       screenedAt: row.screened_at ? iso(row.screened_at) : null,
@@ -312,7 +336,10 @@ async function loadApplicationCase(client: DbClient, id: string): Promise<CcCase
        a.id, a.status, a.created_at, a.submitted_at, a.screened_at, a.closed_at,
        a.entry_point, a.source_channel, a.listing_id, a.org_id, a.party_id,
        rp.given_name, rp.family_name, rp.email, rp.preferred_state, rp.badge_state,
+       coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as listing_line1,
        addr.city as listing_city, addr.state as listing_state,
+       l.status as listing_status,
+       a.intake_snapshot,
        o.display_name as org_display_name
      from application a
      join renter_profile rp on rp.id = a.renter_profile_id
@@ -401,7 +428,21 @@ async function loadApplicationCase(client: DbClient, id: string): Promise<CcCase
       }));
   });
 
-  const caseObj = toApplicationCase(row, [...linkedDocMeta, ...partyDocs]);
+  const freeze = await client.query<{ payload: unknown }>(
+    `select payload
+       from domain_event
+      where aggregate_type = 'application'
+        and aggregate_id = $1
+        and event_type = $2
+      order by seq desc
+      limit 1`,
+    [row.id, INTAKE_FROZEN_EVENT],
+  );
+  const recovery = classifySnapshotRecovery({
+    intakeSnapshot: row.intake_snapshot,
+    freezeEventPayload: freeze.rows[0]?.payload ?? null,
+  });
+  const caseObj = toApplicationCase(row, [...linkedDocMeta, ...partyDocs], recovery);
   caseObj.display = {
     ...caseObj.display,
     missingInfoRequests: missingInfo,

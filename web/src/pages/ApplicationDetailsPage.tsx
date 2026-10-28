@@ -4,11 +4,15 @@ import { api, ApiError, type ApplicationDetail, type DossierText } from '../api'
 import { useAuth } from '../auth';
 import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
-import { applicationStatusLabel, nextActorLabel } from '../lib/application-status';
+import { applicationStatusLabel, listingStatusLabel, nextActorLabel } from '../lib/application-status';
 
-function missingCopy(mode: 'frozen_snapshot' | 'live_dossier' | undefined, readable: boolean): string {
+function missingCopy(
+  mode: 'frozen_snapshot' | 'snapshot_absent' | 'live_dossier' | undefined,
+  readable: boolean,
+): string {
   if (readable === false) return 'Stored snapshot could not be read.';
   if (mode === 'frozen_snapshot') return 'Not included in the submitted application.';
+  if (mode === 'snapshot_absent') return 'Not on file for this application.';
   return 'Not on file.';
 }
 
@@ -123,10 +127,11 @@ export function ApplicationDetailsPage() {
           <p>
             Status: <strong>{statusLabel}</strong>
           </p>
+          <p>Listing: {listingStatusLabel(listing?.status)}</p>
           <p className="muted">
             {dossier.mode === 'frozen_snapshot'
               ? `Submitted snapshot${dossier.captured_at ? ` from ${new Date(dossier.captured_at).toLocaleString()}` : ''}. Later profile edits do not change this submission.`
-              : 'No frozen snapshot is stored. The sections below are the current dossier, not a historical submission.'}
+              : 'No submitted snapshot is stored for this application. Empty fields were not filled from your current profile.'}
           </p>
           {dossier.snapshot_readable === false && (
             <ErrorState title="Snapshot unreadable">
@@ -137,6 +142,9 @@ export function ApplicationDetailsPage() {
           <p className="muted">
             Current stage: {data.progress?.current_label ?? 'Not recorded'} · Next action:{' '}
             {nextActorLabel(data.progress?.next_action_owner)}
+          </p>
+          <p>
+            Next step: {data.progress?.next_step ?? 'No next step is recorded for this application.'}
           </p>
           <div className="panel stack">
             <h2>Contact</h2>

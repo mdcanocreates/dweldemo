@@ -6,6 +6,11 @@ import {
   recordedStatusUpdates,
   shouldFreezeIntakeSnapshot,
 } from '../../src/modules/renter/dossier-view.js';
+import {
+  authoritativeSnapshotFromFreeze,
+  classifySnapshotRecovery,
+  INTAKE_FROZEN_EVENT,
+} from '../../src/modules/renter/lifecycle.js';
 import { intakeRowReady } from '../../src/modules/renter/intake.js';
 
 const liveProfile = {
@@ -49,7 +54,8 @@ describe('renter dossier presentation', () => {
     });
     expect(presented.residence.line1.value).toBe('1 Main');
     expect(presented.employment.employer_name.value).toBe('Acme');
-    expect(presented.current_account).toBeNull();
+    expect(presented.current_account?.reason).toBe('account_is_not_the_submission');
+    expect(presented.current_account?.contact.given_name.value).toBe('Changed');
   });
 
   it('keeps a missing snapshot field empty and shows the current account separately', () => {
@@ -77,19 +83,47 @@ describe('renter dossier presentation', () => {
     expect(presented.current_account?.contact.email.source).toBe('current_account');
   });
 
-  it('labels an unfrozen application as the live dossier', () => {
+  it('does not treat a missing snapshot as the current profile', () => {
     const presented = presentApplicationDossier({
       snapshot: null,
       snapshotFrozen: false,
       liveProfile,
       liveIntake: { employer_name: 'Acme', job_title: 'Engineer' },
     });
-    expect(presented.mode).toBe('live_dossier');
+    expect(presented.mode).toBe('snapshot_absent');
     expect(presented.retrieval.snapshot).toBe('absent');
-    expect(presented.contact.given_name).toEqual({ value: 'Ava', source: 'live_dossier' });
-    expect(presented.employment.employer_name.source).toBe('live_dossier');
-    expect(presented.residence.line1.source).toBe('not_on_file');
-    expect(presented.current_account).toBeNull();
+    expect(presented.contact.given_name).toEqual({ value: null, source: 'not_on_file' });
+    expect(presented.employment.employer_name.source).toBe('not_on_file');
+    expect(presented.current_account?.reason).toBe('account_is_not_the_submission');
+    expect(presented.current_account?.contact.given_name.value).toBe('Ava');
+    expect(presented.current_account?.employment.employer_name.value).toBe('Acme');
+  });
+
+  it('recovers a snapshot only from the freeze event', () => {
+    const snapshot = {
+      captured_at: '2026-03-01T00:00:00.000Z',
+      contact: { given_name: 'Ava', family_name: 'Cole' },
+      intake: { employer_name: 'Acme' },
+    };
+    expect(
+      classifySnapshotRecovery({
+        intakeSnapshot: snapshot,
+        freezeEventPayload: { source: INTAKE_FROZEN_EVENT, snapshot: { captured_at: 'later' } },
+      }),
+    ).toMatchObject({ classification: 'snapshot_present', snapshot: null });
+    expect(
+      classifySnapshotRecovery({
+        intakeSnapshot: null,
+        freezeEventPayload: { source: INTAKE_FROZEN_EVENT, snapshot },
+      }).snapshot,
+    ).toEqual(snapshot);
+    expect(
+      classifySnapshotRecovery({
+        intakeSnapshot: null,
+        freezeEventPayload: { given_name: 'Ava' },
+      }).classification,
+    ).toBe('not_recoverable');
+    expect(authoritativeSnapshotFromFreeze({ source: 'profile', snapshot })).toBeNull();
   });
 
   it('does not invent fields from an unrecognized snapshot', () => {

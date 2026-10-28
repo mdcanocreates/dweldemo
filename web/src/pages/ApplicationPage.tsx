@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { readAccessToken } from '../accessToken';
 import { api, ApiError } from '../api';
 import { ErrorState, Shell } from '../components/Shell';
+import { applicationStatusLabel, screeningCheckLabel } from '../lib/application-status';
 
 type AppStatus = {
   application_id: string;
@@ -94,7 +95,7 @@ export function ApplicationPage() {
       );
       setScreeningNote({
         kind: 'ok',
-        text: `Screening submitted. Application status is now “${result.status}”. Refresh this page for updates.`,
+        text: `Screening submitted. Application status is now “${applicationStatusLabel(result.status)}”. Refresh this page for updates.`,
       });
       await refresh();
     } catch (err) {
@@ -147,7 +148,7 @@ export function ApplicationPage() {
       <div className="stack">
         <div>
           <h1>Your application</h1>
-          <p>Status: <strong>{status.status}</strong></p>
+          <p>Status: <strong>{applicationStatusLabel(status.status)}</strong></p>
         </div>
 
         <div className="progress" aria-label="Application progress">
@@ -169,11 +170,13 @@ export function ApplicationPage() {
           <div>
             <h2>Status</h2>
             <p>
-              Application: <strong>{status.status}</strong>
+              Application: <strong>{applicationStatusLabel(status.status)}</strong>
             </p>
             <p>
               Screening:{' '}
-              <strong>{status.screening.status ?? 'not started'}</strong>
+              <strong>
+                {status.screening.status ? screeningCheckLabel(status.screening.status) : 'Not started'}
+              </strong>
             </p>
             <button type="button" className="btn btn-secondary" onClick={() => void refresh()}>
               Refresh status

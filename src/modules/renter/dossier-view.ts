@@ -53,7 +53,7 @@ export type LiveProfileFields = {
 export type SnapshotShape = 'wrapped' | 'flat_intake' | 'empty' | 'unrecognized';
 
 export type PresentedDossier = {
-  mode: 'frozen_snapshot' | 'live_dossier';
+  mode: 'frozen_snapshot' | 'snapshot_absent' | 'live_dossier';
   captured_at: string | null;
   snapshot_shape: SnapshotShape;
   snapshot_readable: boolean;
@@ -66,7 +66,7 @@ export type PresentedDossier = {
   vehicle: JsonField;
   /** Live account data that was not part of the frozen submission. */
   current_account: null | {
-    reason: 'fills_gaps_in_submission';
+    reason: 'fills_gaps_in_submission' | 'account_is_not_the_submission';
     contact: ContactBlock;
     residence: ResidenceBlock;
     employment: EmploymentBlock;
@@ -284,31 +284,27 @@ export function presentApplicationDossier(input: {
   };
 
   if (!input.snapshotFrozen) {
-    const source: FieldSource = 'live_dossier';
+    const account = input.liveProfile || input.liveIntake;
     return {
-      mode: 'live_dossier',
+      mode: 'snapshot_absent',
       captured_at: null,
       snapshot_shape: 'empty',
       snapshot_readable: true,
-      contact: input.liveProfile
-        ? contactFrom(
-            {
-              given_name: input.liveProfile.given_name,
-              family_name: input.liveProfile.family_name,
-              email: input.liveProfile.email,
-              phone_e164: input.liveProfile.phone_e164,
-            },
-            source,
-            'phone_e164',
-          )
-        : emptyContact(),
-      residence: residenceFrom(input.liveIntake, source),
-      employment: employmentFrom(input.liveIntake, source),
-      occupants: jsonField(input.liveIntake?.occupants, source),
-      pets: jsonField(input.liveIntake?.pets, source),
-      emergency_contact: jsonField(input.liveIntake?.emergency_contact, source),
-      vehicle: jsonField(input.liveIntake?.vehicle, source),
-      current_account: null,
+      contact: emptyContact(),
+      residence: emptyResidence(),
+      employment: emptyEmployment(),
+      occupants: jsonField(null, 'not_on_file'),
+      pets: jsonField(null, 'not_on_file'),
+      emergency_contact: jsonField(null, 'not_on_file'),
+      vehicle: jsonField(null, 'not_on_file'),
+      current_account: account
+        ? {
+            reason: 'account_is_not_the_submission',
+            contact: liveContact(input.liveProfile),
+            residence: residenceFrom(input.liveIntake, 'current_account'),
+            employment: employmentFrom(input.liveIntake, 'current_account'),
+          }
+        : null,
       retrieval,
     };
   }
@@ -329,6 +325,13 @@ export function presentApplicationDossier(input: {
     blockHasValue(accountContact) ||
     blockHasValue(accountResidence) ||
     blockHasValue(accountEmployment);
+  const submittedName = [contact.given_name.value, contact.family_name.value]
+    .filter(Boolean)
+    .join(' ');
+  const accountName = [accountContact.given_name.value, accountContact.family_name.value]
+    .filter(Boolean)
+    .join(' ');
+  const accountDrifted = Boolean(submittedName && accountName && submittedName !== accountName);
 
   return {
     mode: 'frozen_snapshot',
@@ -343,9 +346,9 @@ export function presentApplicationDossier(input: {
     emergency_contact: jsonField(parsed.intake?.emergency_contact, source),
     vehicle: jsonField(parsed.intake?.vehicle, source),
     current_account:
-      submittedHasGap && accountHasValue
+      (submittedHasGap || accountDrifted) && accountHasValue
         ? {
-            reason: 'fills_gaps_in_submission',
+            reason: accountDrifted ? 'account_is_not_the_submission' : 'fills_gaps_in_submission',
             contact: accountContact,
             residence: accountResidence,
             employment: accountEmployment,

@@ -9,6 +9,7 @@ import {
   checkApplicationCreationRateLimit,
   createPublicApplication,
   payAndRecordConsent,
+  presentRenterProgress,
 } from '../modules/applications/index.js';
 import {
   acknowledgeLeaseDocument,
@@ -26,6 +27,8 @@ import {
   getScreeningCenter,
   intakeRowReady,
   presentApplicationDossier,
+  classifySnapshotRecovery,
+  INTAKE_FROZEN_EVENT,
   recordedStatusUpdates,
   listSavedListings,
   addSavedListing,
@@ -273,13 +276,16 @@ export async function handleListMyApplications(
           fee_paid: string | null;
           lease_workflow: string | null;
           cashback_status: string | null;
+          listing_status: string | null;
         }>(
           `select a.id, a.status, a.listing_id, a.created_at,
                   a.move_forward_at, a.passed_at, a.info_requested_at,
                   a.screening_authorized_at, a.screened_at, a.closed_at,
                   a.contact_revealed_at,
-                  addr.city, addr.state, addr.line1, addr.postal_code,
-                  p.property_type, l.rent_amount_cents,
+                  addr.city, addr.state,
+                  coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as line1,
+                  addr.postal_code,
+                  p.property_type, l.rent_amount_cents, l.status as listing_status,
                   ${thumbExpr} as thumbnail_url,
                   (select sra.id::text from screening_report_access sra
                     where sra.application_id = a.id limit 1) as reuse_grant,
@@ -377,21 +383,24 @@ export async function handleListMyApplications(
     sendJson(res, 200, {
       applications: appsWithMir.map(({ app: a, missing }) => {
         const created = a.created_at.toISOString();
-        const progress = buildApplicationProgress({
-          status: a.status,
-          created_at: created,
-          move_forward_at: a.move_forward_at?.toISOString() ?? null,
-          passed_at: a.passed_at?.toISOString() ?? null,
-          info_requested_at: a.info_requested_at?.toISOString() ?? null,
-          screening_authorized_at: a.screening_authorized_at?.toISOString() ?? null,
-          screened_at: a.screened_at?.toISOString() ?? null,
-          closed_at: a.closed_at?.toISOString() ?? null,
-          contact_revealed_at: a.contact_revealed_at?.toISOString() ?? null,
-          reused_report: Boolean(a.reuse_grant),
-          fee_paid: Boolean(a.fee_paid),
-          lease_workflow_status: a.lease_workflow,
-          cashback_status: a.cashback_status,
-        });
+        const progress = presentRenterProgress(
+          buildApplicationProgress({
+            status: a.status,
+            created_at: created,
+            move_forward_at: a.move_forward_at?.toISOString() ?? null,
+            passed_at: a.passed_at?.toISOString() ?? null,
+            info_requested_at: a.info_requested_at?.toISOString() ?? null,
+            screening_authorized_at: a.screening_authorized_at?.toISOString() ?? null,
+            screened_at: a.screened_at?.toISOString() ?? null,
+            closed_at: a.closed_at?.toISOString() ?? null,
+            contact_revealed_at: a.contact_revealed_at?.toISOString() ?? null,
+            reused_report: Boolean(a.reuse_grant),
+            fee_paid: Boolean(a.fee_paid),
+            lease_workflow_status: a.lease_workflow,
+            cashback_status: a.cashback_status,
+          }),
+          a.listing_status,
+        );
         return {
           application_id: a.id,
           status: a.status,
@@ -415,6 +424,7 @@ export async function handleListMyApplications(
                 property_type: a.property_type,
                 thumbnail_url: a.thumbnail_url,
                 rent_amount_cents: a.rent_amount_cents,
+                status: a.listing_status,
               }
             : null,
         };
@@ -884,11 +894,13 @@ export async function handleGetApplicationIntakeDetail(
           thumbnail_url: string | null;
           reuse_grant: string | null;
           fee_paid: string | null;
+          listing_status: string | null;
         }>(
           `select a.created_at, a.move_forward_at, a.passed_at, a.info_requested_at,
                   a.screening_authorized_at, a.screened_at, a.closed_at, a.contact_revealed_at,
-                  addr.line1, addr.city, addr.state, addr.postal_code,
-                  p.property_type, l.rent_amount_cents,
+                  coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as line1,
+                  addr.city, addr.state, addr.postal_code,
+                  p.property_type, l.rent_amount_cents, l.status as listing_status,
                   ${thumbExpr} as thumbnail_url,
                   (select sra.id::text from screening_report_access sra
                     where sra.application_id = a.id limit 1) as reuse_grant,
@@ -961,12 +973,29 @@ export async function handleGetApplicationIntakeDetail(
             documents = [];
           }
         }
-        const progress = buildApplicationProgress({
-          status: base.status,
-          ...stamps,
-          reused_report: Boolean(row.reuse_grant),
-          fee_paid: Boolean(row.fee_paid),
+        const freeze = await client.query<{ payload: unknown }>(
+          `select payload
+             from domain_event
+            where aggregate_type = 'application'
+              and aggregate_id = $1
+              and event_type = $2
+            order by seq desc
+            limit 1`,
+          [applicationId, INTAKE_FROZEN_EVENT],
+        );
+        const recovery = classifySnapshotRecovery({
+          intakeSnapshot: base.snapshot,
+          freezeEventPayload: freeze.rows[0]?.payload ?? null,
         });
+        const progress = presentRenterProgress(
+          buildApplicationProgress({
+            status: base.status,
+            ...stamps,
+            reused_report: Boolean(row.reuse_grant),
+            fee_paid: Boolean(row.fee_paid),
+          }),
+          row.listing_status,
+        );
         return {
           ...base,
           live_profile: profile,
@@ -976,6 +1005,10 @@ export async function handleGetApplicationIntakeDetail(
             liveProfile: profile,
             liveIntake: base.live_intake,
           }),
+          snapshot_recovery: {
+            classification: recovery.classification,
+            reasons: recovery.reasons,
+          },
           listing: base.listing_id
             ? {
                 line1: row.line1,
@@ -985,6 +1018,7 @@ export async function handleGetApplicationIntakeDetail(
                 property_type: row.property_type,
                 rent_amount_cents: row.rent_amount_cents,
                 thumbnail_url: row.thumbnail_url,
+                status: row.listing_status,
               }
             : null,
           documents,

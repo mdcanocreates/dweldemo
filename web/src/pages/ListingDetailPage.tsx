@@ -161,6 +161,7 @@ export function ListingDetailPage() {
                 You applied.{' '}
                 {existing.progress?.status_label ?? applicationStatusLabel(existing.status)}
               </p>
+              {existing.progress?.next_step && <p>{existing.progress.next_step}</p>}
               <Link
                 className="btn btn-primary"
                 style={{ width: '100%', marginTop: '0.75rem' }}
