@@ -69,17 +69,48 @@ async function findPartyByEmailRef(
   return rows[0]?.party_id ?? null;
 }
 
-async function linkEmailRef(
+/**
+ * Attach a newly created party to the email identity.
+ * If another request already claimed that email, the existing party wins.
+ * The unused party is left in place. Callers must not delete or merge it.
+ */
+export function resolveClaimedParty(input: {
+  createdPartyId: string;
+  claimInserted: boolean;
+  existingPartyId: string | null;
+}): { partyId: string; orphanPartyId: string | null } {
+  if (input.claimInserted) {
+    return { partyId: input.createdPartyId, orphanPartyId: null };
+  }
+  if (!input.existingPartyId) {
+    throw new AppError('could not resolve account', 'auth_identity_conflict', 409);
+  }
+  if (input.existingPartyId === input.createdPartyId) {
+    return { partyId: input.createdPartyId, orphanPartyId: null };
+  }
+  return { partyId: input.existingPartyId, orphanPartyId: input.createdPartyId };
+}
+
+export async function claimEmailIdentity(
   client: DbClient,
-  partyId: string,
+  createdPartyId: string,
   emailHmac: Buffer,
-): Promise<void> {
-  await client.query(
+): Promise<{ partyId: string; orphanPartyId: string | null }> {
+  const inserted = await client.query<{ party_id: string }>(
     `insert into external_identity_ref (party_id, vendor, vendor_subject_id)
      values ($1, 'email', $2)
-     on conflict (vendor, vendor_subject_id) do nothing`,
-    [partyId, emailHmac.toString('hex')],
+     on conflict (vendor, vendor_subject_id) do nothing
+     returning party_id`,
+    [createdPartyId, emailHmac.toString('hex')],
   );
+  const existing = inserted.rows[0]
+    ? inserted.rows[0].party_id
+    : await findPartyByEmailRef(client, emailHmac);
+  return resolveClaimedParty({
+    createdPartyId,
+    claimInserted: Boolean(inserted.rows[0]),
+    existingPartyId: existing,
+  });
 }
 
 /**
@@ -127,8 +158,8 @@ export async function issueMagicToken(
     const created = await createPartyWithIdentity(client, kms, {
       identity: { email: input.email },
     });
-    partyId = created.partyId;
-    await linkEmailRef(client, partyId, emailHmac);
+    const claim = await claimEmailIdentity(client, created.partyId, emailHmac);
+    partyId = claim.partyId;
   }
 
   // Invalidate prior outstanding tokens for this email+purpose.

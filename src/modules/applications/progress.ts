@@ -78,6 +78,8 @@ const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
   submitted: 'Submitted',
   awaiting_landlord_interest: 'Interest sent',
+  mutual_interest: 'Home provider is interested',
+  prescreen: 'Pre-screen in progress',
   interested: 'Interest sent',
   awaiting_consent: 'Screening authorization needed',
   screening_authorized: 'Screening authorized',

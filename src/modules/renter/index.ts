@@ -25,11 +25,19 @@ export {
 export {
   getRenterIntake,
   upsertRenterIntake,
+  intakeRowReady,
   isIntakeComplete,
   snapshotIntakeOnApplication,
   getApplicationIntakeDetail,
   type IntakePayload,
 } from './intake.js';
+export {
+  presentApplicationDossier,
+  recordedStatusUpdates,
+  shouldFreezeIntakeSnapshot,
+  type PresentedDossier,
+  type RecordedUpdate,
+} from './dossier-view.js';
 export {
   listSavedListings,
   addSavedListing,

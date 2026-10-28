@@ -1,6 +1,7 @@
 import type { DbClient } from '../../db/pool.js';
 import { AppError } from '../shared/errors.js';
 import { computeAndStoreRulesMatchScore } from '../matching/index.js';
+import { shouldFreezeIntakeSnapshot } from './dossier-view.js';
 import { getRenterProfile } from './profile.js';
 
 export type IntakePayload = {
@@ -44,6 +45,27 @@ export async function upsertRenterIntake(
     input.preferred_lease_term_months > 0
       ? Math.trunc(input.preferred_lease_term_months)
       : null;
+
+  if (input.mark_complete) {
+    const existing = await getRenterIntake(client, partyId);
+    const merged: Record<string, unknown> = { ...(existing ?? {}) };
+    const keep = (key: (typeof INTAKE_READY_FIELDS)[number], value: string | null | undefined) => {
+      if (typeof value === 'string' && value.trim()) merged[key] = value.trim();
+    };
+    keep('current_address_line1', input.current_address_line1);
+    keep('current_address_city', input.current_address_city);
+    keep('current_address_state', input.current_address_state);
+    keep('current_address_postal', input.current_address_postal);
+    keep('employer_name', input.employer_name);
+    keep('job_title', input.job_title);
+    if (!intakeRowReady(merged)) {
+      throw new AppError(
+        'current address and employment are required before intake can be completed',
+        'intake_incomplete',
+        400,
+      );
+    }
+  }
 
   await client.query(
     `insert into renter_application_intake (
@@ -136,6 +158,24 @@ export async function upsertRenterIntake(
   return row;
 }
 
+const INTAKE_READY_FIELDS = [
+  'current_address_line1',
+  'current_address_city',
+  'current_address_state',
+  'current_address_postal',
+  'employer_name',
+  'job_title',
+] as const;
+
+/** Residence and employment must be present before an intake can be marked complete. */
+export function intakeRowReady(row: Record<string, unknown> | null | undefined): boolean {
+  if (!row) return false;
+  return INTAKE_READY_FIELDS.every((key) => {
+    const value = row[key];
+    return typeof value === 'string' && value.trim().length > 0;
+  });
+}
+
 export async function isIntakeComplete(client: DbClient, partyId: string): Promise<boolean> {
   const { rows } = await client.query<{ completed_at: Date | null }>(
     `select completed_at from renter_application_intake where party_id = $1`,
@@ -153,6 +193,12 @@ export async function snapshotIntakeOnApplication(
   applicationId: string,
   partyId: string,
 ): Promise<void> {
+  const existing = await client.query<{ intake_snapshot: unknown }>(
+    `select intake_snapshot from application where id = $1`,
+    [applicationId],
+  );
+  if (!shouldFreezeIntakeSnapshot(existing.rows[0]?.intake_snapshot)) return;
+
   const intake = await getRenterIntake(client, partyId);
   const profile = await getRenterProfile(client, partyId);
   const snapshot = {

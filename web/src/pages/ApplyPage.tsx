@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, ApiError, type RenterProfile } from '../api';
+import { api, ApiError } from '../api';
 import { rememberAccessToken } from '../accessToken';
 import { useAuth } from '../auth';
 import { FrogPageLoader, InlineSpinner } from '../components/FrogPageLoader';
@@ -11,78 +11,13 @@ import { useDelayedPending } from '../hooks/useDelayedPending';
 import {
   answersToIntakePayload,
   answersToProfilePayload,
+  intakeFieldsReady,
   loadAnswers,
+  mergeServerRecords,
   profileComplete,
   saveAnswers,
-  type Occupant,
-  type Pet,
   type RenterAnswers,
 } from '../intake/answers';
-
-function mergeServerIntoAnswers(
-  local: RenterAnswers,
-  intake: Record<string, unknown> | null,
-  profile: RenterProfile | null,
-): RenterAnswers {
-  const next: RenterAnswers = { ...local };
-  if (profile) {
-    next.given_name = profile.given_name || next.given_name;
-    next.family_name = profile.family_name || next.family_name;
-    next.phone = profile.phone_e164 || next.phone;
-    next.email = profile.email || next.email;
-    if (profile.annual_income_cents) {
-      next.annual_income_dollars = String(Math.round(profile.annual_income_cents / 100));
-      if (!next.monthly_gross_income_dollars) {
-        next.monthly_gross_income_dollars = String(Math.round(profile.annual_income_cents / 12 / 100));
-      }
-    }
-    next.move_in_urgency = profile.move_in_urgency || next.move_in_urgency;
-    next.bedrooms_min = String(profile.bedrooms_min ?? next.bedrooms_min);
-    if (profile.rent_max_cents) {
-      next.rent_max_dollars = String(Math.round(profile.rent_max_cents / 100));
-    }
-    next.preferred_state = profile.preferred_state || next.preferred_state;
-    if (profile.has_pets != null) next.has_pets = profile.has_pets;
-    next.household_size = String(profile.household_size ?? next.household_size);
-    next.profile_complete = true;
-  }
-  if (!intake) return next;
-  next.current_address_line1 = String(intake.current_address_line1 ?? next.current_address_line1);
-  next.current_address_city = String(intake.current_address_city ?? next.current_address_city);
-  next.current_address_state = String(
-    intake.current_address_state ?? profile?.preferred_state ?? next.current_address_state,
-  );
-  next.current_address_postal = String(intake.current_address_postal ?? next.current_address_postal);
-  next.current_address_move_in = intake.current_address_move_in
-    ? String(intake.current_address_move_in).slice(0, 10)
-    : next.current_address_move_in;
-  next.employer_name = String(intake.employer_name ?? next.employer_name);
-  next.job_title = String(intake.job_title ?? next.job_title);
-  next.employer_phone = String(intake.employer_phone ?? next.employer_phone);
-  if (intake.employment_length_months != null) {
-    next.employment_length_months = String(intake.employment_length_months);
-  }
-  if (intake.monthly_gross_income_cents != null) {
-    next.monthly_gross_income_dollars = String(Number(intake.monthly_gross_income_cents) / 100);
-  }
-  const occ = Array.isArray(intake.occupants) ? (intake.occupants as Occupant[]) : [];
-  if (occ.length) next.occupants = occ;
-  const petRows = Array.isArray(intake.pets) ? (intake.pets as Pet[]) : [];
-  if (petRows.length) next.pets = petRows;
-  const ec = (intake.emergency_contact ?? null) as Record<string, string> | null;
-  if (ec) {
-    next.emergency_name = ec.name ?? next.emergency_name;
-    next.emergency_relationship = ec.relationship ?? next.emergency_relationship;
-    next.emergency_phone = ec.phone ?? next.emergency_phone;
-  }
-  const veh = (intake.vehicle ?? null) as Record<string, string> | null;
-  if (veh) {
-    next.vehicle_make = veh.make ?? next.vehicle_make;
-    next.vehicle_model = veh.model ?? next.vehicle_model;
-    next.vehicle_plate = veh.plate ?? next.vehicle_plate;
-  }
-  return next;
-}
 
 /**
  * N-6 apply — remaining intake fields only (G-0 lives on homepage).
@@ -133,10 +68,10 @@ export function ApplyPage() {
         }
         const data = await api.getRenterIntake();
         if (cancelled) return;
-        const merged = mergeServerIntoAnswers(
+        const merged = mergeServerRecords(
           local,
-          (data.intake as Record<string, unknown>) ?? null,
           data.profile,
+          (data.intake as Record<string, unknown>) ?? null,
         );
         saveAnswers(merged);
         setBootAnswers(merged);
@@ -177,6 +112,13 @@ export function ApplyPage() {
   }
 
   async function persistAndInterest(fromAnswers: RenterAnswers) {
+    if (!intakeFieldsReady(fromAnswers)) {
+      throw new ApiError(
+        400,
+        'intake_incomplete',
+        'Add your current address and employment before submitting. Empty fields are not filled in for you.',
+      );
+    }
     await api.upsertRenterProfile(answersToProfilePayload(fromAnswers));
     await api.upsertRenterIntake(answersToIntakePayload(fromAnswers, true));
     setComplete(true);
@@ -310,7 +252,7 @@ export function ApplyPage() {
         </form>
       )}
 
-      {complete && !editOnly ? (
+      {intakeFieldsReady(answers) && complete && !editOnly ? (
         <div className="panel stack" style={{ marginTop: '1.25rem', maxWidth: '40rem' }}>
           <p>
             Profile: {answers.given_name} {answers.family_name} · {answers.email}
@@ -324,19 +266,26 @@ export function ApplyPage() {
               answers.current_address_postal,
             ]
               .filter(Boolean)
-              .join(', ') || '—'}
+              .join(', ')}
           </p>
           <p>
-            Employer: {answers.employer_name || '—'} · {answers.job_title || '—'} · income{' '}
+            Employer: {answers.employer_name} · {answers.job_title}
             {answers.monthly_gross_income_dollars
-              ? moneyFromCents(Math.round(Number(answers.monthly_gross_income_dollars) * 100))
-              : '—'}
-            /mo
+              ? ` · income ${moneyFromCents(Math.round(Number(answers.monthly_gross_income_dollars) * 100))}/mo`
+              : ''}
           </p>
           <div className="row-between" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
             <Link className="btn btn-secondary" to="/discover">
               Edit profile
             </Link>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => setComplete(false)}
+            >
+              Edit address and employment
+            </button>
             <button
               type="button"
               className="btn btn-primary"
@@ -348,12 +297,97 @@ export function ApplyPage() {
           </div>
         </div>
       ) : (
-        <div className="panel stack" style={{ marginTop: '1.25rem', maxWidth: '40rem' }}>
-          <p>Finish your renter profile, then come back to send interest.</p>
-          <Link className="btn btn-primary" to="/discover">
-            Open profile form
-          </Link>
-        </div>
+        <form
+          className="panel form-grid"
+          style={{ marginTop: '1.25rem', maxWidth: '40rem' }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitAndInterest();
+          }}
+        >
+          <p>
+            Current address and employment are saved on your account. They are copied into an
+            application only when you submit, and later profile edits do not rewrite that copy.
+          </p>
+          {!intakeFieldsReady(answers) && <p>Address and employment are still incomplete.</p>}
+          <label>
+            Street address
+            <input
+              required
+              value={answers.current_address_line1}
+              onChange={(e) => persist({ ...answers, current_address_line1: e.target.value })}
+            />
+          </label>
+          <label>
+            City
+            <input
+              required
+              value={answers.current_address_city}
+              onChange={(e) => persist({ ...answers, current_address_city: e.target.value })}
+            />
+          </label>
+          <label>
+            State
+            <input
+              required
+              maxLength={2}
+              value={answers.current_address_state}
+              onChange={(e) =>
+                persist({ ...answers, current_address_state: e.target.value.toUpperCase() })
+              }
+            />
+          </label>
+          <label>
+            Postal code
+            <input
+              required
+              value={answers.current_address_postal}
+              onChange={(e) => persist({ ...answers, current_address_postal: e.target.value })}
+            />
+          </label>
+          <label>
+            Employer
+            <input
+              required
+              value={answers.employer_name}
+              onChange={(e) => persist({ ...answers, employer_name: e.target.value })}
+            />
+          </label>
+          <label>
+            Job title
+            <input
+              required
+              value={answers.job_title}
+              onChange={(e) => persist({ ...answers, job_title: e.target.value })}
+            />
+          </label>
+          <label>
+            Employer phone
+            <input
+              value={answers.employer_phone}
+              onChange={(e) => persist({ ...answers, employer_phone: e.target.value })}
+            />
+          </label>
+          <label>
+            Months at this job
+            <input
+              inputMode="numeric"
+              value={answers.employment_length_months}
+              onChange={(e) => persist({ ...answers, employment_length_months: e.target.value })}
+            />
+          </label>
+          <label>
+            Monthly income, if you want to include it
+            <input
+              inputMode="decimal"
+              value={answers.monthly_gross_income_dollars}
+              onChange={(e) => persist({ ...answers, monthly_gross_income_dollars: e.target.value })}
+            />
+          </label>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? 'Saving…' : editOnly ? 'Save account dossier' : 'Save and submit interest'}
+          </button>
+        </form>
       )}
     </Shell>
   );

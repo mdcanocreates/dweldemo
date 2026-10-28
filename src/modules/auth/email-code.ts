@@ -7,7 +7,7 @@ import { createPartyWithIdentity } from '../identity/index.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { AppError } from '../shared/errors.js';
 import { insertUserSession } from './session.js';
-import { platformEmailHmac } from './passwordless.js';
+import { claimEmailIdentity, platformEmailHmac } from './passwordless.js';
 import {
   decideOtpVerification,
   generateNumericCode,
@@ -119,13 +119,8 @@ export async function issueEmailCode(
     const created = await createPartyWithIdentity(client, kms, {
       identity: { email: input.email },
     });
-    partyId = created.partyId;
-    await client.query(
-      `insert into external_identity_ref (party_id, vendor, vendor_subject_id)
-       values ($1, 'email', $2)
-       on conflict (vendor, vendor_subject_id) do nothing`,
-      [partyId, emailHmac.toString('hex')],
-    );
+    const claim = await claimEmailIdentity(client, created.partyId, emailHmac);
+    partyId = claim.partyId;
   }
 
   const accountRecent = await client.query<{ n: number }>(

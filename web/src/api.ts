@@ -91,6 +91,121 @@ export type RenterProfile = {
   updated_at: string;
 };
 
+export type DossierText = {
+  value: string | null;
+  source: 'submitted_snapshot' | 'live_dossier' | 'current_account' | 'not_on_file';
+};
+
+export type ApplicationProgressView = {
+  status: string;
+  status_label: string;
+  current_stage: string;
+  current_label: string;
+  next_action_owner: 'renter' | 'home_provider' | 'system' | 'none' | string;
+  primary_action: { key: string; label: string; href_hint: string | null } | null;
+  last_update_at: string | null;
+  action_required: string | null;
+};
+
+export type ListingSummary = {
+  line1: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  property_type: string | null;
+  thumbnail_url: string | null;
+  rent_amount_cents: number | null;
+};
+
+export type RenterApplicationSummary = {
+  application_id: string;
+  status: string;
+  listing_id: string | null;
+  created_at: string;
+  progress?: ApplicationProgressView;
+  listing: ListingSummary | null;
+};
+
+export type ApplicationDetail = {
+  application_id: string;
+  listing_id: string | null;
+  status: string;
+  snapshot: unknown;
+  live_intake: Record<string, unknown> | null;
+  live_profile: RenterProfile | null;
+  snapshot_is_frozen: boolean;
+  dossier?: {
+    mode: 'frozen_snapshot' | 'live_dossier';
+    captured_at: string | null;
+    snapshot_shape: string;
+    snapshot_readable: boolean;
+    contact: {
+      given_name: DossierText;
+      family_name: DossierText;
+      email: DossierText;
+      phone: DossierText;
+    };
+    residence: {
+      line1: DossierText;
+      city: DossierText;
+      state: DossierText;
+      postal: DossierText;
+      move_in: DossierText;
+    };
+    employment: {
+      employer_name: DossierText;
+      job_title: DossierText;
+      employer_phone: DossierText;
+      employment_length_months: DossierText;
+      monthly_gross_income_cents: DossierText;
+    };
+    occupants: { value: unknown; source: string };
+    pets: { value: unknown; source: string };
+    emergency_contact: { value: unknown; source: string };
+    vehicle: { value: unknown; source: string };
+    current_account: null | {
+      reason: string;
+      contact: {
+        given_name: DossierText;
+        family_name: DossierText;
+        email: DossierText;
+        phone: DossierText;
+      };
+      residence: {
+        line1: DossierText;
+        city: DossierText;
+        state: DossierText;
+        postal: DossierText;
+        move_in: DossierText;
+      };
+      employment: {
+        employer_name: DossierText;
+        job_title: DossierText;
+        employer_phone: DossierText;
+        employment_length_months: DossierText;
+        monthly_gross_income_cents: DossierText;
+      };
+    };
+    retrieval: {
+      snapshot: 'present' | 'absent';
+      profile: 'present' | 'absent';
+      intake: 'present' | 'absent';
+    };
+  };
+  listing: ListingSummary | null;
+  documents: Array<{
+    document_id: string;
+    doc_type: string;
+    content_type: string;
+    size_bytes: number;
+    scan_status: string;
+    created_at: string;
+  }>;
+  documents_retrieval: 'ok' | 'unavailable';
+  progress?: ApplicationProgressView;
+  recorded_updates: Array<{ at: string; label: string }>;
+};
+
 async function request<T>(
   path: string,
   init: RequestInit & { accessToken?: string; sessionId?: string } = {},
@@ -206,14 +321,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getApplicationDetails: (applicationId: string) =>
-    request<{
-      application_id: string;
-      listing_id: string | null;
-      status: string;
-      snapshot: unknown;
-      live_intake: Record<string, unknown> | null;
-      snapshot_is_frozen: boolean;
-    }>(`/v1/renter/applications/${applicationId}/details`),
+    request<ApplicationDetail>(`/v1/renter/applications/${applicationId}/details`),
+  missingInfoDocumentUrl: (applicationId: string, documentId: string) =>
+    request<{ url: string; expires_at: string; document_id: string }>(
+      `/v1/renter/applications/${applicationId}/missing-info/documents/${documentId}/url`,
+      { method: 'POST', body: '{}' },
+    ),
   getApplication: (id: string, accessToken: string) =>
     request<{
       application_id: string;
@@ -221,20 +334,7 @@ export const api = {
       screening: { status: string | null; order_id: string | null };
     }>(`/v1/applications/${id}`, { accessToken }),
   listMyApplications: () =>
-    request<{
-      applications: Array<{
-        application_id: string;
-        status: string;
-        listing_id: string | null;
-        created_at: string;
-        listing: {
-          line1: string | null;
-          city: string | null;
-          state: string | null;
-          rent_amount_cents: number | null;
-        } | null;
-      }>;
-    }>('/v1/renter/applications'),
+    request<{ applications: RenterApplicationSummary[] }>('/v1/renter/applications'),
   payAndConsent: (
     id: string,
     body: { agreed: true; ny_path2?: boolean; payment_intent_id?: string },

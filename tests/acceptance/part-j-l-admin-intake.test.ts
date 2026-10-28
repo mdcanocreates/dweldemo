@@ -202,6 +202,7 @@ describe('Part J + L — admin console + intake + rules_based_v1', () => {
         current_address_line1: '1 Main',
         current_address_city: 'Columbus',
         current_address_state: 'OH',
+        current_address_postal: '43215',
         current_address_move_in: '2024-01-01',
         employer_name: 'Acme',
         job_title: 'Engineer',

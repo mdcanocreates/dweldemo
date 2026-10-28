@@ -1,50 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
+import { api, ApiError, type RenterApplicationSummary } from '../api';
 import { useAuth } from '../auth';
 import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
+import { applicationStatusLabel, nextActorLabel } from '../lib/application-status';
 
-const STATUS_DISPLAY: Record<string, string> = {
-  draft: 'Draft application',
-  awaiting_landlord_interest: 'Waiting for landlord review',
-  mutual_interest: 'Landlord interested — screening next',
-  awaiting_consent: 'Complete your screening',
-  screening_authorized: 'Background check in progress',
-  screening_running: 'Background check in progress',
-  screening_in_progress: 'Background check in progress',
-  screened: 'Results ready — landlord reviewing',
-  screening_complete: 'Results ready — landlord reviewing',
-  approved: 'Approved',
-  declined: 'Not selected',
-  withdrawn: 'Withdrawn',
-  closed: 'Closed',
-  submitted: 'Submitted',
-  prescreen: 'Pre-screen in progress',
-};
+function actionHref(appId: string, hint: string | null | undefined): string {
+  if (hint === 'screening') return `/applications/${appId}/consent`;
+  if (hint === 'search') return '/listings';
+  return `/applications/${appId}/details`;
+}
 
-const TIMELINE = [
-  'awaiting_landlord_interest',
-  'mutual_interest',
-  'awaiting_consent',
-  'screening_running',
-  'screened',
-  'approved',
-];
-
-function timelineIndex(status: string): number {
-  if (status === 'declined' || status === 'withdrawn' || status === 'closed') return -1;
-  if (status === 'draft') return 0;
-  if (status === 'screening_authorized' || status === 'screening_in_progress') return 3;
-  if (status === 'screening_complete') return 4;
-  const idx = TIMELINE.indexOf(status);
-  return idx >= 0 ? idx : 0;
+function formatWhen(iso: string | null | undefined): string {
+  if (!iso) return 'No recorded update';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'No recorded update';
+  return date.toLocaleString();
 }
 
 export function ApplicationsPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<Awaited<ReturnType<typeof api.listMyApplications>>['applications'] | null>(null);
+  const [rows, setRows] = useState<RenterApplicationSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -74,7 +52,7 @@ export function ApplicationsPage() {
     <Shell>
       <p className="section-eyebrow">Your pipeline</p>
       <h1 className="section-title">Applications</h1>
-      {error && <ErrorState title="Unavailable">{error}</ErrorState>}
+      {error && <ErrorState title="Could not load applications">{error}</ErrorState>}
       {rows === null && !error && <div className="skeleton" style={{ height: '8rem', marginTop: '1rem' }} />}
       {rows && rows.length === 0 && (
         <div className="empty-state" style={{ marginTop: '1.5rem' }}>
@@ -87,55 +65,77 @@ export function ApplicationsPage() {
       {rows && rows.length > 0 && (
         <div style={{ display: 'grid', gap: '1rem', marginTop: '1.25rem' }}>
           {rows.map((app) => {
-            const label = STATUS_DISPLAY[app.status] ?? app.status;
-            const current = timelineIndex(app.status);
+            const label = app.progress?.status_label ?? applicationStatusLabel(app.status);
+            const address = [
+              app.listing?.line1,
+              app.listing?.city,
+              app.listing?.state,
+              app.listing?.postal_code,
+            ]
+              .filter(Boolean)
+              .join(', ');
+            const action = app.progress?.primary_action;
             return (
               <article key={app.application_id} className="card" style={{ padding: '1.25rem' }}>
-                <p className="section-eyebrow">
-                  {app.listing?.city ?? 'Listing'} · {app.listing?.state ?? ''}
-                </p>
-                <h2 className="font-display" style={{ fontSize: '1.4rem', margin: 0 }}>
-                  {app.listing?.line1 ?? app.listing_id ?? 'Application'}
-                </h2>
-                {app.listing?.rent_amount_cents != null && (
-                  <p style={{ margin: '0.25rem 0 0', color: 'hsl(var(--muted-foreground))' }}>
-                    {moneyFromCents(app.listing.rent_amount_cents)}/mo
-                  </p>
-                )}
-                <p style={{ fontWeight: 700, marginTop: '0.75rem' }}>{label}</p>
-                {app.status === 'declined' && (
-                  <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-                    This application was not selected. No additional detail is available.
-                  </p>
-                )}
-                {app.status === 'awaiting_consent' && (
-                  <Link
-                    className="btn btn-primary"
-                    style={{ marginTop: '0.75rem', display: 'inline-flex' }}
-                    to={`/applications/${app.application_id}/consent`}
+                <div style={{ display: 'grid', gridTemplateColumns: '5.5rem 1fr', gap: '1rem' }}>
+                  <div
+                    style={{
+                      width: '5.5rem',
+                      height: '5.5rem',
+                      borderRadius: '0.75rem',
+                      overflow: 'hidden',
+                      background: 'hsl(var(--muted))',
+                    }}
                   >
-                    Complete screening
-                  </Link>
-                )}
-                {app.status === 'approved' && (
-                  <div className="card" style={{ marginTop: '0.85rem', padding: '0.85rem', background: 'hsl(var(--primary) / 0.15)' }}>
-                    Cashback confirmation will appear here after lease execution.
+                    {app.listing?.thumbnail_url ? (
+                      <img
+                        src={app.listing.thumbnail_url}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : null}
                   </div>
+                  <div>
+                    <p className="section-eyebrow">{app.listing?.property_type ?? 'Home'}</p>
+                    <h2 className="font-display" style={{ fontSize: '1.4rem', margin: 0 }}>
+                      {app.listing?.line1 ?? 'Property address not on file'}
+                    </h2>
+                    <p style={{ margin: '0.25rem 0 0', color: 'hsl(var(--muted-foreground))' }}>
+                      {address || 'Address not on file'}
+                    </p>
+                    {app.listing?.rent_amount_cents != null && (
+                      <p style={{ margin: '0.25rem 0 0', color: 'hsl(var(--muted-foreground))' }}>
+                        {moneyFromCents(app.listing.rent_amount_cents)}/mo
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p style={{ fontWeight: 700, marginTop: '0.85rem' }}>{label}</p>
+                <p className="muted" style={{ margin: '0.2rem 0' }}>
+                  Applied {formatWhen(app.created_at)}
+                </p>
+                <p className="muted" style={{ margin: '0.2rem 0' }}>
+                  Current stage: {app.progress?.current_label ?? 'Not recorded'}
+                </p>
+                <p className="muted" style={{ margin: '0.2rem 0' }}>
+                  Most recent update: {formatWhen(app.progress?.last_update_at ?? app.created_at)}
+                </p>
+                <p style={{ margin: '0.2rem 0' }}>
+                  Next action: {nextActorLabel(app.progress?.next_action_owner)}
+                </p>
+                {app.progress?.action_required && (
+                  <p>{app.progress.action_required}</p>
                 )}
-                <ol className="timeline">
-                  {TIMELINE.map((step, index) => (
-                    <li key={step}>
-                      <span className={`dot ${current >= index ? 'done' : ''}`}>{index + 1}</span>
-                      <span>{STATUS_DISPLAY[step] ?? step}</span>
-                    </li>
-                  ))}
-                </ol>
-                <Link
-                  to={`/applications/${app.application_id}/details`}
-                  style={{ display: 'inline-block', marginTop: '0.75rem', fontWeight: 700 }}
-                >
-                  View my application →
-                </Link>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.85rem' }}>
+                  {action && (
+                    <Link className="btn btn-primary" to={actionHref(app.application_id, action.href_hint)}>
+                      {action.label}
+                    </Link>
+                  )}
+                  <Link className="btn btn-secondary" to={`/applications/${app.application_id}/details`}>
+                    View submitted details
+                  </Link>
+                </div>
               </article>
             );
           })}

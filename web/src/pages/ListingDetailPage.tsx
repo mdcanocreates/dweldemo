@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError, type Listing } from '../api';
+import { api, ApiError, type Listing, type RenterApplicationSummary } from '../api';
+import { useAuth } from '../auth';
+import { applicationStatusLabel } from '../lib/application-status';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
 import { track } from '../lib/analytics';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 
+const TERMINAL_STATUS = new Set(['declined', 'withdrawn', 'closed']);
+
 export function ListingDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [listing, setListing] = useState<Listing | null>(null);
+  const [existing, setExisting] = useState<RenterApplicationSummary | null>(null);
+  const [applicationLookup, setApplicationLookup] = useState<'idle' | 'ok' | 'failed'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const showInline = useDelayedPending(loading && !listing && !error, 400);
@@ -42,6 +49,36 @@ export function ListingDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setExisting(null);
+      setApplicationLookup('ok');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.listMyApplications();
+        if (cancelled) return;
+        const match =
+          data.applications.find(
+            (app) => app.listing_id === id && !TERMINAL_STATUS.has(app.status),
+          ) ?? null;
+        setExisting(match);
+        setApplicationLookup('ok');
+      } catch {
+        if (!cancelled) {
+          setExisting(null);
+          setApplicationLookup('failed');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, id]);
 
   if (error && !listing) {
     return (
@@ -112,14 +149,36 @@ export function ListingDetailPage() {
           <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
             Estimated cashback {moneyFromCents(listing.cashback_cents ?? 0)}.
           </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: '0.75rem' }}
-            onClick={() => navigate(`/apply/${id}`)}
-          >
-            I&apos;m interested
-          </button>
+          {applicationLookup === 'failed' && (
+            <p>
+              Could not check whether you already applied. Submitting again reuses an open
+              application for this home instead of creating a second one.
+            </p>
+          )}
+          {existing ? (
+            <>
+              <p style={{ fontWeight: 700 }}>
+                You applied.{' '}
+                {existing.progress?.status_label ?? applicationStatusLabel(existing.status)}
+              </p>
+              <Link
+                className="btn btn-primary"
+                style={{ width: '100%', marginTop: '0.75rem' }}
+                to={`/applications/${existing.application_id}/details`}
+              >
+                View your application
+              </Link>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: '0.75rem' }}
+              onClick={() => navigate(`/apply/${id}`)}
+            >
+              I&apos;m interested
+            </button>
+          )}
           <Link
             to="/applications"
             style={{ display: 'inline-block', marginTop: '0.85rem', fontWeight: 700 }}

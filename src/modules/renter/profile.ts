@@ -16,7 +16,8 @@ export type RenterProfileInput = {
   familyName: string;
   phoneE164: string;
   email: string;
-  annualIncomeCents: number;
+  /** Null means the renter has not stated income. Do not invent a figure. */
+  annualIncomeCents: number | null;
   moveInUrgency: MoveInUrgency;
   bedroomsMin: number;
   rentMaxCents: number;
@@ -122,7 +123,13 @@ export async function upsertRenterProfile(
   if (!input.givenName.trim() || !input.familyName.trim()) {
     throw new AppError('name is required', 'validation_error', 400);
   }
-  if (input.annualIncomeCents < 0 || input.rentMaxCents <= 0) {
+  if (
+    input.annualIncomeCents != null &&
+    (!Number.isInteger(input.annualIncomeCents) || input.annualIncomeCents < 0)
+  ) {
+    throw new AppError('invalid money fields', 'validation_error', 400);
+  }
+  if (input.rentMaxCents <= 0) {
     throw new AppError('invalid money fields', 'validation_error', 400);
   }
   if (input.householdSize < 1 || input.bedroomsMin < 0) {
@@ -147,7 +154,7 @@ export async function upsertRenterProfile(
        family_name = excluded.family_name,
        phone_e164 = excluded.phone_e164,
        email = excluded.email,
-       annual_income_cents = excluded.annual_income_cents,
+       annual_income_cents = coalesce(excluded.annual_income_cents, renter_profile.annual_income_cents),
        move_in_urgency = excluded.move_in_urgency,
        bedrooms_min = excluded.bedrooms_min,
        rent_max_cents = excluded.rent_max_cents,

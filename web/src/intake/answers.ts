@@ -80,9 +80,20 @@ export const EMPTY_ANSWERS: RenterAnswers = {
 export const STORE_KEY = 'dwel20.renter.answers.v2';
 export const CHAT_SESSION_KEY = 'dwel20.intake.chat.v2';
 
+type DraftStore = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+};
+
+function draftStore(): DraftStore | null {
+  const store = (globalThis as { localStorage?: DraftStore }).localStorage;
+  if (!store || typeof store.getItem !== 'function') return null;
+  return store;
+}
+
 export function loadAnswers(): RenterAnswers {
   try {
-    const raw = localStorage.getItem(STORE_KEY);
+    const raw = draftStore()?.getItem(STORE_KEY);
     if (!raw) return { ...EMPTY_ANSWERS };
     return { ...EMPTY_ANSWERS, ...(JSON.parse(raw) as Partial<RenterAnswers>) };
   } catch {
@@ -92,54 +103,164 @@ export function loadAnswers(): RenterAnswers {
 
 export function saveAnswers(a: RenterAnswers) {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(a));
+    draftStore()?.setItem(STORE_KEY, JSON.stringify(a));
   } catch {
     /* ignore */
   }
 }
 
-export function profileComplete(a: RenterAnswers): boolean {
+export type ServerProfileFields = {
+  given_name: string | null;
+  family_name: string | null;
+  phone_e164: string | null;
+  email: string | null;
+  annual_income_cents: number | null;
+  move_in_urgency: string | null;
+  bedrooms_min: number | null;
+  rent_max_cents: number | null;
+  preferred_state: string | null;
+  has_pets: boolean | null;
+  household_size: number | null;
+};
+
+function preferText(server: string | null | undefined, local: string): string {
+  if (typeof server === 'string' && server.trim()) return server.trim();
+  return local;
+}
+
+/** Required discover fields. A stored flag alone does not make a profile complete. */
+export function profileFieldsComplete(a: RenterAnswers): boolean {
   return Boolean(
-    a.profile_complete ||
-      (a.given_name &&
-        a.family_name &&
-        a.email &&
-        a.phone &&
-        a.move_in_urgency &&
-        a.bedrooms_min &&
-        a.rent_max_dollars &&
-        a.preferred_state),
+    a.given_name.trim() &&
+      a.family_name.trim() &&
+      a.email.trim() &&
+      a.phone.trim() &&
+      a.move_in_urgency &&
+      a.bedrooms_min.trim() &&
+      a.rent_max_dollars.trim() &&
+      a.preferred_state.trim().length === 2,
   );
+}
+
+export function profileComplete(a: RenterAnswers): boolean {
+  return profileFieldsComplete(a);
+}
+
+/** Address and employment collected on the application form, not inferred from rent. */
+export function intakeFieldsReady(a: RenterAnswers): boolean {
+  return Boolean(
+    a.current_address_line1.trim() &&
+      a.current_address_city.trim() &&
+      a.current_address_state.trim() &&
+      a.current_address_postal.trim() &&
+      a.employer_name.trim() &&
+      a.job_title.trim(),
+  );
+}
+
+/**
+ * Server values win when present. Local drafts fill only blanks.
+ * Completeness is recomputed from fields. A profile row does not imply completeness.
+ */
+export function mergeServerRecords(
+  local: RenterAnswers,
+  profile: ServerProfileFields | null,
+  intake: Record<string, unknown> | null,
+): RenterAnswers {
+  const next: RenterAnswers = { ...local };
+  if (profile) {
+    next.given_name = preferText(profile.given_name, next.given_name);
+    next.family_name = preferText(profile.family_name, next.family_name);
+    next.phone = preferText(profile.phone_e164, next.phone);
+    next.email = preferText(profile.email, next.email);
+    if (profile.annual_income_cents != null && profile.annual_income_cents > 0) {
+      next.annual_income_dollars = String(Math.round(profile.annual_income_cents / 100));
+    }
+    next.move_in_urgency = preferText(profile.move_in_urgency, next.move_in_urgency);
+    if (profile.bedrooms_min != null) next.bedrooms_min = String(profile.bedrooms_min);
+    if (profile.rent_max_cents != null && profile.rent_max_cents > 0) {
+      next.rent_max_dollars = String(Math.round(profile.rent_max_cents / 100));
+    }
+    next.preferred_state = preferText(profile.preferred_state, next.preferred_state);
+    if (profile.has_pets != null) next.has_pets = profile.has_pets;
+    if (profile.household_size != null) next.household_size = String(profile.household_size);
+  }
+  if (intake) {
+    next.current_address_line1 = preferText(
+      intake.current_address_line1 as string | null,
+      next.current_address_line1,
+    );
+    next.current_address_city = preferText(
+      intake.current_address_city as string | null,
+      next.current_address_city,
+    );
+    next.current_address_state = preferText(
+      (intake.current_address_state as string | null) ?? profile?.preferred_state,
+      next.current_address_state,
+    );
+    next.current_address_postal = preferText(
+      intake.current_address_postal as string | null,
+      next.current_address_postal,
+    );
+    if (intake.current_address_move_in) {
+      next.current_address_move_in = String(intake.current_address_move_in).slice(0, 10);
+    }
+    next.employer_name = preferText(intake.employer_name as string | null, next.employer_name);
+    next.job_title = preferText(intake.job_title as string | null, next.job_title);
+    next.employer_phone = preferText(intake.employer_phone as string | null, next.employer_phone);
+    if (intake.employment_length_months != null) {
+      next.employment_length_months = String(intake.employment_length_months);
+    }
+    if (intake.monthly_gross_income_cents != null) {
+      next.monthly_gross_income_dollars = String(Number(intake.monthly_gross_income_cents) / 100);
+    }
+    const occ = Array.isArray(intake.occupants) ? (intake.occupants as Occupant[]) : [];
+    if (occ.length) next.occupants = occ;
+    const petRows = Array.isArray(intake.pets) ? (intake.pets as Pet[]) : [];
+    if (petRows.length) next.pets = petRows;
+    const ec = (intake.emergency_contact ?? null) as Record<string, string> | null;
+    if (ec) {
+      next.emergency_name = ec.name ?? next.emergency_name;
+      next.emergency_relationship = ec.relationship ?? next.emergency_relationship;
+      next.emergency_phone = ec.phone ?? next.emergency_phone;
+    }
+    const veh = (intake.vehicle ?? null) as Record<string, string> | null;
+    if (veh) {
+      next.vehicle_make = veh.make ?? next.vehicle_make;
+      next.vehicle_model = veh.model ?? next.vehicle_model;
+      next.vehicle_plate = veh.plate ?? next.vehicle_plate;
+    }
+  }
+  next.profile_complete = profileFieldsComplete(next);
+  return next;
 }
 
 export function answersToProfilePayload(a: RenterAnswers) {
   const annual = Number(a.annual_income_dollars);
   const rent = Number(a.rent_max_dollars);
-  // Income is collected later via screening; API still expects a cents field.
-  const annualCents = Number.isFinite(annual) && annual > 0
-    ? Math.round(annual * 100)
-    : Number.isFinite(rent) && rent > 0
-      ? Math.round(rent * 12 * 3 * 100)
-      : 1;
+  const statedAnnual = a.annual_income_dollars.trim();
+  const annualCents =
+    statedAnnual && Number.isFinite(annual) && annual >= 0 ? Math.round(annual * 100) : null;
+  const bedrooms = Number(a.bedrooms_min);
+  const household = Number(a.household_size);
   return {
-    given_name: a.given_name,
-    family_name: a.family_name,
-    phone: a.phone || '+10000000000',
-    email: a.email,
+    given_name: a.given_name.trim(),
+    family_name: a.family_name.trim(),
+    phone: a.phone.trim(),
+    email: a.email.trim(),
     annual_income_cents: annualCents,
-    move_in_urgency: a.move_in_urgency || 'within_30_days',
-    bedrooms_min: Number(a.bedrooms_min) || 1,
-    rent_max_cents: Number.isFinite(rent) ? Math.round(rent * 100) : 100000,
-    state: a.preferred_state || 'OH',
+    move_in_urgency: a.move_in_urgency,
+    bedrooms_min: Number.isFinite(bedrooms) ? bedrooms : 0,
+    rent_max_cents: Number.isFinite(rent) && rent > 0 ? Math.round(rent * 100) : 0,
+    state: a.preferred_state.trim().toUpperCase(),
     has_pets: Boolean(a.has_pets),
-    household_size: Number(a.household_size) || 1,
+    household_size: Number.isFinite(household) && household >= 1 ? Math.trunc(household) : 1,
   };
 }
 
 export function answersToIntakePayload(a: RenterAnswers, markComplete: boolean) {
-  const monthly =
-    Number(a.monthly_gross_income_dollars) ||
-    (Number(a.annual_income_dollars) ? Number(a.annual_income_dollars) / 12 : NaN);
+  const monthly = Number(a.monthly_gross_income_dollars);
+  const statedMonthly = a.monthly_gross_income_dollars.trim();
   return {
     current_address_line1: a.current_address_line1 || undefined,
     current_address_city: a.current_address_city || undefined,
@@ -152,7 +273,10 @@ export function answersToIntakePayload(a: RenterAnswers, markComplete: boolean) 
     employment_length_months: a.employment_length_months
       ? Number(a.employment_length_months)
       : undefined,
-    monthly_gross_income_cents: Number.isFinite(monthly) ? Math.round(monthly * 100) : undefined,
+    monthly_gross_income_cents:
+      statedMonthly && Number.isFinite(monthly) && monthly >= 0
+        ? Math.round(monthly * 100)
+        : undefined,
     occupants: a.occupants.filter((o) => o.name.trim()),
     pets: a.pets.filter((p) => p.species.trim()),
     emergency_contact:

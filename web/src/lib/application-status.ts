@@ -5,6 +5,9 @@ export type StatusTone = 'neutral' | 'mint' | 'amber' | 'red' | 'blue' | 'gray';
 const LABELS: Record<string, string> = {
   draft: 'Draft',
   awaiting_landlord_interest: 'Interest sent',
+  mutual_interest: 'Home provider is interested',
+  prescreen: 'Pre-screen in progress',
+  closed: 'Closed',
   awaiting_screening_request: 'Waiting for Home Provider',
   awaiting_consent: 'Screening authorization needed',
   screening_authorized: 'Screening authorized',
@@ -54,6 +57,21 @@ const TONES: Record<string, StatusTone> = {
 
 export function applicationStatusLabel(status: string): string {
   return LABELS[status] ?? status.replaceAll('_', ' ');
+}
+
+export function nextActorLabel(owner: string | null | undefined): string {
+  switch (owner) {
+    case 'renter':
+      return 'You';
+    case 'home_provider':
+      return 'The home provider';
+    case 'system':
+      return 'Dwel screening';
+    case 'none':
+      return 'No further action';
+    default:
+      return 'Not recorded';
+  }
 }
 
 export function applicationStatusTone(status: string): StatusTone {

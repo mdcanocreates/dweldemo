@@ -24,7 +24,9 @@ import {
   getRenterProfile,
   getApplicationIntakeDetail,
   getScreeningCenter,
-  isIntakeComplete,
+  intakeRowReady,
+  presentApplicationDossier,
+  recordedStatusUpdates,
   listSavedListings,
   addSavedListing,
   removeSavedListing,
@@ -78,7 +80,7 @@ const profileSchema = z.object({
   family_name: z.string().min(1).max(100),
   phone: z.string().min(7).max(32),
   email: z.string().email().max(320),
-  annual_income_cents: z.number().int().nonnegative(),
+  annual_income_cents: z.number().int().nonnegative().nullable().optional(),
   move_in_urgency: z.enum(MOVE_IN_URGENCY),
   bedrooms_min: z.number().nonnegative(),
   rent_max_cents: z.number().int().positive(),
@@ -144,7 +146,7 @@ export async function handleUpsertRenterProfile(
           familyName: body.family_name,
           phoneE164: body.phone,
           email: body.email,
-          annualIncomeCents: body.annual_income_cents,
+          annualIncomeCents: body.annual_income_cents ?? null,
           moveInUrgency: body.move_in_urgency,
           bedroomsMin: body.bedrooms_min,
           rentMaxCents: body.rent_max_cents,
@@ -221,12 +223,18 @@ export async function handleListMyApplications(
       { partyId },
       async (client) => {
         // Charter tables may be absent until 0064/0065 — degrade gracefully.
-        const { rows: caps } = await client.query<{ lease: string | null; cash: string | null }>(
+        const { rows: caps } = await client.query<{
+          lease: string | null;
+          cash: string | null;
+          media: string | null;
+        }>(
           `select to_regclass('public.lease_document')::text as lease,
-                  to_regclass('public.cashback_eligibility')::text as cash`,
+                  to_regclass('public.cashback_eligibility')::text as cash,
+                  to_regclass('public.listing_media')::text as media`,
         );
         const hasLease = Boolean(caps[0]?.lease);
         const hasCash = Boolean(caps[0]?.cash);
+        const hasMedia = Boolean(caps[0]?.media);
         const leaseExpr = hasLease
           ? `(select ld.workflow_status from lease_document ld
                 where ld.application_id = a.id
@@ -236,6 +244,11 @@ export async function handleListMyApplications(
           ? `(select ce.status from cashback_eligibility ce
                 where ce.application_id = a.id
                 order by ce.created_at desc limit 1)`
+          : `null::text`;
+        const thumbExpr = hasMedia
+          ? `(select lm.url from listing_media lm
+                where lm.listing_id = a.listing_id and lm.url is not null
+                order by lm.position asc limit 1)`
           : `null::text`;
         const { rows: apps } = await client.query<{
           id: string;
@@ -252,6 +265,9 @@ export async function handleListMyApplications(
           city: string | null;
           state: string | null;
           line1: string | null;
+          postal_code: string | null;
+          property_type: string | null;
+          thumbnail_url: string | null;
           rent_amount_cents: number | null;
           reuse_grant: string | null;
           fee_paid: string | null;
@@ -262,7 +278,9 @@ export async function handleListMyApplications(
                   a.move_forward_at, a.passed_at, a.info_requested_at,
                   a.screening_authorized_at, a.screened_at, a.closed_at,
                   a.contact_revealed_at,
-                  addr.city, addr.state, addr.line1, l.rent_amount_cents,
+                  addr.city, addr.state, addr.line1, addr.postal_code,
+                  p.property_type, l.rent_amount_cents,
+                  ${thumbExpr} as thumbnail_url,
                   (select sra.id::text from screening_report_access sra
                     where sra.application_id = a.id limit 1) as reuse_grant,
                   (select lt.id::text from ledger_transaction lt
@@ -393,6 +411,9 @@ export async function handleListMyApplications(
                 line1: a.line1,
                 city: a.city,
                 state: a.state,
+                postal_code: a.postal_code,
+                property_type: a.property_type,
+                thumbnail_url: a.thumbnail_url,
                 rent_amount_cents: a.rent_amount_cents,
               }
             : null,
@@ -435,10 +456,18 @@ export async function handleCreateInterestApplication(
       { orgId: listingOrg, partyId: identity.partyId },
       async (client) => {
         const profile = await getRenterProfile(client, identity.partyId);
-        if (!(await isIntakeComplete(client, identity.partyId))) {
+        const intake = await getRenterIntake(client, identity.partyId);
+        if (!intake || !intake.completed_at) {
           throw new AppError(
             'complete rental application intake before expressing interest',
             'intake_required',
+            409,
+          );
+        }
+        if (!intakeRowReady(intake)) {
+          throw new AppError(
+            'Add your current address and employment before applying',
+            'intake_incomplete',
             409,
           );
         }
@@ -822,11 +851,148 @@ export async function handleGetApplicationIntakeDetail(
     const detail = await withTenantContext(
       deps.pool,
       { partyId: identity.partyId },
-      (client) =>
-        getApplicationIntakeDetail(client, {
+      async (client) => {
+        const base = await getApplicationIntakeDetail(client, {
           applicationId,
           partyId: identity.partyId,
-        }),
+        });
+        const profile = await getRenterProfile(client, identity.partyId);
+        const { rows: caps } = await client.query<{ media: string | null; docs: string | null }>(
+          `select to_regclass('public.listing_media')::text as media,
+                  to_regclass('public.missing_info_request_document')::text as docs`,
+        );
+        const thumbExpr = caps[0]?.media
+          ? `(select lm.url from listing_media lm
+                where lm.listing_id = a.listing_id and lm.url is not null
+                order by lm.position asc limit 1)`
+          : `null::text`;
+        const { rows: meta } = await client.query<{
+          created_at: Date;
+          move_forward_at: Date | null;
+          passed_at: Date | null;
+          info_requested_at: Date | null;
+          screening_authorized_at: Date | null;
+          screened_at: Date | null;
+          closed_at: Date | null;
+          contact_revealed_at: Date | null;
+          line1: string | null;
+          city: string | null;
+          state: string | null;
+          postal_code: string | null;
+          property_type: string | null;
+          rent_amount_cents: number | null;
+          thumbnail_url: string | null;
+          reuse_grant: string | null;
+          fee_paid: string | null;
+        }>(
+          `select a.created_at, a.move_forward_at, a.passed_at, a.info_requested_at,
+                  a.screening_authorized_at, a.screened_at, a.closed_at, a.contact_revealed_at,
+                  addr.line1, addr.city, addr.state, addr.postal_code,
+                  p.property_type, l.rent_amount_cents,
+                  ${thumbExpr} as thumbnail_url,
+                  (select sra.id::text from screening_report_access sra
+                    where sra.application_id = a.id limit 1) as reuse_grant,
+                  (select lt.id::text from ledger_transaction lt
+                    where lt.idempotency_key in (
+                      'ledger:screening_fee:' || a.id::text,
+                      'ledger:preview_screening_fee:' || a.id::text
+                    ) limit 1) as fee_paid
+           from application a
+           left join listing l on l.id = a.listing_id
+           left join unit u on u.id = a.unit_id
+           left join property p on p.id = u.property_id
+           left join address addr on addr.id = p.address_id
+           where a.id = $1 and a.party_id = $2`,
+          [applicationId, identity.partyId],
+        );
+        const row = meta[0];
+        if (!row) {
+          throw new AppError('application not found', 'application_not_found', 404);
+        }
+        const created = row.created_at.toISOString();
+        const stamps = {
+          created_at: created,
+          move_forward_at: row.move_forward_at?.toISOString() ?? null,
+          passed_at: row.passed_at?.toISOString() ?? null,
+          info_requested_at: row.info_requested_at?.toISOString() ?? null,
+          screening_authorized_at: row.screening_authorized_at?.toISOString() ?? null,
+          screened_at: row.screened_at?.toISOString() ?? null,
+          closed_at: row.closed_at?.toISOString() ?? null,
+          contact_revealed_at: row.contact_revealed_at?.toISOString() ?? null,
+        };
+        let documents: Array<{
+          document_id: string;
+          doc_type: string;
+          content_type: string;
+          size_bytes: number;
+          scan_status: string;
+          created_at: string;
+        }> = [];
+        let documents_retrieval: 'ok' | 'unavailable' = 'ok';
+        if (caps[0]?.docs) {
+          try {
+            const { rows: docs } = await client.query<{
+              document_id: string;
+              doc_type: string;
+              content_type: string;
+              size_bytes: string;
+              scan_status: string;
+              created_at: Date;
+            }>(
+              `select d.id as document_id, d.doc_type, d.content_type, d.size_bytes::text,
+                      d.scan_status, mird.created_at
+               from missing_info_request mir
+               join missing_info_request_document mird on mird.missing_info_request_id = mir.id
+               join document d on d.id = mird.document_id
+               where mir.application_id = $1
+               order by mird.created_at asc`,
+              [applicationId],
+            );
+            documents = docs.map((doc) => ({
+              document_id: doc.document_id,
+              doc_type: doc.doc_type,
+              content_type: doc.content_type,
+              size_bytes: Number(doc.size_bytes),
+              scan_status: doc.scan_status,
+              created_at: doc.created_at.toISOString(),
+            }));
+          } catch {
+            documents_retrieval = 'unavailable';
+            documents = [];
+          }
+        }
+        const progress = buildApplicationProgress({
+          status: base.status,
+          ...stamps,
+          reused_report: Boolean(row.reuse_grant),
+          fee_paid: Boolean(row.fee_paid),
+        });
+        return {
+          ...base,
+          live_profile: profile,
+          dossier: presentApplicationDossier({
+            snapshot: base.snapshot,
+            snapshotFrozen: base.snapshot_is_frozen,
+            liveProfile: profile,
+            liveIntake: base.live_intake,
+          }),
+          listing: base.listing_id
+            ? {
+                line1: row.line1,
+                city: row.city,
+                state: row.state,
+                postal_code: row.postal_code,
+                property_type: row.property_type,
+                rent_amount_cents: row.rent_amount_cents,
+                thumbnail_url: row.thumbnail_url,
+              }
+            : null,
+          documents,
+          documents_retrieval,
+          progress,
+          recorded_updates: recordedStatusUpdates(stamps),
+        };
+      },
     );
     sendJson(res, 200, detail);
   } catch (err) {
