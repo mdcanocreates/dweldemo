@@ -134,7 +134,7 @@ export function DiscoverPage() {
         const saved = (err.details as { profile?: Parameters<typeof mergeServerRecords>[1] } | null)
           ?.profile;
         if (saved) {
-          profileRevision.current = saved.updated_at;
+          profileRevision.current = saved.updated_at ?? null;
           const merged = mergeServerRecords(next, saved, null);
           saveAnswers(merged);
           remember(merged);
@@ -147,7 +147,7 @@ export function DiscoverPage() {
       }
       throw err;
     }
-    profileRevision.current = profile.profile.updated_at;
+    profileRevision.current = profile.profile.updated_at ?? null;
     const merged = mergeServerRecords(next, profile.profile, null);
     saveAnswers(merged);
     remember(merged);
