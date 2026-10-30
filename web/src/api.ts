@@ -78,6 +78,11 @@ export type Listing = {
     postal_code: string | null;
     raw_input: string | null;
   };
+  map_location?: {
+    latitude: number;
+    longitude: number;
+    precision: 'area';
+  } | null;
 };
 
 export type RenterProfile = {

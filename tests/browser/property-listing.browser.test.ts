@@ -176,7 +176,21 @@ describe('property listing browser journey', () => {
     const page = await guest.newPage();
     await page.goto(`${origin}/#/listings`);
     await see(page, '410 Catalog Lane');
+    await see(page, 'See how much you could save');
+    await see(page, 'The map is turned off until a map style is configured.');
     expect(await page.getByText('900 Draft Road').count()).toBe(0);
+    await page.getByRole('button', { name: /410 Catalog Lane/ }).click();
+    await page.locator('.landing-card.is-selected').waitFor({ state: 'visible' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await see(page, 'Locations are approximate');
+    const fits = await page.evaluate(
+      'document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1',
+    );
+    expect(fits).toBe(true);
+    await page.getByRole('button', { name: 'List', exact: true }).click();
+    await see(page, '410 Catalog Lane');
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.locator('#beds').selectOption('3');
     await see(page, 'No homes match your search');
     await page.goto(`${origin}/#/listings/${listingId}`);

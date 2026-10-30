@@ -7,6 +7,7 @@ import {
   type SourceDisplayRule,
 } from '../ingestion/index.js';
 import { AppError } from '../shared/errors.js';
+import { publishableMapLocation } from './map-location.js';
 
 type ListingRow = {
   id: string;
@@ -26,6 +27,9 @@ type ListingRow = {
   state: string | null;
   postal_code: string | null;
   raw_input: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geocode_precision: string | null;
   rule_name: string | null;
   rule_version: string | null;
   is_attribution_required: boolean | null;
@@ -54,6 +58,9 @@ const LISTING_SELECT = `
     a.state,
     a.postal_code,
     a.raw_input,
+    ST_Y(a.geom::geometry) as latitude,
+    ST_X(a.geom::geometry) as longitude,
+    a.geocode_precision,
     sdr.name as rule_name,
     sdr.version as rule_version,
     sdr.is_attribution_required,
@@ -111,6 +118,11 @@ function rowToApiShape(row: ListingRow, media: Array<{ url: string }>): ListingA
       postal_code: row.postal_code,
       raw_input: row.raw_input,
     },
+    map_location: publishableMapLocation(
+      row.latitude == null ? null : Number(row.latitude),
+      row.longitude == null ? null : Number(row.longitude),
+      row.geocode_precision,
+    ),
   };
 }
 
