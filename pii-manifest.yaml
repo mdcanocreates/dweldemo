@@ -308,6 +308,13 @@ tables:
 
       retention_class: identity
 
+    # 0073 — interest versus formal application. Not a personal identifier.
+    record_kind:
+
+      classification: operational
+
+      retention_class: operational
+
   # Charter v3 — 0064 new tables
   listing_criteria:
 
