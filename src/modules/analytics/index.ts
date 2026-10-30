@@ -17,3 +17,14 @@ export {
   getLabelCoverage,
   getZeroResultDemandRollup,
 } from './dashboards.js';
+
+export {
+  acceptMarketplaceEvent,
+  assertMarketplaceEvent,
+  resetMarketplaceEventQueue,
+  marketplaceEventQueue,
+  MARKETPLACE_EVENT_NAMES,
+  MarketplaceEventError,
+  type MarketplaceEvent,
+  type MarketplaceEventName,
+} from './marketplace-event.js';

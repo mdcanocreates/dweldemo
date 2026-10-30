@@ -33,3 +33,10 @@ export {
   computeAndStoreRulesMatchScore,
   MATCH_SCORE_VERSION,
 } from './rules-match-score.js';
+
+export {
+  rankEligibleListings,
+  type DiscoveryListing,
+  type DiscoveryMatch,
+  type DiscoveryPreferences,
+} from './preference-discovery.js';
