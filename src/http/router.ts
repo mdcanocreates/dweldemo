@@ -187,6 +187,11 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     const path = req.url?.split('?')[0] ?? '';
     const method = req.method ?? 'GET';
 
+    if (path.startsWith('/v1/authority')) {
+      const { handleAuthority } = await import('./authority-handlers.js');
+      return handleAuthority(req, res, deps, method, path);
+    }
+
     if (method === 'POST' && path === '/v1/auth/magic-link') {
       await handleAuthMagicLink(req, res, deps);
       return true;
