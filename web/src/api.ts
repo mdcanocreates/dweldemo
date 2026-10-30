@@ -796,4 +796,54 @@ export const api = {
     request<{ suppressed: boolean; numerator: number | null; source: string }>(
       `/v1/authority/agencies/${agencyId}/reports/leaseup`,
     ),
+  authorityWorkspace: (agencyId: string, caseId: string) =>
+    request<{
+      case: { id: string; reference: string; statusLabel: string; nextAction: string; version: number };
+      tasks: Array<{ id: string; title: string; statusLabel: string; version: number }>;
+      appointments: Array<{ id: string; statusLabel: string; localLabel: string | null; version: number }>;
+      documents: Array<{ id: string; statusLabel: string; previewable: boolean }>;
+      permissions: { canVerify: boolean; canSchedule: boolean; canWrite: boolean };
+    }>(`/v1/authority/agencies/${agencyId}/cases/${caseId}/workspace`),
+  authorityCreateTask: (agencyId: string, caseId: string, body: Record<string, unknown>) =>
+    request<{ taskId: string; statusLabel: string }>(
+      `/v1/authority/agencies/${agencyId}/cases/${caseId}/tasks`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  authoritySchedule: (agencyId: string, caseId: string, windowStart: string) =>
+    request<{ appointmentId: string; version: number; statusLabel: string }>(
+      `/v1/authority/agencies/${agencyId}/cases/${caseId}/appointments`,
+      { method: 'POST', body: JSON.stringify({ windowStart }) },
+    ),
+  authorityReschedule: (agencyId: string, appointmentId: string, body: Record<string, unknown>) =>
+    request<{ statusLabel: string; localLabel: string }>(
+      `/v1/authority/agencies/${agencyId}/appointments/${appointmentId}/reschedule`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  authorityUploadIntent: (agencyId: string, caseId: string, body: Record<string, unknown>) =>
+    request<{ documentId: string }>(
+      `/v1/authority/agencies/${agencyId}/cases/${caseId}/documents/upload-intent`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  authorityCompleteUpload: (agencyId: string, documentId: string, bytesBase64: string) =>
+    request<{ statusLabel: string }>(`/v1/authority/agencies/${agencyId}/documents/${documentId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ bytesBase64 }),
+    }),
+  authorityPreview: (agencyId: string, documentId: string) =>
+    request<{ token: string }>(`/v1/authority/agencies/${agencyId}/documents/${documentId}/preview`),
+  authorityEnrollMfa: () => request<{ secret: string }>('/v1/authority/mfa/enroll', { method: 'POST' }),
+  authorityConfirmMfa: (code: string) =>
+    request<{ assurance: string }>('/v1/authority/mfa/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+  authorityLeaseup: (agencyId: string, caseId: string, source: string) =>
+    request<{ statusLabel: string }>(`/v1/authority/agencies/${agencyId}/cases/${caseId}/leaseup`, {
+      method: 'POST',
+      body: JSON.stringify({ source }),
+    }),
+  authorityAudit: (agencyId: string) =>
+    request<{ events: Array<{ id: string; kind: string; occurredAt: string }> }>(
+      `/v1/authority/agencies/${agencyId}/audit`,
+    ),
 };

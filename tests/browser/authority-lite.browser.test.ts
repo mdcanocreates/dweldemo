@@ -7,7 +7,8 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { totpCode } from '../../src/modules/authority/totp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createApiRouter } from '../../src/http/router.js';
@@ -52,6 +53,7 @@ describe('authority lite browser', () => {
   let db: TestDb;
   let appPool: DbPool;
   let server: http.Server;
+  let apiPort = 0;
   let vite: ChildProcess;
   let browser: Browser;
   let sessionId = '';
@@ -64,6 +66,7 @@ describe('authority lite browser', () => {
     process.env.NODE_ENV = 'test';
     process.env.DWEL_AUTHORITY_LITE = '1';
     process.env.DWEL_AUTHORITY_SANDBOX = '1';
+    process.env.AUTHORITY_SCANNER_TOKEN = 'browser-scanner-token';
     db = await startTestDb();
     appPool = createAppPool(db.connectionString);
     sessionId = await withBypass(db.pool, async (client) => {
@@ -84,6 +87,10 @@ describe('authority lite browser', () => {
       );
       return session.rows[0]!.id;
     });
+    const scannerHash = createHash('sha256').update('browser-scanner-token').digest('hex');
+    await withBypass(db.pool, (client) =>
+      client.query(`insert into authority_scanner_credential (id, token_hash) values (1, $1)`, [scannerHash]),
+    );
     const router = createApiRouter({ pool: appPool });
     server = http.createServer(async (req, res) => {
       const handled = await router(req, res);
@@ -92,7 +99,7 @@ describe('authority lite browser', () => {
         res.end('{}');
       }
     });
-    const apiPort = await listen(server);
+    apiPort = await listen(server);
     vite = startVite(vitePort, apiPort);
     await waitForHttp(origin);
     browser = await chromium.launch({ headless: true });
@@ -131,6 +138,80 @@ describe('authority lite browser', () => {
     await page.goto(`${origin}/#/authority/agencies/${foreignAgencyId}/cases`);
     await page.getByRole('alert').waitFor({ state: 'visible', timeout: 15_000 });
     await expect.poll(async () => page.getByText('E2E-CASE-001').count()).toBe(0);
+    await context.close();
+  });
+
+  it('completes tasks, a reschedule, a quarantined file, and a verification code', async () => {
+    const context = await browser.newContext({
+      extraHTTPHeaders: { Authorization: `Bearer ${sessionId}` },
+      viewport: { width: 390, height: 844 },
+    });
+    const page = await context.newPage();
+    await page.goto(`${origin}/#/authority/cases`);
+    await page.getByRole('button', { name: 'New housing search' }).click();
+    await page.getByLabel('Case reference').fill('E2E-CASE-002');
+    await page.getByRole('button', { name: 'Save case' }).click();
+    await page.getByRole('link', { name: 'E2E-CASE-002' }).click();
+    await see(page, 'Housing case');
+    await page.getByLabel('Task title').fill('Collect documents');
+    await page.getByRole('button', { name: 'Save task' }).click();
+    await see(page, 'Overdue');
+    await page.getByRole('button', { name: 'Schedule visit' }).click();
+    await see(page, 'Scheduled');
+    await page.getByLabel('Reason for the new time').fill('Agency asked for a later visit');
+    await page.getByRole('button', { name: 'Reschedule visit' }).click();
+    await see(page, 'Rescheduled');
+
+    const proof = Buffer.from('browser-proof');
+    await page.getByLabel('Evidence file').setInputFiles({
+      name: 'proof.pdf',
+      mimeType: 'application/pdf',
+      buffer: proof,
+    });
+    await see(page, 'Scanning');
+    expect(await page.getByRole('button', { name: 'Preview' }).count()).toBe(0);
+
+    const me = await fetch(`http://127.0.0.1:${apiPort}/v1/authority/me`, {
+      headers: { Authorization: `Bearer ${sessionId}` },
+    });
+    const agencyId = ((await me.json()) as { agencies: Array<{ agencyId: string }> }).agencies[0]!.agencyId;
+    const listed = await fetch(`http://127.0.0.1:${apiPort}/v1/authority/agencies/${agencyId}/cases`, {
+      headers: { Authorization: `Bearer ${sessionId}` },
+    });
+    const caseId = ((await listed.json()) as { cases: Array<{ id: string; reference: string }> }).cases.find(
+      (row) => row.reference === 'E2E-CASE-002',
+    )!.id;
+    const workspace = await fetch(
+      `http://127.0.0.1:${apiPort}/v1/authority/agencies/${agencyId}/cases/${caseId}/workspace`,
+      { headers: { Authorization: `Bearer ${sessionId}` } },
+    );
+    const documentId = ((await workspace.json()) as { documents: Array<{ id: string }> }).documents[0]!.id;
+    const scanned = await fetch(`http://127.0.0.1:${apiPort}/v1/authority/internal/scans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-authority-scanner': 'browser-scanner-token' },
+      body: JSON.stringify({
+        documentId,
+        sha256: createHash('sha256').update(proof).digest('hex'),
+        verdict: 'clean',
+        evidenceId: 'browser-scan',
+      }),
+    });
+    expect(scanned.status).toBe(200);
+    await page.reload();
+    await see(page, 'Ready');
+    await page.getByRole('button', { name: 'Preview' }).waitFor({ state: 'visible', timeout: 15_000 });
+
+    await page.getByRole('button', { name: 'Record lease-up' }).click();
+    await see(page, 'A fresh verification code is required for this action.');
+    await page.getByRole('button', { name: 'Set up verification' }).click();
+    const secret = (await page.getByText('Authenticator secret').locator('span').textContent()) ?? '';
+    await page.getByLabel('Verification code').fill(totpCode(secret.trim()));
+    await page.getByRole('button', { name: 'Confirm code' }).click();
+    await see(page, 'Verification code accepted.');
+    await page.getByRole('button', { name: 'Record lease-up' }).click();
+    await see(page, 'Lease-up confirmed');
+    await page.reload();
+    await see(page, 'Lease-up confirmed');
     await context.close();
   });
 

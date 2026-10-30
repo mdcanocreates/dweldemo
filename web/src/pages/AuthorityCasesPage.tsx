@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { Shell } from '../components/Shell';
 
@@ -107,7 +107,9 @@ export function AuthorityCasesPage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <th scope="row">{row.reference}</th>
+                <th scope="row">
+                  <Link to={`/authority/cases/${row.id}`}>{row.reference}</Link>
+                </th>
                 <td>{row.statusLabel}</td>
                 <td>{row.nextAction}</td>
               </tr>

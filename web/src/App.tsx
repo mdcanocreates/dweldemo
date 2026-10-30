@@ -25,6 +25,8 @@ import {
 } from './pages/BrokerPortal';
 import { CalculatorPage } from './pages/CalculatorPage';
 import { ConsentPage } from './pages/ConsentPage';
+import { AuthorityAuditPage } from './pages/AuthorityAuditPage';
+import { AuthorityCasePage } from './pages/AuthorityCasePage';
 import { AuthorityCasesPage } from './pages/AuthorityCasesPage';
 import { AuthorityParticipantPage } from './pages/AuthorityParticipantPage';
 import { AuthorityProviderPage } from './pages/AuthorityProviderPage';
@@ -74,6 +76,8 @@ export default function App() {
       <Route path="/calculator" element={<CalculatorPage />} />
       <Route path="/sign-in" element={<SignInPage />} />
       <Route path="/authority/cases" element={<AuthorityCasesPage />} />
+      <Route path="/authority/cases/:caseId" element={<AuthorityCasePage />} />
+      <Route path="/authority/audit" element={<AuthorityAuditPage />} />
       <Route path="/authority/participant" element={<AuthorityParticipantPage />} />
       <Route path="/authority/provider" element={<AuthorityProviderPage />} />
       <Route path="/authority/reports" element={<AuthorityReportPage />} />
