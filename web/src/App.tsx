@@ -25,6 +25,10 @@ import {
 } from './pages/BrokerPortal';
 import { CalculatorPage } from './pages/CalculatorPage';
 import { ConsentPage } from './pages/ConsentPage';
+import { AuthorityCasesPage } from './pages/AuthorityCasesPage';
+import { AuthorityParticipantPage } from './pages/AuthorityParticipantPage';
+import { AuthorityProviderPage } from './pages/AuthorityProviderPage';
+import { AuthorityReportPage } from './pages/AuthorityReportPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { HomePage } from './pages/HomePage';
 import {
@@ -69,6 +73,11 @@ export default function App() {
       <Route path="/brokers" element={<BrokersMarketingPage />} />
       <Route path="/calculator" element={<CalculatorPage />} />
       <Route path="/sign-in" element={<SignInPage />} />
+      <Route path="/authority/cases" element={<AuthorityCasesPage />} />
+      <Route path="/authority/participant" element={<AuthorityParticipantPage />} />
+      <Route path="/authority/provider" element={<AuthorityProviderPage />} />
+      <Route path="/authority/reports" element={<AuthorityReportPage />} />
+      <Route path="/authority/agencies/:agencyId/cases" element={<AuthorityCasesPage />} />
 
       <Route path="/landlord" element={<LandlordGuard />}>
         <Route index element={<LandlordOverviewPage />} />

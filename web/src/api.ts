@@ -773,4 +773,27 @@ export const api = {
     const q = new URLSearchParams({ ...params, format: 'csv' });
     return `/v1/admin/audit?${q.toString()}`;
   },
+  authorityMe: () =>
+    request<{ agencies: Array<{ agencyId: string; displayName: string; role: string }> }>(
+      '/v1/authority/me',
+    ),
+  authorityCases: (agencyId: string) =>
+    request<{ cases: Array<Record<string, unknown>> }>(`/v1/authority/agencies/${agencyId}/cases`),
+  authorityCreateCase: (agencyId: string, body: Record<string, unknown>) =>
+    request<{ case: Record<string, unknown> }>(`/v1/authority/agencies/${agencyId}/cases`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  authorityParticipantCases: () =>
+    request<{ cases: Array<{ id: string; reference: string; statusLabel: string }> }>(
+      '/v1/authority/participant/cases',
+    ),
+  authorityProviderLeads: () =>
+    request<{ leads: Array<{ id: string; listingId: string | null; statusLabel: string }> }>(
+      '/v1/authority/provider/leads',
+    ),
+  authorityLeaseupReport: (agencyId: string) =>
+    request<{ suppressed: boolean; numerator: number | null; source: string }>(
+      `/v1/authority/agencies/${agencyId}/reports/leaseup`,
+    ),
 };
