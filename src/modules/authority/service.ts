@@ -9,7 +9,15 @@ import {
   type AuthorityPrincipal,
 } from './access.js';
 import type { AuthorityRoleName, CreateHousingCaseInput } from './contracts.js';
-import { appointmentStatusLabel, caseStatusLabel, nextCaseAction, packetStatusLabel } from './labels.js';
+import {
+  appointmentStatusLabel,
+  caseStatusLabel,
+  documentStatusLabel,
+  nextCaseAction,
+  packetStatusLabel,
+  taskStatusLabel,
+} from './labels.js';
+import { newTotpSecret, totpMatches } from './totp.js';
 
 export function authorityLiteEnabled(): boolean {
   return process.env.DWEL_AUTHORITY_LITE === '1';
@@ -23,8 +31,14 @@ export function authoritySandboxEnabled(): boolean {
   );
 }
 
-function sha256(value: string): string {
+function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+export function assertFreshMfa(until: Date | null | undefined): void {
+  if (!until || until.getTime() <= Date.now()) {
+    throw new AppError('A fresh verification code is required for this action.', 'mfa_required', 403);
+  }
 }
 
 export type StaffContext = AuthorityPrincipal & { agencyId: string };
@@ -216,10 +230,21 @@ async function loadVisibleCase(
     sharedPartyIds: shares.rows.map((share) => share.grantee_party_id),
   });
   if (!allowed) throw new AppError('not found', 'not_found', 404);
-  if (!mayReadSensitiveCaseFields(staff.role)) {
-    return { ...row, verification_source: null, program_type: null, assistance_indicator: 'unknown' };
-  }
-  return row;
+  const sensitive = await client.query<{
+    assistance_indicator: string;
+    program_type: string | null;
+    verification_source: string | null;
+  }>(`select assistance_indicator, program_type, verification_source from authority_read_verification($1, $2)`, [
+    staff.agencyId,
+    caseId,
+  ]);
+  const secret = mayReadSensitiveCaseFields(staff.role) ? sensitive.rows[0] : undefined;
+  return {
+    ...row,
+    assistance_indicator: secret?.assistance_indicator ?? 'unknown',
+    program_type: secret?.program_type ?? null,
+    verification_source: secret?.verification_source ?? null,
+  };
 }
 
 function presentCase(row: Record<string, unknown>) {
@@ -265,20 +290,25 @@ export async function createHousingCase(
   const assigned = input.assignedMembershipId ?? staff.membershipId;
   const inserted = await client.query(
     `insert into authority_housing_case (
-       agency_id, display_reference, status, search_preferences, assistance_indicator,
+       agency_id, display_reference, status, search_preferences,
        assigned_membership_id, dwel_party_id
-     ) values ($1,$2,'draft',$3::jsonb,$4,$5,$6)
+     ) values ($1,$2,'draft',$3::jsonb,$4,$5)
      returning *`,
     [
       staff.agencyId,
       input.displayReference,
       JSON.stringify(input.searchPreferences),
-      input.assistanceIndicator,
       assigned,
       input.dwelPartyId ?? null,
     ],
   );
   const row = inserted.rows[0] as Record<string, unknown>;
+  await client.query(`select authority_init_assistance($1, $2, $3)`, [
+    staff.agencyId,
+    row.id,
+    input.assistanceIndicator,
+  ]);
+  row.assistance_indicator = input.assistanceIndicator;
   await recordEvent(client, {
     agencyId: staff.agencyId,
     caseId: String(row.id),
@@ -323,10 +353,16 @@ export async function getHousingCase(client: DbClient, staff: StaffContext, case
 export async function dashboard(client: DbClient, staff: StaffContext) {
   const cases = await listHousingCases(client, staff);
   const rows = cases.cases as Array<{ status: string }>;
+  const overdue = await client.query<{ n: string }>(
+    `select count(*)::text as n from authority_task
+     where agency_id = $1 and status in ('open', 'in_progress') and due_at < now()`,
+    [staff.agencyId],
+  );
   return {
     active_searches: rows.filter((row) => row.status === 'searching' || row.status === 'draft').length,
     packets_needing_input: rows.filter((row) => row.status === 'tenancy_packet').length,
     confirmed_leaseups: rows.filter((row) => row.status === 'leaseup_confirmed').length,
+    tasks_overdue: Number(overdue.rows[0]?.n ?? 0),
     source: 'authority_housing_case',
     updatedAt: new Date().toISOString(),
   };
@@ -564,8 +600,10 @@ export async function acknowledgePacket(
   packetId: string,
   reference: string,
   requestId: string,
+  mfaUntil: Date | null,
 ) {
   if (!mayAcknowledgePacket(staff.role)) throw new AppError('not found', 'forbidden', 403);
+  assertFreshMfa(mfaUntil);
   const updated = await client.query<{ case_id: string }>(
     `update authority_tenancy_packet
      set status = 'agency_acknowledged', agency_ack_reference = $3, updated_at = now()
@@ -596,14 +634,15 @@ export async function scheduleAppointment(
     throw new AppError('not found', 'forbidden', 403);
   }
   await loadVisibleCase(client, staff, caseId);
-  const row = await client.query<{ id: string; status: string }>(
+  const row = await client.query<{ id: string; status: string; version: number }>(
     `insert into authority_appointment (agency_id, case_id, status, window_start)
-     values ($1,$2,'scheduled',$3) returning id, status`,
+     values ($1,$2,'scheduled',$3) returning id, status, version`,
     [staff.agencyId, caseId, windowStart],
   );
   return {
     appointmentId: row.rows[0]!.id,
     statusLabel: appointmentStatusLabel(row.rows[0]!.status),
+    version: row.rows[0]!.version,
   };
 }
 
@@ -658,19 +697,33 @@ export async function createUploadIntent(
 }
 
 export async function previewDocument(client: DbClient, partyId: string, documentId: string) {
-  const doc = await client.query<{ id: string; storage_key: string; scan_status: string }>(
-    `select id, storage_key, scan_status from authority_document where id = $1`,
+  const doc = await client.query<{
+    id: string;
+    storage_key: string;
+    scan_status: string;
+    scan_evidence_id: string | null;
+    content_sha256: string | null;
+    byte_sha: string | null;
+  }>(
+    `select d.id, d.storage_key, d.scan_status, d.scan_evidence_id, d.content_sha256, b.sha256 as byte_sha
+     from authority_document d
+     left join authority_object_bytes b on b.document_id = d.id
+     where d.id = $1`,
     [documentId],
   );
   const row = doc.rows[0];
-  if (!row || row.scan_status === 'rejected') {
-    throw new AppError('This file is not available.', 'not_found', 404);
-  }
-  if (row.storage_key.startsWith('missing/')) {
-    throw new AppError('This file is not available.', 'not_found', 404);
+  const ready =
+    row &&
+    row.scan_status === 'clean' &&
+    row.scan_evidence_id &&
+    row.content_sha256 &&
+    row.byte_sha === row.content_sha256 &&
+    !row.storage_key.startsWith('missing/');
+  if (!ready) {
+    throw new AppError('This file is not available.', 'document_unavailable', 404);
   }
   const token = randomBytes(24).toString('hex');
-  const expires = new Date(Date.now() + 90_000);
+  const expires = new Date(Date.now() + 60_000);
   await client.query(
     `insert into authority_preview_grant (document_id, party_id, token_hash, expires_at)
      values ($1,$2,$3,$4)`,
@@ -699,8 +752,27 @@ export async function openPreview(client: DbClient, partyId: string, token: stri
   if (!row || row.expires_at.getTime() < Date.now()) {
     throw new AppError('This preview has expired.', 'not_found', 404);
   }
-  if (row.storage_key.startsWith('missing/')) {
-    throw new AppError('This file is not available.', 'not_found', 404);
+  const stillClean = await client.query<{ ok: boolean }>(
+    `select true as ok
+     from authority_document d
+     where d.id = $1
+       and d.scan_status = 'clean'
+       and d.scan_evidence_id is not null
+       and (
+         exists (
+           select 1 from authority_membership m
+           where m.agency_id = d.agency_id and m.staff_party_id = $2 and m.status = 'active'
+         )
+         or exists (
+           select 1 from authority_case_share s
+           where s.case_id = d.case_id and s.grantee_party_id = $2
+             and s.accepted_at is not null and s.revoked_at is null and s.expires_at > now()
+         )
+       )`,
+    [row.document_id, partyId],
+  );
+  if (!stillClean.rows[0] || row.storage_key.startsWith('missing/')) {
+    throw new AppError('This file is not available.', 'document_unavailable', 404);
   }
   return { storageKey: row.storage_key, cacheControl: 'private, no-store' };
 }
@@ -739,8 +811,10 @@ export async function confirmLeaseup(
   caseId: string,
   source: string,
   requestId: string,
+  mfaUntil: Date | null,
 ) {
   if (!mayAcknowledgePacket(staff.role)) throw new AppError('not found', 'forbidden', 403);
+  assertFreshMfa(mfaUntil);
   if (!source.trim()) throw new AppError('agency source is required', 'validation_error', 400);
   const updated = await client.query(
     `update authority_housing_case
@@ -857,16 +931,397 @@ export async function verifyAssistance(
   staff: StaffContext,
   caseId: string,
   input: { indicator: string; programType: string; verificationSource: string; version: number },
+  mfaUntil: Date | null,
 ) {
   if (!mayVerifyAssistance(staff.role)) throw new AppError('not found', 'forbidden', 403);
+  assertFreshMfa(mfaUntil);
   const updated = await client.query(
     `update authority_housing_case
-     set assistance_indicator = $3, program_type = $4, verification_source = $5,
-         verified_at = now(), version = version + 1, updated_at = now()
-     where id = $1 and agency_id = $2 and version = $6
+     set version = version + 1, updated_at = now()
+     where id = $1 and agency_id = $2 and version = $3
      returning id`,
-    [caseId, staff.agencyId, input.indicator, input.programType, input.verificationSource, input.version],
+    [caseId, staff.agencyId, input.version],
   );
   if (!updated.rows[0]) throw new AppError('stale case version', 'precondition_failed', 412);
+  await client.query(`select authority_write_verification($1, $2, $3, $4, $5)`, [
+    staff.agencyId,
+    caseId,
+    input.indicator,
+    input.programType,
+    input.verificationSource,
+  ]);
   return { assistanceIndicator: input.indicator };
+}
+
+function canWriteCase(role: string): boolean {
+  return role === 'agency_owner' || role === 'agency_supervisor' || role === 'caseworker';
+}
+
+export async function createTask(
+  client: DbClient,
+  staff: StaffContext,
+  caseId: string,
+  input: { title: string; dueAt: string | null; assigneePartyId: string | null },
+  requestId: string,
+) {
+  if (!canWriteCase(staff.role)) throw new AppError('not found', 'forbidden', 403);
+  await loadVisibleCase(client, staff, caseId);
+  if (input.assigneePartyId) {
+    const member = await client.query(
+      `select 1 from authority_membership
+       where agency_id = $1 and staff_party_id = $2 and status = 'active'`,
+      [staff.agencyId, input.assigneePartyId],
+    );
+    if (!member.rows[0]) throw new AppError('assignee is not an active staff member', 'validation_error', 422);
+  }
+  const row = await client.query<{ id: string; version: number; status: string; due_at: Date | null }>(
+    `insert into authority_task (agency_id, case_id, assigned_party_id, kind, title, status, due_at)
+     values ($1,$2,$3,'follow_up',$4,'open',$5)
+     returning id, version, status, due_at`,
+    [staff.agencyId, caseId, input.assigneePartyId, input.title, input.dueAt],
+  );
+  const task = row.rows[0]!;
+  await recordEvent(client, {
+    agencyId: staff.agencyId,
+    caseId,
+    actorPartyId: staff.partyId,
+    actorKind: 'agency',
+    eventType: 'authority.task_created',
+    requestId,
+    metadata: { taskId: task.id },
+  });
+  return {
+    taskId: task.id,
+    version: task.version,
+    statusLabel: taskStatusLabel(task.status, task.due_at),
+  };
+}
+
+export async function listTasks(client: DbClient, staff: StaffContext, caseId?: string) {
+  const { rows } = await client.query<{
+    id: string;
+    case_id: string | null;
+    title: string | null;
+    status: string;
+    due_at: Date | null;
+    version: number;
+  }>(
+    `select id, case_id, title, status, due_at, version
+     from authority_task
+     where agency_id = $1 and ($2::uuid is null or case_id = $2)
+     order by due_at nulls last, created_at desc
+     limit 100`,
+    [staff.agencyId, caseId ?? null],
+  );
+  return {
+    tasks: rows.map((row) => ({
+      id: row.id,
+      caseId: row.case_id,
+      title: row.title ?? 'Task',
+      statusLabel: taskStatusLabel(row.status, row.due_at),
+      dueAt: row.due_at?.toISOString() ?? null,
+      version: row.version,
+    })),
+  };
+}
+
+export async function patchTask(
+  client: DbClient,
+  staff: StaffContext,
+  taskId: string,
+  input: { status?: 'open' | 'in_progress' | 'completed' | 'cancelled'; dueAt?: string | null; expectedVersion: number },
+  requestId: string,
+) {
+  if (!canWriteCase(staff.role)) throw new AppError('not found', 'forbidden', 403);
+  const current = await client.query<{
+    id: string;
+    case_id: string | null;
+    status: string;
+    version: number;
+    due_at: Date | null;
+  }>(
+    `select id, case_id, status, version, due_at from authority_task
+     where id = $1 and agency_id = $2 for update`,
+    [taskId, staff.agencyId],
+  );
+  const task = current.rows[0];
+  if (!task) throw new AppError('not found', 'not_found', 404);
+  if (task.version !== input.expectedVersion) throw new AppError('conflicting edit', 'conflict', 409);
+  const nextStatus = input.status ?? task.status;
+  const due = input.dueAt === undefined ? task.due_at : input.dueAt;
+  const updated = await client.query<{ status: string; due_at: Date | null; version: number }>(
+    `update authority_task
+     set status = $3,
+         due_at = $4,
+         completed_at = case when $3 = 'completed' then now() else completed_at end,
+         version = version + 1,
+         updated_at = now()
+     where id = $1 and agency_id = $2 and version = $5
+     returning status, due_at, version`,
+    [taskId, staff.agencyId, nextStatus, due, input.expectedVersion],
+  );
+  const row = updated.rows[0];
+  if (!row) throw new AppError('conflicting edit', 'conflict', 409);
+  if (task.case_id) {
+    await recordEvent(client, {
+      agencyId: staff.agencyId,
+      caseId: task.case_id,
+      actorPartyId: staff.partyId,
+      actorKind: 'agency',
+      eventType: 'authority.task_updated',
+      requestId,
+      metadata: { taskId, from: task.status, to: row.status },
+    });
+  }
+  return { version: row.version, statusLabel: taskStatusLabel(row.status, row.due_at) };
+}
+
+export function formatAgencyTime(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(instant);
+}
+
+export async function rescheduleAppointment(
+  client: DbClient,
+  staff: StaffContext,
+  appointmentId: string,
+  input: { startAt: string; endAt: string; reason: string; expectedVersion: number },
+  requestId: string,
+) {
+  if (!['inspection_coordinator', 'agency_supervisor', 'agency_owner'].includes(staff.role)) {
+    throw new AppError('not found', 'forbidden', 403);
+  }
+  const current = await client.query<{
+    id: string;
+    case_id: string;
+    version: number;
+    window_start: Date | null;
+  }>(
+    `select id, case_id, version, window_start from authority_appointment
+     where id = $1 and agency_id = $2 for update`,
+    [appointmentId, staff.agencyId],
+  );
+  const row = current.rows[0];
+  if (!row?.window_start) throw new AppError('not found', 'not_found', 404);
+  if (row.version !== input.expectedVersion) throw new AppError('conflicting edit', 'conflict', 409);
+  const start = new Date(input.startAt);
+  const end = new Date(input.endAt);
+  if (!(end.getTime() > start.getTime())) {
+    throw new AppError('End must be after start', 'validation_error', 422);
+  }
+  const zone = await client.query<{ timezone: string }>(
+    `select timezone from authority_tenant where id = $1`,
+    [staff.agencyId],
+  );
+  const timeZone = zone.rows[0]?.timezone ?? 'America/Chicago';
+  await client.query(
+    `update authority_appointment
+     set window_start = $3, window_end = $4, status = 'rescheduled', version = version + 1, updated_at = now()
+     where id = $1 and agency_id = $2`,
+    [appointmentId, staff.agencyId, start.toISOString(), end.toISOString()],
+  );
+  await client.query(
+    `insert into authority_appointment_change (
+       agency_id, appointment_id, prior_start_at, new_start_at, reason, actor_party_id
+     ) values ($1,$2,$3,$4,$5,$6)`,
+    [staff.agencyId, appointmentId, row.window_start.toISOString(), start.toISOString(), input.reason, staff.partyId],
+  );
+  await recordEvent(client, {
+    agencyId: staff.agencyId,
+    caseId: row.case_id,
+    actorPartyId: staff.partyId,
+    actorKind: 'agency',
+    eventType: 'authority.appointment_rescheduled',
+    requestId,
+  });
+  return {
+    statusLabel: appointmentStatusLabel('rescheduled'),
+    startAtUtc: start.toISOString(),
+    localLabel: formatAgencyTime(start, timeZone),
+    version: input.expectedVersion + 1,
+  };
+}
+
+export async function listAudit(
+  client: DbClient,
+  staff: StaffContext,
+  query: { caseId?: string; kind?: string; limit: number },
+) {
+  if (!mayAcknowledgePacket(staff.role)) throw new AppError('not found', 'forbidden', 403);
+  const { rows } = await client.query<{
+    id: string;
+    occurred_at: Date;
+    event_type: string;
+    case_id: string | null;
+    actor_kind: string;
+  }>(
+    `select id, occurred_at, event_type, case_id, actor_kind
+     from authority_event
+     where agency_id = $1
+       and ($2::uuid is null or case_id = $2)
+       and ($3::text is null or event_type = $3)
+     order by occurred_at desc, id desc
+     limit $4`,
+    [staff.agencyId, query.caseId ?? null, query.kind ?? null, query.limit],
+  );
+  return {
+    events: rows.map((row) => ({
+      id: row.id,
+      occurredAt: row.occurred_at.toISOString(),
+      kind: row.event_type,
+      caseId: row.case_id,
+      actorKind: row.actor_kind,
+    })),
+  };
+}
+
+export async function completeUpload(
+  client: DbClient,
+  staff: StaffContext,
+  documentId: string,
+  body: Buffer,
+) {
+  const doc = await client.query<{ id: string; case_id: string; scan_status: string }>(
+    `select id, case_id, scan_status from authority_document
+     where id = $1 and agency_id = $2`,
+    [documentId, staff.agencyId],
+  );
+  const row = doc.rows[0];
+  if (!row) throw new AppError('not found', 'not_found', 404);
+  await loadVisibleCase(client, staff, row.case_id);
+  if (body.length < 1 || body.length > 5_000_000) {
+    throw new AppError('file is empty or too large', 'validation_error', 422);
+  }
+  const hash = sha256(body);
+  await client.query(
+    `insert into authority_object_bytes (document_id, sha256, byte_size, body)
+     values ($1,$2,$3,$4)
+     on conflict (document_id) do update
+       set sha256 = excluded.sha256, byte_size = excluded.byte_size, body = excluded.body`,
+    [documentId, hash, body.length, body],
+  );
+  await client.query(
+    `update authority_document set content_sha256 = $2, byte_size = $3 where id = $1`,
+    [documentId, hash, body.length],
+  );
+  return { statusLabel: documentStatusLabel('quarantine', true), sha256: hash };
+}
+
+export async function applyTrustedScan(
+  client: DbClient,
+  input: { documentId: string; sha256: string; verdict: 'clean' | 'malicious' | 'error'; evidenceId: string; token: string },
+) {
+  if (!process.env.AUTHORITY_SCANNER_TOKEN) {
+    throw new AppError('document scanning is not configured', 'dependency_unavailable', 503);
+  }
+  try {
+    const result = await client.query<{ authority_apply_scan: string }>(
+      `select authority_apply_scan($1, $2, $3, $4, $5)`,
+      [input.documentId, input.verdict, input.evidenceId, input.sha256, input.token],
+    );
+    const status = result.rows[0]?.authority_apply_scan ?? 'rejected';
+    return { statusLabel: documentStatusLabel(status === 'clean' ? 'clean' : 'rejected', true) };
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === '42501') throw new AppError('This file is not available.', 'document_unavailable', 404);
+    throw err;
+  }
+}
+
+export async function enrollMfa(client: DbClient, partyId: string) {
+  const existing = await client.query<{ secret_base32: string; confirmed_at: Date | null }>(
+    `select secret_base32, confirmed_at from authority_mfa_factor where party_id = $1`,
+    [partyId],
+  );
+  if (existing.rows[0]?.confirmed_at) {
+    throw new AppError('verification is already set up', 'conflict', 409);
+  }
+  const secret = existing.rows[0]?.secret_base32 ?? newTotpSecret();
+  if (!existing.rows[0]) {
+    await client.query(
+      `insert into authority_mfa_factor (party_id, secret_base32) values ($1, $2)`,
+      [partyId, secret],
+    );
+  }
+  return { secret, issuer: 'Dwel Authority' };
+}
+
+export async function confirmMfa(client: DbClient, partyId: string, sessionId: string, code: string) {
+  const factor = await client.query<{ secret_base32: string }>(
+    `select secret_base32 from authority_mfa_factor where party_id = $1`,
+    [partyId],
+  );
+  const secret = factor.rows[0]?.secret_base32;
+  if (!secret || !totpMatches(secret, code)) {
+    throw new AppError('That verification code was not accepted.', 'forbidden', 403);
+  }
+  await client.query(`update authority_mfa_factor set confirmed_at = coalesce(confirmed_at, now()) where party_id = $1`, [
+    partyId,
+  ]);
+  const until = new Date(Date.now() + 15 * 60_000);
+  await client.query(`update session set authority_mfa_until = $2 where id = $1 and party_id = $3`, [
+    sessionId,
+    until,
+    partyId,
+  ]);
+  return { assurance: 'mfa' as const, freshUntil: until.toISOString() };
+}
+
+export async function caseWorkspace(client: DbClient, staff: StaffContext, caseId: string) {
+  const housing = await getHousingCase(client, staff, caseId);
+  const tasks = await listTasks(client, staff, caseId);
+  const appointments = await client.query<{
+    id: string;
+    status: string;
+    window_start: Date | null;
+    version: number;
+  }>(
+    `select id, status, window_start, version from authority_appointment
+     where agency_id = $1 and case_id = $2 order by window_start desc nulls last`,
+    [staff.agencyId, caseId],
+  );
+  const documents = await client.query<{
+    id: string;
+    scan_status: string;
+    has_bytes: boolean;
+  }>(
+    `select d.id, d.scan_status, (b.document_id is not null) as has_bytes
+     from authority_document d
+     left join authority_object_bytes b on b.document_id = d.id
+     where d.agency_id = $1 and d.case_id = $2`,
+    [staff.agencyId, caseId],
+  );
+  const zone = await client.query<{ timezone: string }>(
+    `select timezone from authority_tenant where id = $1`,
+    [staff.agencyId],
+  );
+  const timeZone = zone.rows[0]?.timezone ?? 'America/Chicago';
+  return {
+    ...housing,
+    tasks: tasks.tasks,
+    appointments: appointments.rows.map((row) => ({
+      id: row.id,
+      statusLabel: appointmentStatusLabel(row.status),
+      startAtUtc: row.window_start?.toISOString() ?? null,
+      localLabel: row.window_start ? formatAgencyTime(row.window_start, timeZone) : null,
+      version: row.version,
+    })),
+    documents: documents.rows.map((row) => ({
+      id: row.id,
+      statusLabel: documentStatusLabel(row.scan_status, row.has_bytes),
+      previewable: row.scan_status === 'clean',
+    })),
+    permissions: {
+      canVerify: mayVerifyAssistance(staff.role),
+      canSchedule: ['inspection_coordinator', 'agency_supervisor', 'agency_owner'].includes(staff.role),
+      canWrite: canWriteCase(staff.role),
+    },
+  };
 }

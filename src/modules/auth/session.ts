@@ -6,6 +6,7 @@ import { sessionLifetimeMs } from './rbit-auth/index.js';
 export type SessionIdentity = {
   sessionId: string;
   partyId: string;
+  authorityMfaUntil: Date | null;
   roles: Array<{ role: string; orgId: string | null }>;
 };
 
@@ -64,9 +65,11 @@ export async function loadSessionIdentity(
     idle_expires_at: Date | null;
     absolute_expires_at: Date | null;
     remember_device: boolean | null;
+    authority_mfa_until: Date | null;
   }>(
     `select id, party_id, expires_at, revoked_at,
-            idle_expires_at, absolute_expires_at, remember_device
+            idle_expires_at, absolute_expires_at, remember_device,
+            authority_mfa_until
      from session
      where secret_hash = $1
         or (
@@ -111,6 +114,7 @@ export async function loadSessionIdentity(
   return {
     sessionId: session.id,
     partyId: session.party_id,
+    authorityMfaUntil: session.authority_mfa_until,
     roles: roles.map((r) => ({ role: r.role, orgId: r.org_id })),
   };
 }

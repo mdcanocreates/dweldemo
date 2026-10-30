@@ -18,15 +18,23 @@ import {
   authorityLiteEnabled,
   authoritySandboxEnabled,
   confirmLeaseup,
+  applyTrustedScan,
+  caseWorkspace,
+  completeUpload,
+  confirmMfa,
   createHousingCase,
   createLead,
+  createTask,
   createSandboxAgency,
   createUploadIntent,
   dashboard,
+  enrollMfa,
   getHousingCase,
   inviteStaff,
   leaseupReport,
+  listAudit,
   listHousingCases,
+  listTasks,
   listMyAgencies,
   listParticipantCases,
   listProviderLeads,
@@ -36,7 +44,9 @@ import {
   patchPacketSection,
   previewDocument,
   previewImport,
+  patchTask,
   recordExternalInspection,
+  rescheduleAppointment,
   revokeShare,
   scheduleAppointment,
   sendOutreach,
@@ -76,9 +86,43 @@ export async function handleAuthority(
     return true;
   }
   try {
+    if (method === 'POST' && path === '/v1/authority/internal/scans') {
+      const provided = req.headers['x-authority-scanner'];
+      const token = (Array.isArray(provided) ? provided[0] : provided)?.trim() ?? '';
+      const body = z
+        .object({
+          documentId: z.string().uuid(),
+          sha256: z.string().length(64),
+          verdict: z.enum(['clean', 'malicious', 'error']),
+          evidenceId: z.string().min(3).max(120),
+        })
+        .strict()
+        .parse(await readJsonBody(req));
+      const scanned = await withSystemBypass(deps.pool, (client) =>
+        applyTrustedScan(client, { ...body, token }),
+      );
+      sendJson(res, 200, scanned);
+      return true;
+    }
+
     const identity = await requireSession(deps.pool, req);
     const partyId = identity.partyId;
+    const mfaUntil = identity.authorityMfaUntil;
     const rid = requestId(req);
+
+    if (method === 'POST' && path === '/v1/authority/mfa/enroll') {
+      const enrolled = await withTenantContext(deps.pool, { partyId }, (client) => enrollMfa(client, partyId));
+      sendJson(res, 200, enrolled);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/authority/mfa/confirm') {
+      const body = z.object({ code: z.string().regex(/^\d{6}$/) }).strict().parse(await readJsonBody(req));
+      const confirmed = await withTenantContext(deps.pool, { partyId }, (client) =>
+        confirmMfa(client, partyId, identity.sessionId, body.code),
+      );
+      sendJson(res, 200, confirmed);
+      return true;
+    }
 
     if (method === 'POST' && path === '/v1/authority/sandbox/agencies') {
       if (!authoritySandboxEnabled()) throw new AppError('not found', 'not_found', 404);
@@ -287,14 +331,18 @@ export async function handleAuthority(
     const leaseup = rest.match(new RegExp(`^cases/${UUID}/leaseup$`, 'i'));
     if (leaseup && method === 'POST') {
       const body = z.object({ source: z.string().min(3).max(200) }).parse(await readJsonBody(req));
-      sendJson(res, 200, await run((staff, client) => confirmLeaseup(client, staff, leaseup[1]!, body.source, rid)));
+      sendJson(
+        res,
+        200,
+        await run((staff, client) => confirmLeaseup(client, staff, leaseup[1]!, body.source, rid, mfaUntil)),
+      );
       return true;
     }
 
     const verify = rest.match(new RegExp(`^cases/${UUID}/assistance$`, 'i'));
     if (verify && method === 'POST') {
       const body = VerifyAssistance.parse(await readJsonBody(req));
-      sendJson(res, 200, await run((staff, client) => verifyAssistance(client, staff, verify[1]!, body)));
+      sendJson(res, 200, await run((staff, client) => verifyAssistance(client, staff, verify[1]!, body, mfaUntil)));
       return true;
     }
 
@@ -320,7 +368,11 @@ export async function handleAuthority(
     const packetAck = rest.match(new RegExp(`^packets/${UUID}/acknowledge$`, 'i'));
     if (packetAck && method === 'POST') {
       const body = z.object({ reference: z.string().min(3).max(200) }).parse(await readJsonBody(req));
-      sendJson(res, 200, await run((staff, client) => acknowledgePacket(client, staff, packetAck[1]!, body.reference, rid)));
+      sendJson(
+        res,
+        200,
+        await run((staff, client) => acknowledgePacket(client, staff, packetAck[1]!, body.reference, rid, mfaUntil)),
+      );
       return true;
     }
 
@@ -367,6 +419,119 @@ export async function handleAuthority(
         return previewDocument(client, partyId, preview[1]!);
       });
       sendJson(res, 200, issued, { 'Cache-Control': 'private, no-store' });
+      return true;
+    }
+
+    const workspace = rest.match(new RegExp(`^cases/${UUID}/workspace$`, 'i'));
+    if (workspace && method === 'GET') {
+      sendJson(res, 200, await run((staff, client) => caseWorkspace(client, staff, workspace[1]!)));
+      return true;
+    }
+
+    const taskCreate = rest.match(new RegExp(`^cases/${UUID}/tasks$`, 'i'));
+    if (taskCreate && method === 'POST') {
+      const body = z
+        .object({
+          title: z.string().min(3).max(160),
+          dueAt: z.string().datetime({ offset: true }).nullable().optional(),
+          assigneePartyId: z.string().uuid().nullable().optional(),
+        })
+        .strict()
+        .parse(await readJsonBody(req));
+      sendJson(
+        res,
+        201,
+        await run((staff, client) =>
+          createTask(
+            client,
+            staff,
+            taskCreate[1]!,
+            { title: body.title, dueAt: body.dueAt ?? null, assigneePartyId: body.assigneePartyId ?? null },
+            rid,
+          ),
+        ),
+      );
+      return true;
+    }
+
+    if (method === 'GET' && rest === 'tasks') {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      const caseId = url.searchParams.get('caseId') ?? undefined;
+      sendJson(res, 200, await run((staff, client) => listTasks(client, staff, caseId)));
+      return true;
+    }
+
+    const taskPatch = rest.match(new RegExp(`^tasks/${UUID}$`, 'i'));
+    if (taskPatch && method === 'PATCH') {
+      const body = z
+        .object({
+          status: z.enum(['open', 'in_progress', 'completed', 'cancelled']).optional(),
+          dueAt: z.string().datetime({ offset: true }).nullable().optional(),
+          expectedVersion: z.number().int().positive(),
+        })
+        .strict()
+        .parse(await readJsonBody(req));
+      sendJson(res, 200, await run((staff, client) => patchTask(client, staff, taskPatch[1]!, body, rid)));
+      return true;
+    }
+
+    const reschedule = rest.match(new RegExp(`^appointments/${UUID}/reschedule$`, 'i'));
+    if (reschedule && method === 'POST') {
+      const body = z
+        .object({
+          startAt: z.string().datetime({ offset: true }),
+          endAt: z.string().datetime({ offset: true }),
+          reason: z.string().trim().min(5).max(500),
+          expectedVersion: z.number().int().positive(),
+          passed: z.boolean().optional(),
+        })
+        .strict()
+        .parse(await readJsonBody(req));
+      if (body.passed !== undefined) {
+        throw new AppError('inspection pass or fail is not recorded by Dwel', 'forbidden', 403);
+      }
+      sendJson(
+        res,
+        200,
+        await run((staff, client) =>
+          rescheduleAppointment(
+            client,
+            staff,
+            reschedule[1]!,
+            { startAt: body.startAt, endAt: body.endAt, reason: body.reason, expectedVersion: body.expectedVersion },
+            rid,
+          ),
+        ),
+      );
+      return true;
+    }
+
+    if (method === 'GET' && rest === 'audit') {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      const limit = Number(url.searchParams.get('limit') ?? '25');
+      sendJson(
+        res,
+        200,
+        await run((staff, client) =>
+          listAudit(client, staff, {
+            caseId: url.searchParams.get('caseId') ?? undefined,
+            kind: url.searchParams.get('kind') ?? undefined,
+            limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 25,
+          }),
+        ),
+      );
+      return true;
+    }
+
+    const complete = rest.match(new RegExp(`^documents/${UUID}/complete$`, 'i'));
+    if (complete && method === 'POST') {
+      const body = z.object({ bytesBase64: z.string().min(4).max(7_000_000) }).strict().parse(await readJsonBody(req));
+      const bytes = Buffer.from(body.bytesBase64, 'base64');
+      sendJson(
+        res,
+        200,
+        await run((staff, client) => completeUpload(client, staff, complete[1]!, bytes)),
+      );
       return true;
     }
 

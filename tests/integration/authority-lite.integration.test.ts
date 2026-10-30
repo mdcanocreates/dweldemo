@@ -8,7 +8,9 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiRouter } from '../../src/http/router.js';
 import { createHousingCase, loadStaff } from '../../src/modules/authority/service.js';
+import { totpCode } from '../../src/modules/authority/totp.js';
 import { seedPhase5Listing } from '../helpers/phase5.js';
+import { withTenantContext } from '../../src/db/tenant.js';
 import { createAppPool, startTestDb, withBypass, type TestDb } from '../helpers/db.js';
 import type { DbPool } from '../../src/db/pool.js';
 
@@ -290,6 +292,21 @@ describe('authority lite', () => {
       { cookie: worker.cookie, body: { reference: 'PHA-1' } },
     );
     expect(workerAck.status).toBe(403);
+    const lowAssurance = await request(
+      port,
+      'POST',
+      `/v1/authority/agencies/${agencyId}/packets/${packetId}/acknowledge`,
+      { cookie: owner.cookie, body: { reference: 'PHA-1' } },
+    );
+    expect(lowAssurance.status).toBe(403);
+    expect(lowAssurance.body.error).toBe('mfa_required');
+    const enrolled = await request(port, 'POST', '/v1/authority/mfa/enroll', { cookie: owner.cookie });
+    expect(enrolled.status).toBe(200);
+    const confirmed = await request(port, 'POST', '/v1/authority/mfa/confirm', {
+      cookie: owner.cookie,
+      body: { code: totpCode(String(enrolled.body.secret)) },
+    });
+    expect(confirmed.status).toBe(200);
     const acked = await request(port, 'POST', `/v1/authority/agencies/${agencyId}/packets/${packetId}/acknowledge`, {
       cookie: owner.cookie,
       body: { reference: 'PHA-1' },
@@ -357,7 +374,7 @@ describe('authority lite', () => {
 
     const staff = await withBypass(db.pool, (client) => loadStaff(client, worker.partyId, agencyId));
     await expect(
-      withBypass(db.pool, async (client) => {
+      withTenantContext(appPool, { partyId: worker.partyId }, async (client) => {
         await createHousingCase(
           client,
           staff,

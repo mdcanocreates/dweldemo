@@ -38,6 +38,25 @@ export function appointmentStatusLabel(status: string): string {
   return APPOINTMENT_LABELS[status] ?? 'Status unavailable';
 }
 
+export function taskStatusLabel(status: string, dueAt: Date | null, now = new Date()): string {
+  if ((status === 'open' || status === 'in_progress') && dueAt && dueAt.getTime() < now.getTime()) {
+    return 'Overdue';
+  }
+  if (status === 'open') return 'Open';
+  if (status === 'in_progress') return 'In progress';
+  if (status === 'completed') return 'Completed';
+  if (status === 'cancelled') return 'Cancelled';
+  return 'Status unavailable';
+}
+
+export function documentStatusLabel(status: string, hasBytes: boolean): string {
+  if (status === 'clean') return 'Ready';
+  if (status === 'rejected') return 'Rejected';
+  if (status === 'deleted' || status === 'expired') return 'Unavailable';
+  if (hasBytes) return 'Scanning';
+  return 'Upload pending';
+}
+
 export function nextCaseAction(status: string): string {
   switch (status) {
     case 'draft':
