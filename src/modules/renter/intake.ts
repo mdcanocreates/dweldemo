@@ -207,6 +207,26 @@ export async function snapshotIntakeOnApplication(
 
   const intake = await getRenterIntake(client, partyId);
   const profile = await getRenterProfile(client, partyId);
+  const { rows: listingRows } = await client.query<{
+    line1: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    property_type: string | null;
+    rent_amount_cents: number | null;
+  }>(
+    `select coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as line1,
+            addr.city, addr.state, addr.postal_code,
+            p.property_type, l.rent_amount_cents
+     from application app
+     join listing l on l.id = app.listing_id
+     join unit u on u.id = l.unit_id
+     join property p on p.id = u.property_id
+     join address addr on addr.id = p.address_id
+     where app.id = $1`,
+    [applicationId],
+  );
+  const listingCard = listingRows[0];
   const snapshot = {
     captured_at: new Date().toISOString(),
     contact: profile
@@ -218,6 +238,18 @@ export async function snapshotIntakeOnApplication(
         }
       : null,
     intake,
+    ...(listingCard
+      ? {
+          listing: {
+            line1: listingCard.line1,
+            city: listingCard.city,
+            state: listingCard.state,
+            postal_code: listingCard.postal_code,
+            property_type: listingCard.property_type,
+            rent_amount_cents: listingCard.rent_amount_cents,
+          },
+        }
+      : {}),
   };
   const preferredLease =
     (intake &&

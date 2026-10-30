@@ -40,7 +40,10 @@ function resolveSsl(): pg.ClientConfig['ssl'] | undefined {
   }
 }
 
-export async function migrate(connectionString: string): Promise<string[]> {
+export async function migrate(
+  connectionString: string,
+  options?: { stopBefore?: string },
+): Promise<string[]> {
   const migrationsDir = await resolveMigrationsDir();
   const client = new Client({
     connectionString,
@@ -62,6 +65,7 @@ export async function migrate(connectionString: string): Promise<string[]> {
       .sort();
 
     for (const file of files) {
+      if (options?.stopBefore && file >= options.stopBefore) break;
       const { rows } = await client.query(
         `select 1 from schema_migrations where id = $1`,
         [file],

@@ -1,9 +1,15 @@
 export {
   getPublicListingById,
+  isSafeListingMediaUrl,
   listPublicListings,
+  listingPublishGaps,
   listOrgListings,
+  parsePublicListingQuery,
   setListingStatus,
   replaceListingMediaUrls,
+  PUBLIC_LISTING_SORTS,
   type ListPublicListingsInput,
+  type ListingPublishFacts,
   type LandlordListingRow,
+  type PublicListingSort,
 } from './public.js';

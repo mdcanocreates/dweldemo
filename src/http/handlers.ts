@@ -10,7 +10,11 @@ import {
   getApplicationStatusSafe,
   submitScreeningForApplication,
 } from '../modules/applications/index.js';
-import { getPublicListingById, listPublicListings } from '../modules/listings/index.js';
+import {
+  getPublicListingById,
+  listPublicListings,
+  parsePublicListingQuery,
+} from '../modules/listings/index.js';
 import {
   assertPublicApiAllowed,
   type PublicRequestContext,
@@ -84,8 +88,7 @@ export async function handleListListings(
 ): Promise<void> {
   try {
     const query = parseQuery(req.url ?? '');
-    const limit = Number(query.get('limit') ?? '20');
-    const offset = Number(query.get('offset') ?? '0');
+    const parsed = parsePublicListingQuery(query);
     // Public active listing policy — no bypass. Rate-limit config may need bypass
     // only for config_version read if RLS blocks; scraping_policy is GLOBAL via config.
     const result = await withSystemBypass(deps.pool, async (client) => {
@@ -97,11 +100,11 @@ export async function handleListListings(
     });
     void result;
     const listings = await withTenantContext(deps.pool, {}, async (client) =>
-      listPublicListings(client, { limit, offset }),
+      listPublicListings(client, parsed),
     );
     sendJson(res, 200, {
       listings: listings.listings,
-      pagination: { total: listings.total, limit, offset },
+      pagination: { total: listings.total, limit: listings.limit, offset: listings.offset },
     });
   } catch (err) {
     sendError(res, err);

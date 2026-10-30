@@ -50,6 +50,7 @@ export function SavedPage() {
               <Link to={`/listings/${item.listing_id}`}>
                 {[item.address_line1, item.city, item.state].filter(Boolean).join(', ') || 'Saved home'}
               </Link>
+              {item.status !== 'active' && <span> No longer available</span>}
             </li>
           ))}
         </ul>

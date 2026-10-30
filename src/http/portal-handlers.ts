@@ -58,6 +58,10 @@ const createListingSchema = z.object({
   pets_allowed: z.boolean().optional(),
   amenities: z.array(z.string().max(80)).max(40).optional(),
   available_on: z.string().date().optional(),
+  city: z.string().trim().min(1).max(80).optional(),
+  state: z.string().trim().length(2).optional(),
+  postal_code: z.string().trim().min(3).max(12).optional(),
+  idempotency_key: z.string().trim().min(8).max(128).optional(),
   status: z.enum(['draft', 'active', 'paused']).optional(),
   media_urls: z.array(z.string().url().max(2000)).max(20).optional(),
 });
@@ -76,6 +80,9 @@ const updateListingSchema = z.object({
   pets_allowed: z.boolean().nullable().optional(),
   amenities: z.array(z.string().max(80)).max(40).optional(),
   available_on: z.string().date().nullable().optional(),
+  city: z.string().trim().min(1).max(80).optional(),
+  state: z.string().trim().length(2).optional(),
+  postal_code: z.string().trim().min(3).max(12).optional(),
   status: z.enum(['draft', 'active', 'paused', 'rented']).optional(),
 });
 
@@ -198,7 +205,20 @@ export async function handleLandlordCreateListing(
       deps.pool,
       { orgId, partyId: identity.partyId },
       async (client) => {
-        const externalId = `manual:${randomUUID()}`;
+        const externalId = body.idempotency_key
+          ? `manual:${orgId}:${body.idempotency_key}`
+          : `manual:${randomUUID()}`;
+        if (body.idempotency_key) {
+          const { rows: prior } = await client.query<{ id: string; status: string }>(
+            `select l.id, l.status
+             from listing l
+             join source_listing sl on sl.id = l.primary_source_listing_id
+             where l.org_id = $1 and sl.external_id = $2
+             limit 1`,
+            [orgId, externalId],
+          );
+          if (prior[0]) return prior[0];
+        }
         await ingestManualListing(client, {
           orgId,
           externalId,
@@ -230,24 +250,40 @@ export async function handleLandlordCreateListing(
             urls: body.media_urls,
           });
         }
-        if (
-          body.description != null ||
-          body.pets_allowed != null ||
-          body.amenities ||
-          body.available_on ||
-          body.status
-        ) {
-          await updateLandlordListing(client, {
+        await updateLandlordListing(client, {
+          listingId: listing.id,
+          orgId,
+          description: body.description,
+          petsAllowed: body.pets_allowed,
+          amenities: body.amenities,
+          availableOn: body.available_on,
+          city: body.city,
+          state: body.state?.toUpperCase(),
+          postalCode: body.postal_code,
+          actorPartyId: identity.partyId,
+        });
+        // Ingest leaves the row active. Hold it as a draft, then publish only
+        // when the caller asked and the inventory checks pass.
+        await setListingStatus(client, {
+          listingId: listing.id,
+          orgId,
+          status: 'draft',
+          actorPartyId: identity.partyId,
+        });
+        const requested = body.status ?? 'draft';
+        if (requested !== 'draft') {
+          await setListingStatus(client, {
             listingId: listing.id,
             orgId,
-            description: body.description ?? undefined,
-            petsAllowed: body.pets_allowed ?? undefined,
-            amenities: body.amenities,
-            availableOn: body.available_on ?? undefined,
-            status: body.status,
+            status: requested,
+            actorPartyId: identity.partyId,
           });
         }
-        return listing;
+        const { rows: finalRows } = await client.query<{ id: string; status: string }>(
+          `select id, status from listing where id = $1 and org_id = $2`,
+          [listing.id, orgId],
+        );
+        return finalRows[0] ?? listing;
       },
     );
 
@@ -281,6 +317,7 @@ export async function handleLandlordSetListingStatus(
           listingId,
           orgId,
           status: body.status,
+          actorPartyId: identity.partyId,
         }),
     );
     sendJson(res, 200, updated);
@@ -364,7 +401,11 @@ export async function handleLandlordUpdateListing(
           petsAllowed: body.pets_allowed,
           amenities: body.amenities,
           availableOn: body.available_on,
+          city: body.city,
+          state: body.state?.toUpperCase(),
+          postalCode: body.postal_code,
           status: body.status,
+          actorPartyId: identity.partyId,
         }),
     );
     sendJson(res, 200, updated);

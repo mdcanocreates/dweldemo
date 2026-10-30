@@ -138,6 +138,10 @@ describe('Part J + L — admin console + intake + rules_based_v1', () => {
       token: landlordToken,
       body: {
         address_raw: '9 Admin St, Columbus, OH 43215',
+        city: 'Columbus',
+        state: 'OH',
+        postal_code: '43215',
+        available_on: '2026-11-15',
         rent_amount_cents: 200000,
         bedrooms: 2,
         bathrooms: 1,

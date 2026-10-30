@@ -13,6 +13,7 @@ import {
   listMissingInfoDocuments,
   validateRequiredDocumentTypes,
 } from '../renter/index.js';
+import { setListingStatus } from '../listings/index.js';
 import { AppError } from '../shared/errors.js';
 
 export type ScreeningMode = 'auto_screen' | 'manual_review';
@@ -155,6 +156,8 @@ export type ApplicantListItem = {
   current_location: string | null;
   preferred_lease_term_months: number | null;
   display_name: string;
+  record_kind: string;
+  has_submission_snapshot: boolean;
   criteria_match: boolean | null;
   prequal_evaluation: unknown | null;
   screening_summary: {
@@ -187,6 +190,12 @@ export async function listListingApplicants(
   client: DbClient,
   input: { listingId: string; orgId: string },
 ): Promise<ApplicantListItem[]> {
+  const { rows: owned } = await client.query<{ id: string }>(
+    `select id from listing where id = $1 and org_id = $2`,
+    [input.listingId, input.orgId],
+  );
+  if (!owned[0]) throw new AppError('listing not found', 'listing_not_found', 404);
+
   const { rows } = await client.query<{
     id: string;
     status: string;
@@ -205,11 +214,14 @@ export async function listListingApplicants(
     match_score_version: string | null;
     prequal_evaluation: { appears_to_meet?: boolean } | null;
     preferred_lease_term_months: number | null;
+    record_kind: string;
+    has_submission_snapshot: boolean;
     intake_city: string | null;
     intake_state: string | null;
   }>(
     `select a.id, a.status, a.created_at, a.contact_revealed_at,
             a.match_score_value, a.match_score_version, a.prequal_evaluation,
+            a.record_kind, (a.intake_snapshot is not null) as has_submission_snapshot,
             coalesce(
               a.preferred_lease_term_months,
               rp.preferred_lease_term_months,
@@ -310,6 +322,8 @@ export async function listListingApplicants(
       display_name: showContact
         ? displayNameInitial(r.given_name, r.family_name)
         : 'Applicant',
+      record_kind: r.record_kind,
+      has_submission_snapshot: r.has_submission_snapshot,
       criteria_match: appears,
       prequal_evaluation: r.prequal_evaluation,
       // Screening details only after Move Forward; prequal queue stays unknown.
@@ -702,7 +716,11 @@ export async function updateLandlordListing(
     petsAllowed?: boolean | null;
     amenities?: string[];
     availableOn?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
     status?: 'draft' | 'active' | 'paused' | 'rented';
+    actorPartyId?: string | null;
   },
 ): Promise<{ id: string; status: string }> {
   const { rows: existing } = await client.query<{ id: string; unit_id: string; status: string }>(
@@ -718,12 +736,7 @@ export async function updateLandlordListing(
          deposit_cents = coalesce($4, deposit_cents),
          pets_allowed = coalesce($5, pets_allowed),
          amenities = coalesce($6, amenities),
-         available_on = coalesce($7::date, available_on),
-         status = coalesce($8, status),
-         published_at = case
-           when coalesce($8, status) = 'active' then coalesce(published_at, now())
-           else published_at
-         end
+         available_on = coalesce($7::date, available_on)
        where id = $1 and org_id = $2`,
       [
         input.listingId,
@@ -733,7 +746,26 @@ export async function updateLandlordListing(
         input.petsAllowed ?? null,
         input.amenities ?? null,
         input.availableOn ?? null,
-        input.status ?? null,
+      ],
+    );
+  }
+
+  if (input.city || input.state || input.postalCode) {
+    await client.query(
+      `update address a
+       set city = coalesce($2, a.city),
+           state = coalesce($3, a.state),
+           postal_code = coalesce($4, a.postal_code)
+       from property p
+       join unit u on u.property_id = p.id
+       join listing l on l.unit_id = u.id
+       where l.id = $1 and l.org_id = $5 and a.id = p.address_id`,
+      [
+        input.listingId,
+        input.city ?? null,
+        input.state ?? null,
+        input.postalCode ?? null,
+        input.orgId,
       ],
     );
   }
@@ -759,6 +791,15 @@ export async function updateLandlordListing(
     );
   }
 
+  if (input.status && input.status !== existing[0].status) {
+    await setListingStatus(client, {
+      listingId: input.listingId,
+      orgId: input.orgId,
+      status: input.status,
+      actorPartyId: input.actorPartyId ?? null,
+    });
+  }
+
   const { rows } = await client.query<{ id: string; status: string }>(
     `select id, status from listing where id = $1`,
     [input.listingId],
@@ -781,8 +822,8 @@ export async function uploadListingPhoto(
     [input.listingId, input.orgId],
   );
   if (!rows[0]) throw new AppError('listing not found', 'listing_not_found', 404);
-  if (!input.contentType.startsWith('image/')) {
-    throw new AppError('only image uploads allowed', 'validation_error', 400);
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(input.contentType)) {
+    throw new AppError('only jpeg, png, webp, or gif uploads are allowed', 'validation_error', 400);
   }
 
   const key = `listings/${input.orgId}/${input.listingId}/${randomUUID()}`;
@@ -914,6 +955,7 @@ export async function getApplicantDetail(
     criteria_version_id: string | null;
     prequal_evaluation: unknown;
     intake_snapshot: unknown;
+    record_kind: string;
     info_requested_at: Date | null;
     move_forward_at: Date | null;
     passed_at: Date | null;
@@ -931,7 +973,7 @@ export async function getApplicantDetail(
   }>(
     `select a.id, a.listing_id, a.org_id, a.party_id, a.status, a.created_at,
             a.contact_revealed_at, a.criteria_version_id, a.prequal_evaluation,
-            a.intake_snapshot, a.info_requested_at, a.move_forward_at, a.passed_at,
+            a.intake_snapshot, a.record_kind, a.info_requested_at, a.move_forward_at, a.passed_at,
             a.match_score_value, a.match_score_version,
             rp.given_name, rp.family_name, rp.email, rp.phone_e164,
             rp.annual_income_cents, rp.move_in_urgency, rp.household_size,
@@ -1066,6 +1108,7 @@ export async function getApplicantDetail(
     listing_id: app.listing_id,
     org_id: app.org_id,
     status: app.status,
+    record_kind: app.record_kind,
     created_at: app.created_at.toISOString(),
     display_name: showContact
       ? displayNameInitial(app.given_name, app.family_name)
@@ -1079,6 +1122,7 @@ export async function getApplicantDetail(
       annual_income_cents: showContact ? app.annual_income_cents : null,
     },
     intake_snapshot: app.intake_snapshot,
+    submitted_snapshot: app.intake_snapshot,
     criteria_version_id: app.criteria_version_id,
     prequal_evaluation: app.prequal_evaluation,
     screening_summary,

@@ -1,5 +1,6 @@
 import type { DbClient } from '../../db/pool.js';
 import { getObjectStore } from '../../infra/object-store/index.js';
+import { emitDomainEvent } from '../audit/index.js';
 import {
   serializeListingForApi,
   type ListingApiShape,
@@ -149,33 +150,166 @@ async function serializeRows(
   );
 }
 
+export const PUBLIC_LISTING_SORTS = ['newest', 'rent_asc', 'rent_desc', 'cashback'] as const;
+export type PublicListingSort = (typeof PUBLIC_LISTING_SORTS)[number];
+
 export type ListPublicListingsInput = {
   limit?: number;
   offset?: number;
+  q?: string;
+  minBeds?: number;
+  minBaths?: number;
+  propertyType?: string;
+  sort?: PublicListingSort;
 };
 
+export type ListingPublishFacts = {
+  rentAmountCents: number;
+  line1: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  bedrooms: number | null;
+  propertyType: string | null;
+  availableOn: string | null;
+  orgStatus: string;
+  claimStatus: string;
+  hasAuthorizedLandlord: boolean;
+};
+
+/** Names the inventory fields that block a public publish. Does not change a row. */
+export function listingPublishGaps(facts: ListingPublishFacts): string[] {
+  const gaps: string[] = [];
+  if (!Number.isInteger(facts.rentAmountCents) || facts.rentAmountCents <= 0) gaps.push('pricing');
+  const state = facts.state?.trim().toUpperCase() ?? '';
+  if (!facts.line1?.trim() || !facts.city?.trim() || state.length !== 2 || !facts.postalCode?.trim()) {
+    gaps.push('location');
+  }
+  if (facts.bedrooms == null || !Number.isFinite(facts.bedrooms) || !facts.propertyType?.trim()) {
+    gaps.push('property_details');
+  }
+  if (!facts.availableOn?.trim()) gaps.push('availability');
+  if (facts.orgStatus !== 'active' || facts.claimStatus !== 'claimed') gaps.push('organization');
+  if (!facts.hasAuthorizedLandlord) gaps.push('authorization');
+  return gaps;
+}
+
+export function parsePublicListingQuery(params: URLSearchParams): ListPublicListingsInput {
+  const sortRaw = params.get('sort') ?? 'newest';
+  if (!PUBLIC_LISTING_SORTS.includes(sortRaw as PublicListingSort)) {
+    throw new AppError('invalid sort', 'validation_error', 400);
+  }
+  const propertyType = params.get('property_type')?.trim() ?? '';
+  if (propertyType.length > 40) {
+    throw new AppError('invalid property type', 'validation_error', 400);
+  }
+  const q = params.get('q')?.trim() ?? '';
+  if (q.length > 120) {
+    throw new AppError('invalid search', 'validation_error', 400);
+  }
+  const minBeds = optionalNumber(params.get('min_beds'));
+  const minBaths = optionalNumber(params.get('min_baths'));
+  if (minBeds == null && params.get('min_beds')) {
+    throw new AppError('invalid bedrooms filter', 'validation_error', 400);
+  }
+  if (minBaths == null && params.get('min_baths')) {
+    throw new AppError('invalid bathrooms filter', 'validation_error', 400);
+  }
+  return {
+    limit: finiteNumber(params.get('limit'), 20),
+    offset: finiteNumber(params.get('offset'), 0),
+    q: q || undefined,
+    minBeds,
+    minBaths,
+    propertyType: propertyType || undefined,
+    sort: sortRaw as PublicListingSort,
+  };
+}
+
+function finiteNumber(raw: string | null, fallback: number): number {
+  if (raw == null || raw.trim() === '') return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function optionalNumber(raw: string | null): number | undefined {
+  if (raw == null || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
+/**
+ * Public catalog is active inventory only.
+ * Cashback sort follows rent because displayed cashback is a fixed fraction of rent.
+ * This does not call the preference ranker.
+ */
 export async function listPublicListings(
   client: DbClient,
   input: ListPublicListingsInput = {},
-): Promise<{ listings: Record<string, unknown>[]; total: number }> {
-  const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
-  const offset = Math.max(input.offset ?? 0, 0);
+): Promise<{ listings: Record<string, unknown>[]; total: number; limit: number; offset: number }> {
+  const limit = clampInt(input.limit ?? 20, 1, 100);
+  const offset = clampInt(input.offset ?? 0, 0, 100_000);
+  const params: unknown[] = [];
+  const where = [`l.status = 'active'`];
+
+  if (input.q?.trim()) {
+    params.push(`%${input.q.trim().replace(/[%_\\]/g, '\\$&')}%`);
+    where.push(
+      `(a.city ilike $${params.length} or a.state ilike $${params.length} or a.postal_code ilike $${params.length} or a.line1 ilike $${params.length} or coalesce(a.raw_input, '') ilike $${params.length})`,
+    );
+  }
+  if (input.minBeds != null) {
+    params.push(input.minBeds);
+    where.push(`u.bedrooms >= $${params.length}`);
+  }
+  if (input.minBaths != null) {
+    params.push(input.minBaths);
+    where.push(`u.bathrooms >= $${params.length}`);
+  }
+  if (input.propertyType) {
+    params.push(input.propertyType);
+    where.push(`lower(p.property_type) = lower($${params.length})`);
+  }
+
+  const whereSql = where.join(' and ');
+  const orderSql =
+    input.sort === 'rent_asc'
+      ? 'l.rent_amount_cents asc, l.created_at desc'
+      : input.sort === 'rent_desc' || input.sort === 'cashback'
+        ? 'l.rent_amount_cents desc, l.created_at desc'
+        : 'l.published_at desc nulls last, l.created_at desc';
+
+  const fromSql = `
+    from listing l
+    join unit u on u.id = l.unit_id
+    join property p on p.id = u.property_id
+    join address a on a.id = p.address_id
+    where ${whereSql}`;
 
   const { rows: countRows } = await client.query<{ total: string }>(
-    `select count(*)::text as total from listing where status = 'active'`,
+    `select count(*)::text as total ${fromSql}`,
+    params,
   );
 
+  const pageParams = [...params, limit, offset];
   const { rows } = await client.query<ListingRow>(
     `${LISTING_SELECT}
-     where l.status = 'active'
-     order by l.published_at desc nulls last, l.created_at desc
-     limit $1 offset $2`,
-    [limit, offset],
+     where ${whereSql}
+     order by ${orderSql}
+     limit $${params.length + 1} offset $${params.length + 2}`,
+    pageParams,
   );
 
   return {
     listings: await serializeRows(client, rows),
     total: Number(countRows[0]?.total ?? 0),
+    limit,
+    offset,
   };
 }
 
@@ -213,6 +347,7 @@ export type LandlordListingRow = {
   line1: string | null;
   city: string | null;
   state: string | null;
+  postal_code: string | null;
   applicant_count: number;
   days_vacant: number;
   photo_url: string | null;
@@ -239,6 +374,7 @@ export async function listOrgListings(
     line1: string | null;
     city: string | null;
     state: string | null;
+    postal_code: string | null;
     applicant_count: string;
     days_vacant: string;
     photo_storage_key: string | null;
@@ -249,7 +385,7 @@ export async function listOrgListings(
        l.pets_allowed, l.amenities, l.available_on,
        l.published_at, l.created_at,
        u.bedrooms, u.bathrooms, u.sqft, p.property_type,
-       a.line1, a.city, a.state,
+       a.line1, a.city, a.state, a.postal_code,
        (select count(*)::text from application ap where ap.listing_id = l.id) as applicant_count,
        greatest(0, floor(extract(epoch from (now() - coalesce(l.published_at, l.created_at))) / 86400))::text as days_vacant,
        (select m.storage_key from listing_media m where m.listing_id = l.id order by m.position asc limit 1) as photo_storage_key,
@@ -292,6 +428,7 @@ export async function listOrgListings(
       line1: r.line1,
       city: r.city,
       state: r.state,
+      postal_code: r.postal_code,
       applicant_count: Number(r.applicant_count),
       days_vacant: Number(r.days_vacant),
       photo_url: photoUrl,
@@ -300,15 +437,99 @@ export async function listOrgListings(
   return out;
 }
 
+async function assertListingPublishable(
+  client: DbClient,
+  input: { listingId: string; orgId: string; actorPartyId?: string | null },
+): Promise<void> {
+  const { rows } = await client.query<{
+    rent_amount_cents: number;
+    line1: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    bedrooms: string | null;
+    property_type: string | null;
+    available_on: string | null;
+    org_status: string;
+    claim_status: string;
+    has_authorized_landlord: boolean;
+  }>(
+    `select l.rent_amount_cents,
+            coalesce(nullif(btrim(a.line1), ''), a.raw_input) as line1,
+            a.city, a.state, a.postal_code,
+            u.bedrooms::text, p.property_type,
+            l.available_on::text,
+            o.status as org_status, o.claim_status,
+            exists (
+              select 1 from party_role pr
+              where pr.org_id = l.org_id
+                and pr.role = 'landlord'
+                and pr.revoked_at is null
+                and pr.status = 'active'
+                and ($3::uuid is null or pr.party_id = $3::uuid)
+            ) as has_authorized_landlord
+     from listing l
+     join unit u on u.id = l.unit_id
+     join property p on p.id = u.property_id
+     join address a on a.id = p.address_id
+     join org o on o.id = l.org_id
+     where l.id = $1 and l.org_id = $2`,
+    [input.listingId, input.orgId, input.actorPartyId ?? null],
+  );
+  const row = rows[0];
+  if (!row) throw new AppError('listing not found', 'listing_not_found', 404);
+  const bedrooms = row.bedrooms == null ? null : Number(row.bedrooms);
+  const gaps = listingPublishGaps({
+    rentAmountCents: row.rent_amount_cents,
+    line1: row.line1,
+    city: row.city,
+    state: row.state,
+    postalCode: row.postal_code,
+    bedrooms: bedrooms != null && Number.isFinite(bedrooms) ? bedrooms : null,
+    propertyType: row.property_type,
+    availableOn: row.available_on,
+    orgStatus: row.org_status,
+    claimStatus: row.claim_status,
+    hasAuthorizedLandlord: row.has_authorized_landlord,
+  });
+  if (gaps.includes('authorization')) {
+    throw new AppError(
+      'only an authorized representative of this organization can publish the listing',
+      'listing_not_authorized',
+      403,
+    );
+  }
+  if (gaps.length > 0) {
+    throw new AppError(
+      `listing is not publishable: ${gaps.join(', ')}`,
+      'listing_not_publishable',
+      409,
+    );
+  }
+}
+
 export async function setListingStatus(
   client: DbClient,
   input: {
     listingId: string;
     orgId: string;
     status: 'active' | 'paused' | 'draft' | 'rented';
+    actorPartyId?: string | null;
   },
 ): Promise<{ id: string; status: string }> {
   const { rows } = await client.query<{ id: string; status: string }>(
+    `select id, status from listing where id = $1 and org_id = $2 for update`,
+    [input.listingId, input.orgId],
+  );
+  const current = rows[0];
+  if (!current) throw new AppError('listing not found', 'listing_not_found', 404);
+  if (current.status === input.status) {
+    return { id: current.id, status: current.status };
+  }
+  if (input.status === 'active') {
+    await assertListingPublishable(client, input);
+  }
+  const { rows: updated } = await client.query<{ id: string; status: string }>(
     `update listing
      set status = $3,
          published_at = case
@@ -323,10 +544,28 @@ export async function setListingStatus(
      returning id, status`,
     [input.listingId, input.orgId, input.status],
   );
-  if (!rows[0]) {
-    throw new AppError('listing not found', 'listing_not_found', 404);
+  const row = updated[0];
+  if (!row) throw new AppError('listing not found', 'listing_not_found', 404);
+  await emitDomainEvent(client, {
+    aggregateType: 'listing',
+    aggregateId: row.id,
+    eventType: 'listing.status_changed',
+    payload: { from: current.status, to: row.status },
+    actorPartyId: input.actorPartyId ?? null,
+    actorKind: input.actorPartyId ? 'user' : 'system',
+  });
+  return row;
+}
+
+export function isSafeListingMediaUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    if (parsed.username || parsed.password) return false;
+    return parsed.hostname.length > 0;
+  } catch {
+    return false;
   }
-  return rows[0];
 }
 
 export async function replaceListingMediaUrls(
@@ -340,7 +579,7 @@ export async function replaceListingMediaUrls(
   let position = 0;
   for (const url of input.urls) {
     const trimmed = url.trim();
-    if (!trimmed.startsWith('https://')) continue;
+    if (!isSafeListingMediaUrl(trimmed)) continue;
     await client.query(
       `insert into listing_media (listing_id, org_id, position, url)
        values ($1, $2, $3, $4)`,

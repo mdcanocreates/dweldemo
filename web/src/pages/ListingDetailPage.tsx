@@ -16,6 +16,8 @@ export function ListingDetailPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [listing, setListing] = useState<Listing | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
   const [existing, setExisting] = useState<RenterApplicationSummary | null>(null);
   const [applicationLookup, setApplicationLookup] = useState<'idle' | 'ok' | 'failed'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -81,10 +83,20 @@ export function ListingDetailPage() {
   }, [authLoading, user, id]);
 
   if (error && !listing) {
+    const unavailable = error.toLowerCase().includes('not found') || error.toLowerCase().includes('unavailable');
     return (
       <Shell>
-        <ErrorState title="Listing unavailable">{error}</ErrorState>
+        <ErrorState title={unavailable ? 'This home is no longer available' : 'Listing unavailable'}>
+          {unavailable
+            ? 'It is not in the public catalog. An application you already submitted stays on your tracker.'
+            : error}
+        </ErrorState>
         <Link to="/listings">Back to homes</Link>
+        {existing && (
+          <p>
+            <Link to={`/applications/${existing.application_id}/details`}>View your application</Link>
+          </p>
+        )}
       </Shell>
     );
   }
@@ -94,7 +106,18 @@ export function ListingDetailPage() {
   }
 
   const title = formatAddress(listing);
-  const hero = listing.media?.[0]?.url;
+  const media = listing.media?.filter((item) => item.url) ?? [];
+  const hero = media[photoIndex]?.url ?? media[0]?.url;
+
+  async function saveHome() {
+    setSavedNote(null);
+    try {
+      await api.saveListing(listing!.id);
+      setSavedNote('Saved to your account.');
+    } catch (err) {
+      setSavedNote(err instanceof ApiError ? err.message : 'Could not save this home.');
+    }
+  }
 
   return (
     <Shell>
@@ -114,6 +137,21 @@ export function ListingDetailPage() {
           <img src={hero} alt={title} style={{ width: '100%', maxHeight: '28rem', objectFit: 'cover' }} />
         ) : null}
       </div>
+      {media.length > 1 && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }} data-testid="listing-gallery">
+          {media.map((item, index) => (
+            <button
+              key={item.url}
+              type="button"
+              className="btn btn-outline"
+              aria-label={`Photo ${index + 1}`}
+              onClick={() => setPhotoIndex(index)}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div
         style={{
@@ -155,6 +193,17 @@ export function ListingDetailPage() {
               application for this home instead of creating a second one.
             </p>
           )}
+          {user && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ width: '100%', marginTop: '0.75rem' }}
+              onClick={() => void saveHome()}
+            >
+              Save this home
+            </button>
+          )}
+          {savedNote && <p>{savedNote}</p>}
           {existing ? (
             <>
               <p style={{ fontWeight: 700 }}>

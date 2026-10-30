@@ -21,6 +21,7 @@ import {
 } from '../modules/lease/index.js';
 import { snapshotApplicationAttribution } from '../modules/attribution/index.js';
 import { findReusableScreening } from '../modules/screening/reuse.js';
+import { presentListingCard } from '../modules/renter/listing-history.js';
 import {
   assertInterestScreeningGate,
   getLatestValidNyReport,
@@ -289,11 +290,12 @@ export async function handleListMyApplications(
           listing_status: string | null;
           record_kind: string;
           submitted_at: Date | null;
+          intake_snapshot: unknown;
         }>(
           `select a.id, a.status, a.listing_id, a.created_at,
                   a.move_forward_at, a.passed_at, a.info_requested_at,
                   a.screening_authorized_at, a.screened_at, a.closed_at,
-                  a.contact_revealed_at, a.record_kind, a.submitted_at,
+                  a.contact_revealed_at, a.record_kind, a.submitted_at, a.intake_snapshot,
                   addr.city, addr.state,
                   coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as line1,
                   addr.postal_code,
@@ -432,16 +434,19 @@ export async function handleListMyApplications(
           progress,
           open_missing_info: missing,
           listing: a.listing_id
-            ? {
-                line1: a.line1,
-                city: a.city,
-                state: a.state,
-                postal_code: a.postal_code,
-                property_type: a.property_type,
-                thumbnail_url: a.thumbnail_url,
-                rent_amount_cents: a.rent_amount_cents,
-                status: a.listing_status,
-              }
+            ? presentListingCard(
+                {
+                  line1: a.line1,
+                  city: a.city,
+                  state: a.state,
+                  postal_code: a.postal_code,
+                  property_type: a.property_type,
+                  thumbnail_url: a.thumbnail_url,
+                  rent_amount_cents: a.rent_amount_cents,
+                  status: a.listing_status,
+                },
+                a.intake_snapshot,
+              )
             : null,
         };
       }),
@@ -1114,16 +1119,19 @@ export async function handleGetApplicationIntakeDetail(
             reasons: recovery.reasons,
           },
           listing: base.listing_id
-            ? {
-                line1: row.line1,
-                city: row.city,
-                state: row.state,
-                postal_code: row.postal_code,
-                property_type: row.property_type,
-                rent_amount_cents: row.rent_amount_cents,
-                thumbnail_url: row.thumbnail_url,
-                status: row.listing_status,
-              }
+            ? presentListingCard(
+                {
+                  line1: row.line1,
+                  city: row.city,
+                  state: row.state,
+                  postal_code: row.postal_code,
+                  property_type: row.property_type,
+                  rent_amount_cents: row.rent_amount_cents,
+                  thumbnail_url: row.thumbnail_url,
+                  status: row.listing_status,
+                },
+                base.snapshot,
+              )
             : null,
           documents,
           documents_retrieval,

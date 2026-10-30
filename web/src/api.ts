@@ -52,6 +52,7 @@ export type SavedListing = {
   city: string | null;
   state: string | null;
   rent_amount_cents: number;
+  status: string;
 };
 
 export type Listing = {
@@ -256,13 +257,39 @@ async function request<T>(
   return body as T;
 }
 
+export type PublicListingQuery = {
+  limit?: number;
+  offset?: number;
+  q?: string;
+  minBeds?: string;
+  minBaths?: string;
+  propertyType?: string;
+  sort?: 'newest' | 'rent_asc' | 'rent_desc' | 'cashback';
+};
+
 export const api = {
-  listListings: (limit = 20, offset = 0) =>
-    request<{ listings: Listing[]; pagination: { total: number; limit: number; offset: number } }>(
-      `/v1/listings?limit=${limit}&offset=${offset}`,
-    ),
+  listListings: (limitOrQuery: number | PublicListingQuery = 20, offset = 0) => {
+    const query: PublicListingQuery =
+      typeof limitOrQuery === 'number' ? { limit: limitOrQuery, offset } : limitOrQuery;
+    const params = new URLSearchParams();
+    params.set('limit', String(query.limit ?? 20));
+    params.set('offset', String(query.offset ?? 0));
+    if (query.q) params.set('q', query.q);
+    if (query.minBeds) params.set('min_beds', query.minBeds);
+    if (query.minBaths) params.set('min_baths', query.minBaths);
+    if (query.propertyType) params.set('property_type', query.propertyType);
+    if (query.sort) params.set('sort', query.sort);
+    return request<{ listings: Listing[]; pagination: { total: number; limit: number; offset: number } }>(
+      `/v1/listings?${params.toString()}`,
+    );
+  },
   getListing: (id: string) => request<{ listing: Listing }>(`/v1/listings/${id}`),
   savedListings: () => request<{ saved: SavedListing[] }>('/v1/renter/saved'),
+  saveListing: (listingId: string) =>
+    request<{ listing_id: string; created_at: string }>('/v1/renter/saved', {
+      method: 'POST',
+      body: JSON.stringify({ listing_id: listingId }),
+    }),
   myPartnerIntake: (role: 'landlord' | 'broker') =>
     request<{ intake: PartnerIntake | null }>(`/v1/partner-intakes/${role}`),
   submitPartnerIntake: (
@@ -529,6 +556,7 @@ export const api = {
         line1: string | null;
         city: string | null;
         state: string | null;
+        postal_code: string | null;
         applicant_count: number;
         days_vacant: number;
         photo_url: string | null;
@@ -568,6 +596,8 @@ export const api = {
       applicants: Array<{
         application_id: string;
         status: string;
+        record_kind?: string;
+        has_submission_snapshot?: boolean;
         created_at: string;
         score_band: string;
         income_band: string;
@@ -591,6 +621,17 @@ export const api = {
         };
       }>;
     }>(`/v1/landlord/listings/${listingId}/applicants`),
+  landlordApplicant: (applicationId: string) =>
+    request<{
+      application_id: string;
+      status: string;
+      record_kind?: string;
+      submitted_snapshot: {
+        contact?: { given_name?: string | null; family_name?: string | null; email?: string | null };
+        intake?: { employer_name?: string | null; current_address_line1?: string | null };
+        listing?: { line1?: string | null; city?: string | null; rent_amount_cents?: number | null };
+      } | null;
+    }>(`/v1/landlord/applicants/${applicationId}`),
   landlordDecide: (
     listingId: string,
     applicationId: string,

@@ -119,6 +119,10 @@ describe('Part H — landlord portal APIs', () => {
       token: landlordToken,
       body: {
         address_raw: '1200 Congress Ave, Austin, TX 78701',
+        city: 'Austin',
+        state: 'TX',
+        postal_code: '78701',
+        available_on: '2026-11-15',
         rent_amount_cents: 220000,
         bedrooms: 2,
         bathrooms: 1,

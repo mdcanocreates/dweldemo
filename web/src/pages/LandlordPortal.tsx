@@ -361,6 +361,12 @@ function ListingFormFields(props: {
   address: string;
   setAddress: (v: string) => void;
   addressLocked?: boolean;
+  city: string;
+  setCity: (v: string) => void;
+  stateCode: string;
+  setStateCode: (v: string) => void;
+  postal: string;
+  setPostal: (v: string) => void;
   rent: string;
   setRent: (v: string) => void;
   beds: string;
@@ -391,6 +397,26 @@ function ListingFormFields(props: {
           value={props.address}
           onChange={(e) => props.setAddress(e.target.value)}
         />
+      </div>
+      <div className="form-grid two">
+        <div className="field">
+          <label htmlFor="ll-city">City</label>
+          <input id="ll-city" required value={props.city} onChange={(e) => props.setCity(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="ll-state">State</label>
+          <input
+            id="ll-state"
+            required
+            maxLength={2}
+            value={props.stateCode}
+            onChange={(e) => props.setStateCode(e.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="ll-postal">Postal code</label>
+          <input id="ll-postal" required value={props.postal} onChange={(e) => props.setPostal(e.target.value)} />
+        </div>
       </div>
       <div className="form-grid two">
         <div className="field">
@@ -492,6 +518,9 @@ function ListingFormFields(props: {
 export function LandlordNewListingPage() {
   const navigate = useNavigate();
   const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [stateCode, setStateCode] = useState('');
+  const [postal, setPostal] = useState('');
   const [rent, setRent] = useState('1800');
   const [beds, setBeds] = useState('2');
   const [baths, setBaths] = useState('1');
@@ -512,6 +541,9 @@ export function LandlordNewListingPage() {
     try {
       const created = await api.landlordCreateListing({
         address_raw: address,
+        city,
+        state: stateCode,
+        postal_code: postal,
         rent_amount_cents: Math.round(Number(rent) * 100),
         bedrooms: Number(beds),
         bathrooms: Number(baths),
@@ -550,6 +582,12 @@ export function LandlordNewListingPage() {
         <ListingFormFields
           address={address}
           setAddress={setAddress}
+          city={city}
+          setCity={setCity}
+          stateCode={stateCode}
+          setStateCode={setStateCode}
+          postal={postal}
+          setPostal={setPostal}
           rent={rent}
           setRent={setRent}
           beds={beds}
@@ -593,6 +631,9 @@ export function LandlordEditListingPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [stateCode, setStateCode] = useState('');
+  const [postal, setPostal] = useState('');
   const [rent, setRent] = useState('');
   const [beds, setBeds] = useState('');
   const [baths, setBaths] = useState('');
@@ -614,7 +655,10 @@ export function LandlordEditListingPage() {
         const row = data.listings.find((l) => l.id === id);
         if (!row) throw new Error('Listing not found');
         if (cancelled) return;
-        setAddress([row.line1, row.city, row.state].filter(Boolean).join(', '));
+        setAddress(row.line1 ?? '');
+        setCity(row.city ?? '');
+        setStateCode(row.state ?? '');
+        setPostal(row.postal_code ?? '');
         setRent(String(row.rent_amount_cents / 100));
         setBeds(String(row.bedrooms ?? ''));
         setBaths(String(row.bathrooms ?? ''));
@@ -646,6 +690,9 @@ export function LandlordEditListingPage() {
         bathrooms: baths === '' ? undefined : Number(baths),
         sqft: sqft ? Number(sqft) : null,
         pets_allowed: pets,
+        city,
+        state: stateCode,
+        postal_code: postal,
         amenities: amenities
           .split(',')
           .map((s) => s.trim())
@@ -681,6 +728,12 @@ export function LandlordEditListingPage() {
           address={address}
           setAddress={setAddress}
           addressLocked
+          city={city}
+          setCity={setCity}
+          stateCode={stateCode}
+          setStateCode={setStateCode}
+          postal={postal}
+          setPostal={setPostal}
           rent={rent}
           setRent={setRent}
           beds={beds}
@@ -721,6 +774,7 @@ export function LandlordEditListingPage() {
 export function LandlordApplicantsPage() {
   const { id } = useParams();
   const [data, setData] = useState<Awaited<ReturnType<typeof api.landlordApplicants>> | null>(null);
+  const [snapshots, setSnapshots] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [moreInfo, setMoreInfo] = useState<Record<string, string>>({});
@@ -769,6 +823,28 @@ export function LandlordApplicantsPage() {
     }
   }
 
+  async function showSnapshot(applicationId: string) {
+    try {
+      const detail = await api.landlordApplicant(applicationId);
+      const snap = detail.submitted_snapshot;
+      if (!snap) {
+        setSnapshots((prev) => ({ ...prev, [applicationId]: 'No submitted snapshot is stored on this record.' }));
+        return;
+      }
+      const name = [snap.contact?.given_name, snap.contact?.family_name].filter(Boolean).join(' ');
+      const employer = snap.intake?.employer_name ?? '';
+      const home = [snap.listing?.line1, snap.listing?.city].filter(Boolean).join(', ');
+      setSnapshots((prev) => ({
+        ...prev,
+        [applicationId]: [name && `Name: ${name}`, employer && `Employer: ${employer}`, home && `Home: ${home}`]
+          .filter(Boolean)
+          .join(' · ') || 'Submitted snapshot is present.',
+      }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not load the submitted record.');
+    }
+  }
+
   return (
     <div className="stack">
       <p className="section-eyebrow">Qualified pipeline</p>
@@ -799,12 +875,21 @@ export function LandlordApplicantsPage() {
                 <div className="row-between">
                   <div>
                     <p className="section-eyebrow">{displayName(a.status)}</p>
+                    <p data-testid={`applicant-kind-${a.application_id}`}>
+                      {a.record_kind === 'formal' ? 'Rental application' : 'Interest'}
+                    </p>
                     <h2>
                       {approved
                         ? formatPersonName(a.contact!.given_name, a.contact!.family_name)
                         : 'Applicant'}
                     </h2>
                     <p className="muted">Applied {new Date(a.created_at).toLocaleDateString()}</p>
+                    <button type="button" className="btn btn-outline" onClick={() => void showSnapshot(a.application_id)}>
+                      View submitted record
+                    </button>
+                    {snapshots[a.application_id] && (
+                      <p data-testid={`applicant-snapshot-${a.application_id}`}>{snapshots[a.application_id]}</p>
+                    )}
                   </div>
                   <div className="applicant-score-col">
                     {a.match_score_value != null && <MatchScoreBadge value={a.match_score_value} />}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
 import { ErrorState, Shell } from '../components/Shell';
@@ -53,10 +53,18 @@ export function ListingsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setSearchPending(true);
     (async () => {
-      setInitialLoading(true);
       try {
-        const data = await api.listListings(limit, 0);
+        const data = await api.listListings({
+          limit,
+          offset: 0,
+          q: queryApplied.trim() || undefined,
+          minBeds: beds || undefined,
+          minBaths: baths || undefined,
+          propertyType: propertyType || undefined,
+          sort,
+        });
         if (!cancelled) {
           setListings(data.listings);
           setTotal(data.pagination.total);
@@ -65,83 +73,56 @@ export function ListingsPage() {
         }
       } catch (err) {
         if (!cancelled) {
+          setListings(null);
+          setTotal(0);
           setError(err instanceof ApiError ? err.message : 'Listings could not be loaded.');
         }
       } finally {
-        if (!cancelled) setInitialLoading(false);
+        if (!cancelled) {
+          setInitialLoading(false);
+          setSearchPending(false);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [queryApplied, beds, baths, propertyType, sort]);
 
-  async function runSearch() {
+  const matchLabel =
+    listings === null || error
+      ? null
+      : total === 1
+        ? '1 home matches your search'
+        : `${total} homes match your search`;
+
+  function runSearch() {
     setQueryApplied(query);
-    setSearchPending(true);
-    try {
-      const data = await api.listListings(limit, 0);
-      setListings(data.listings);
-      setTotal(data.pagination.total);
-      setOffset(data.listings.length);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Search failed.');
-    } finally {
-      setSearchPending(false);
-    }
   }
 
-  const filtered = useMemo(() => {
-    if (!listings) return null;
-    let rows = [...listings];
-    if (queryApplied.trim()) {
-      const q = queryApplied.trim().toLowerCase();
-      rows = rows.filter((l) => formatAddress(l).toLowerCase().includes(q));
-    }
-    if (beds) {
-      const n = Number(beds);
-      rows = rows.filter((l) => Number(l.bedrooms ?? 0) >= n);
-    }
-    if (baths) {
-      const n = Number(baths);
-      rows = rows.filter((l) => Number(l.bathrooms ?? 0) >= n);
-    }
-    if (propertyType) {
-      rows = rows.filter(
-        (l) => (l.property_type ?? '').toLowerCase() === propertyType.toLowerCase(),
-      );
-    }
-    rows.sort((a, b) => {
-      if (sort === 'rent_asc') return a.rent_amount_cents - b.rent_amount_cents;
-      if (sort === 'rent_desc') return b.rent_amount_cents - a.rent_amount_cents;
-      return (b.cashback_cents ?? 0) - (a.cashback_cents ?? 0);
-    });
-    return rows;
-  }, [listings, queryApplied, beds, baths, propertyType, sort]);
-
   async function loadMore() {
-    if (loadingMore || !listings) return;
+    if (loadingMore || !listings || error) return;
     setLoadingMore(true);
     try {
-      const data = await api.listListings(limit, offset);
+      const data = await api.listListings({
+        limit,
+        offset,
+        q: queryApplied.trim() || undefined,
+        minBeds: beds || undefined,
+        minBaths: baths || undefined,
+        propertyType: propertyType || undefined,
+        sort,
+      });
       setListings([...listings, ...data.listings]);
       setOffset(offset + data.listings.length);
       setTotal(data.pagination.total);
+      setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load more listings.');
     } finally {
       setLoadingMore(false);
     }
   }
-
-  const matchCount = filtered?.length ?? 0;
-  const matchLabel =
-    listings === null
-      ? null
-      : matchCount === 1
-        ? '1 home matches your search'
-        : `${matchCount} homes match your search`;
 
   return (
     <Shell>
@@ -219,21 +200,21 @@ export function ListingsPage() {
           </div>
         )}
 
-        {filtered && filtered.length === 0 && (
-          <div className="empty-state" style={{ marginTop: '1.5rem' }}>
+        {!error && listings && listings.length === 0 && (
+          <div className="empty-state" data-testid="listings-empty" style={{ marginTop: '1.5rem' }}>
             No homes match your search. Adjust your filters or check back — new listings are added
             daily.
           </div>
         )}
 
-        {filtered && filtered.length > 0 && (
+        {!error && listings && listings.length > 0 && (
           <>
             <div className="landing-grid" style={{ marginTop: '1.25rem' }}>
-              {filtered.map((listing) => (
+              {listings.map((listing) => (
                 <ListingCard key={listing.id} listing={listing} />
               ))}
             </div>
-            {listings && listings.length < total && (
+            {listings.length < total && (
               <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
                 <button
                   type="button"
