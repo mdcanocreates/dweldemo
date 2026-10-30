@@ -29,6 +29,7 @@ describe('listing publish gaps', () => {
     orgStatus: 'active',
     claimStatus: 'claimed',
     hasAuthorizedLandlord: true,
+    propertyAuthorityVerified: true,
   };
 
   it('accepts a complete authorized listing', () => {
@@ -45,8 +46,17 @@ describe('listing publish gaps', () => {
         availableOn: null,
         claimStatus: 'pending',
         hasAuthorizedLandlord: false,
+        propertyAuthorityVerified: false,
       }),
-    ).toEqual(['pricing', 'location', 'property_details', 'availability', 'organization', 'authorization']);
+    ).toEqual([
+      'pricing',
+      'location',
+      'property_details',
+      'availability',
+      'organization',
+      'property_authority',
+      'authorization',
+    ]);
   });
 });
 

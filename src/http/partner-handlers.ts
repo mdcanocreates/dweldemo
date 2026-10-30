@@ -7,6 +7,10 @@ import {
   decidePartnerIntake,
   latestPartnerIntake,
   listPartnerIntakes,
+  listPendingPropertyAuthorities,
+  readApplicationReviewState,
+  respondToPartnerIntake,
+  reviewPropertyAuthority,
   submitPartnerIntake,
   type PartnerRole,
   type PartnerStatus,
@@ -133,13 +137,17 @@ export async function handleAdminDecidePartnerIntake(
     const identity = await requireSession(deps.pool, req);
     await withSystemBypass(deps.pool, (client) => assertAdmin(client, identity.partyId));
     const body = z
-      .object({ decision: z.enum(['under_review', 'approved', 'rejected']) })
+      .object({
+        decision: z.enum(['under_review', 'approved', 'rejected']),
+        note: z.string().trim().min(1).max(2000).optional(),
+      })
       .parse(await readJsonBody(req));
     const intake = await withSystemBypass(deps.pool, (client) =>
       decidePartnerIntake(client, {
         intakeId,
         decision: body.decision,
         actorPartyId: identity.partyId,
+        note: body.note ?? null,
       }),
     );
     sendJson(res, 200, { intake });
@@ -151,3 +159,97 @@ export async function handleAdminDecidePartnerIntake(
     sendError(res, err);
   }
 }
+
+export async function handleRespondPartnerIntake(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PartnerHandlerDeps,
+  role: string,
+): Promise<void> {
+  try {
+    const parsed = parseRole(role);
+    if (!parsed) {
+      sendJson(res, 400, { error: 'validation_error', message: 'role must be landlord or broker' });
+      return;
+    }
+    const identity = await requireSession(deps.pool, req);
+    const body = z.object({ response: z.string().trim().min(2).max(4000) }).parse(await readJsonBody(req));
+    const intake = await withSystemBypass(deps.pool, (client) =>
+      respondToPartnerIntake(client, { partyId: identity.partyId, role: parsed, response: body.response }),
+    );
+    sendJson(res, 200, { intake });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'response is required' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleAdminListPropertyAuthorities(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PartnerHandlerDeps,
+): Promise<void> {
+  try {
+    const identity = await requireSession(deps.pool, req);
+    await withSystemBypass(deps.pool, (client) => assertAdmin(client, identity.partyId));
+    const items = await withSystemBypass(deps.pool, (client) => listPendingPropertyAuthorities(client));
+    sendJson(res, 200, { items });
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleAdminReviewPropertyAuthority(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PartnerHandlerDeps,
+  authorityId: string,
+): Promise<void> {
+  try {
+    const identity = await requireSession(deps.pool, req);
+    await withSystemBypass(deps.pool, (client) => assertAdmin(client, identity.partyId));
+    const body = z
+      .object({
+        decision: z.enum(['verified', 'rejected']),
+        note: z.string().trim().max(2000).optional(),
+      })
+      .parse(await readJsonBody(req));
+    const authority = await withSystemBypass(deps.pool, (client) =>
+      reviewPropertyAuthority(client, {
+        authorityId,
+        decision: body.decision,
+        actorPartyId: identity.partyId,
+        note: body.note ?? null,
+      }),
+    );
+    sendJson(res, 200, { authority });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'decision is required' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleAdminReadApplication(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PartnerHandlerDeps,
+  applicationId: string,
+): Promise<void> {
+  try {
+    const identity = await requireSession(deps.pool, req);
+    await withSystemBypass(deps.pool, (client) => assertAdmin(client, identity.partyId));
+    const application = await withSystemBypass(deps.pool, (client) =>
+      readApplicationReviewState(client, applicationId),
+    );
+    sendJson(res, 200, { application });
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+

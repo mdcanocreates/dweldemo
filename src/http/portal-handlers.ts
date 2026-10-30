@@ -34,8 +34,11 @@ import {
 } from '../modules/lease/index.js';
 import {
   acceptBrokerInvitation,
+  grantPropertyBrokerAssignment,
   listPendingInvitationsForProviderOrg,
+  revokePropertyBrokerAssignment,
 } from '../modules/brokerage/index.js';
+import { submitPropertyAuthority } from '../modules/partner/index.js';
 import { getObjectStore } from '../infra/object-store/index.js';
 import { AppError } from '../modules/shared/errors.js';
 import { resolveActivePreviewContext } from './preview-context.js';
@@ -197,9 +200,14 @@ export async function handleLandlordCreateListing(
   res: ServerResponse,
   deps: PortalHandlerDeps,
 ): Promise<void> {
+  let replay: { orgId: string; partyId: string; key: string } | null = null;
   try {
     const body = createListingSchema.parse(await readJsonBody(req));
     const { identity, orgId } = await requireLandlordOrg(deps.pool, req);
+    replay =
+      body.idempotency_key != null
+        ? { orgId, partyId: identity.partyId, key: body.idempotency_key }
+        : null;
 
     const created = await withTenantContext(
       deps.pool,
@@ -262,8 +270,8 @@ export async function handleLandlordCreateListing(
           postalCode: body.postal_code,
           actorPartyId: identity.partyId,
         });
-        // Ingest leaves the row active. Hold it as a draft, then publish only
-        // when the caller asked and the inventory checks pass.
+        // Ingest stores a draft. Publish only when the caller asked and the
+        // publication checks pass.
         await setListingStatus(client, {
           listingId: listing.id,
           orgId,
@@ -295,6 +303,30 @@ export async function handleLandlordCreateListing(
     if (err instanceof z.ZodError) {
       sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
       return;
+    }
+    const unique =
+      typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === '23505';
+    if (unique && replay) {
+      const replayKey = replay;
+      const existing = await withTenantContext(
+        deps.pool,
+        { orgId: replayKey.orgId, partyId: replayKey.partyId },
+        async (client) => {
+          const { rows } = await client.query<{ id: string; status: string }>(
+            `select l.id, l.status
+             from listing l
+             join source_listing sl on sl.id = l.primary_source_listing_id
+             where l.org_id = $1 and sl.external_id = $2
+             limit 1`,
+            [replayKey.orgId, `manual:${replayKey.orgId}:${replayKey.key}`],
+          );
+          return rows[0] ?? null;
+        },
+      );
+      if (existing) {
+        sendJson(res, 201, { listing_id: existing.id, status: existing.status });
+        return;
+      }
     }
     sendError(res, err);
   }
@@ -931,6 +963,91 @@ export async function handleLandlordMakeLeaseAvailable(
       },
     );
     sendJson(res, 200, doc);
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleSubmitPropertyAuthority(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PortalHandlerDeps,
+): Promise<void> {
+  try {
+    const body = z
+      .object({
+        listing_id: z.string().uuid(),
+        authority_kind: z.enum(['owner', 'manager']),
+        statement: z.string().trim().min(8).max(2000),
+      })
+      .parse(await readJsonBody(req));
+    const { identity, orgId } = await requireLandlordOrg(deps.pool, req);
+    const authority = await withTenantContext(deps.pool, { orgId, partyId: identity.partyId }, (client) =>
+      submitPropertyAuthority(client, {
+        orgId,
+        listingId: body.listing_id,
+        partyId: identity.partyId,
+        authorityKind: body.authority_kind,
+        statement: body.statement,
+      }),
+    );
+    sendJson(res, 201, { authority });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid property authority' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleGrantBrokerAssignment(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PortalHandlerDeps,
+): Promise<void> {
+  try {
+    const body = z
+      .object({
+        listing_id: z.string().uuid(),
+        broker_org_id: z.string().uuid(),
+      })
+      .parse(await readJsonBody(req));
+    const { identity, orgId } = await requireLandlordOrg(deps.pool, req);
+    const assignment = await withTenantContext(deps.pool, { orgId, partyId: identity.partyId }, (client) =>
+      grantPropertyBrokerAssignment(client, {
+        providerOrgId: orgId,
+        listingId: body.listing_id,
+        brokerOrgId: body.broker_org_id,
+        actorPartyId: identity.partyId,
+      }),
+    );
+    sendJson(res, 201, { assignment });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid broker assignment' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleRevokeBrokerAssignment(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: PortalHandlerDeps,
+  assignmentId: string,
+): Promise<void> {
+  try {
+    const { identity, orgId } = await requireLandlordOrg(deps.pool, req);
+    const assignment = await withTenantContext(deps.pool, { orgId, partyId: identity.partyId }, (client) =>
+      revokePropertyBrokerAssignment(client, {
+        providerOrgId: orgId,
+        assignmentId,
+        actorPartyId: identity.partyId,
+      }),
+    );
+    sendJson(res, 200, { assignment });
   } catch (err) {
     sendError(res, err);
   }

@@ -43,6 +43,8 @@ export type PartnerIntake = {
   portfolio_size: string;
   property_types: string | null;
   notes: string | null;
+  reviewer_note: string | null;
+  provider_response: string | null;
   org_id: string | null;
 };
 
@@ -313,11 +315,40 @@ export const api = {
     request<{ items: PartnerIntake[] }>(
       `/v1/admin/partner-intakes${status ? `?status=${encodeURIComponent(status)}` : ''}`,
     ),
-  adminDecidePartnerIntake: (id: string, decision: 'under_review' | 'approved' | 'rejected') =>
+  adminDecidePartnerIntake: (
+    id: string,
+    decision: 'under_review' | 'approved' | 'rejected',
+    note?: string,
+  ) =>
     request<{ intake: PartnerIntake }>(`/v1/admin/partner-intakes/${id}/decision`, {
       method: 'POST',
-      body: JSON.stringify({ decision }),
+      body: JSON.stringify({ decision, note }),
     }),
+  respondPartnerIntake: (role: 'landlord' | 'broker', response: string) =>
+    request<{ intake: PartnerIntake }>(`/v1/partner-intakes/${role}/response`, {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    }),
+  adminPropertyAuthorities: () =>
+    request<{
+      items: Array<{
+        id: string;
+        organization_name: string;
+        line1: string | null;
+        authority_kind: string;
+        statement: string;
+        status: string;
+      }>;
+    }>('/v1/admin/property-authorities'),
+  adminDecidePropertyAuthority: (id: string, decision: 'verified' | 'rejected', note?: string) =>
+    request<{ authority: { id: string; status: string } }>(`/v1/admin/property-authorities/${id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, note }),
+    }),
+  brokerAssignments: () =>
+    request<{
+      assignments: Array<{ id: string; listing_id: string | null; line1: string | null; status: string }>;
+    }>('/v1/broker/assignments'),
   createApplication: (listingId: string) =>
     request<{
       application_id: string;
@@ -576,6 +607,11 @@ export const api = {
     request<{ id: string; status: string }>(`/v1/landlord/listings/${id}/status`, {
       method: 'POST',
       body: JSON.stringify({ status }),
+    }),
+  submitPropertyAuthority: (body: { listing_id: string; authority_kind: 'owner' | 'manager'; statement: string }) =>
+    request<{ authority: { id: string; status: string } }>('/v1/landlord/property-authority', {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   landlordUploadPhoto: (id: string, body: { content_type: string; filename?: string; file_base64: string }) =>
     request<{ url: string; storage_key: string }>(`/v1/landlord/listings/${id}/photos`, {

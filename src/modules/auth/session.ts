@@ -104,7 +104,8 @@ export async function loadSessionIdentity(
   );
 
   const { rows: roles } = await client.query<{ role: string; org_id: string | null }>(
-    `select role, org_id from party_role where party_id = $1`,
+    `select role, org_id from party_role
+     where party_id = $1 and revoked_at is null and status = 'active'`,
     [session.party_id],
   );
 

@@ -145,13 +145,33 @@ describe('Part J + L — admin console + intake + rules_based_v1', () => {
         rent_amount_cents: 200000,
         bedrooms: 2,
         bathrooms: 1,
-        status: 'active',
+        status: 'draft',
         pets_allowed: false,
         amenities: [],
       },
     });
     expect(created.status).toBe(201);
     listingId = String(created.body.listing_id);
+    await withBypass(db.pool, (client) =>
+      client.query(
+        `insert into property_authority (
+           org_id, property_id, submitted_by_party_id, authority_kind, statement, status, reviewed_at
+         )
+         select l.org_id, u.property_id, pr.party_id, 'owner',
+                'Existing acceptance fixture. Not a fabricated license.', 'verified', now()
+         from listing l
+         join unit u on u.id = l.unit_id
+         join party_role pr on pr.org_id = l.org_id and pr.role = 'landlord' and pr.revoked_at is null
+         where l.id = $1
+         limit 1`,
+        [listingId],
+      ),
+    );
+    const published = await request(port, 'POST', `/v1/landlord/listings/${listingId}/status`, {
+      token: landlordToken,
+      body: { status: 'active' },
+    });
+    expect(published.status).toBe(200);
   }, 120_000);
 
   afterAll(async () => {

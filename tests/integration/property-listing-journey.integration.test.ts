@@ -294,14 +294,35 @@ describe('property listing and provider application journey', () => {
         rent_amount_cents: 180000,
         bedrooms: 2,
         bathrooms: 1,
-        status: 'active',
+        status: 'draft',
         idempotency_key: 'listing-journey-1',
         media_urls: ['https://cdn.example/one.jpg', 'https://cdn.example/two.jpg', 'http://cdn.example/nope.jpg'],
       },
     });
     expect(created.status).toBe(201);
-    expect(created.body.status).toBe('active');
+    expect(created.body.status).toBe('draft');
     const listingId = String(created.body.listing_id);
+    await withBypass(db.pool, (client) =>
+      client.query(
+        `insert into property_authority (
+           org_id, property_id, submitted_by_party_id, authority_kind, statement, status, reviewed_at
+         )
+         select l.org_id, u.property_id, pr.party_id, 'owner',
+                'Existing inventory fixture. Not a fabricated license.', 'verified', now()
+         from listing l
+         join unit u on u.id = l.unit_id
+         join party_role pr on pr.org_id = l.org_id and pr.role = 'landlord' and pr.revoked_at is null
+         where l.id = $1
+         limit 1`,
+        [listingId],
+      ),
+    );
+    const published = await request(port, 'POST', `/v1/landlord/listings/${listingId}/status`, {
+      cookie: ownerCookie,
+      body: { status: 'active' },
+    });
+    expect(published.status).toBe(200);
+    expect(published.body.status).toBe('active');
     const replay = await request(port, 'POST', '/v1/landlord/listings', {
       cookie: ownerCookie,
       body: {

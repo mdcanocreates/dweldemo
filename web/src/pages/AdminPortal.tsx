@@ -23,6 +23,7 @@ function AdminFrame({ children }: { children: ReactNode }) {
           <nav className="admin-nav">
             <NavLink to="/admin/users">Users</NavLink>
             <NavLink to="/admin/partner-intakes">Partner intakes</NavLink>
+            <NavLink to="/admin/property-authorities">Property authority</NavLink>
             <NavLink to="/admin/orgs">Orgs</NavLink>
             <NavLink to="/admin/config/consent">Consent</NavLink>
             <NavLink to="/admin/integrations/certn">Certn</NavLink>
@@ -650,11 +651,11 @@ export function AdminPartnerIntakesPage() {
     });
   }, []);
 
-  async function decide(id: string, decision: 'under_review' | 'approved' | 'rejected') {
+  async function decide(id: string, decision: 'under_review' | 'approved' | 'rejected', note?: string) {
     setBusyId(id);
     setError(null);
     try {
-      await api.adminDecidePartnerIntake(id, decision);
+      await api.adminDecidePartnerIntake(id, decision, note);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not update intake.');
@@ -697,6 +698,24 @@ export function AdminPartnerIntakesPage() {
                     <td>{String(row.market)}</td>
                     <td>{status}</td>
                     <td>
+                      {status !== 'approved' && status !== 'rejected' && (
+                        <form
+                          className="stack"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const note = String(new FormData(event.currentTarget).get('note') ?? '').trim();
+                            void decide(id, 'under_review', note || undefined);
+                          }}
+                        >
+                          <label>
+                            Reviewer note
+                            <textarea name="note" rows={2} defaultValue={String(row.reviewer_note ?? '')} />
+                          </label>
+                          <button type="submit" className="btn btn-secondary" disabled={busyId === id}>
+                            Request information
+                          </button>
+                        </form>
+                      )}
                       {status !== 'approved' && (
                         <button
                           type="button"
@@ -717,6 +736,92 @@ export function AdminPartnerIntakesPage() {
                           Reject
                         </button>
                       )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </AdminFrame>
+  );
+}
+
+export function AdminPropertyAuthoritiesPage() {
+  const [items, setItems] = useState<Array<Record<string, unknown>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function load() {
+    const data = await api.adminPropertyAuthorities();
+    setItems(data.items as unknown as Array<Record<string, unknown>>);
+  }
+
+  useEffect(() => {
+    void load().catch((err) => {
+      setError(err instanceof ApiError ? err.message : 'Could not load property authority.');
+    });
+  }, []);
+
+  async function decide(id: string, decision: 'verified' | 'rejected') {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.adminDecidePropertyAuthority(id, decision);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not review property authority.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <AdminFrame>
+      <h1 className="section-title">Property authority</h1>
+      <p className="muted">Partner approval does not prove control of a property. Review each statement.</p>
+      {error && <ErrorState title="Property authority">{error}</ErrorState>}
+      {!items && !error && <InlineSpinner label="Loading property authority…" />}
+      {items && items.length === 0 && <p className="muted">No property statements are waiting.</p>}
+      {items && items.length > 0 && (
+        <div className="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Organization</th>
+                <th>Property</th>
+                <th>Kind</th>
+                <th>Statement</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((row) => {
+                const id = String(row.id);
+                return (
+                  <tr key={id}>
+                    <td>{String(row.organization_name)}</td>
+                    <td>{String(row.line1 ?? '')}</td>
+                    <td>{String(row.authority_kind)}</td>
+                    <td>{String(row.statement)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={busyId === id}
+                        onClick={() => void decide(id, 'verified')}
+                      >
+                        Verify
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={busyId === id}
+                        onClick={() => void decide(id, 'rejected')}
+                      >
+                        Reject
+                      </button>
                     </td>
                   </tr>
                 );

@@ -175,6 +175,7 @@ export type ListingPublishFacts = {
   orgStatus: string;
   claimStatus: string;
   hasAuthorizedLandlord: boolean;
+  propertyAuthorityVerified: boolean;
 };
 
 /** Names the inventory fields that block a public publish. Does not change a row. */
@@ -190,6 +191,7 @@ export function listingPublishGaps(facts: ListingPublishFacts): string[] {
   }
   if (!facts.availableOn?.trim()) gaps.push('availability');
   if (facts.orgStatus !== 'active' || facts.claimStatus !== 'claimed') gaps.push('organization');
+  if (!facts.propertyAuthorityVerified) gaps.push('property_authority');
   if (!facts.hasAuthorizedLandlord) gaps.push('authorization');
   return gaps;
 }
@@ -453,6 +455,8 @@ async function assertListingPublishable(
     org_status: string;
     claim_status: string;
     has_authorized_landlord: boolean;
+    has_assigned_broker: boolean;
+    property_authority_verified: boolean;
   }>(
     `select l.rent_amount_cents,
             coalesce(nullif(btrim(a.line1), ''), a.raw_input) as line1,
@@ -466,8 +470,27 @@ async function assertListingPublishable(
                 and pr.role = 'landlord'
                 and pr.revoked_at is null
                 and pr.status = 'active'
-                and ($3::uuid is null or pr.party_id = $3::uuid)
-            ) as has_authorized_landlord
+                and pr.party_id = $3::uuid
+            ) as has_authorized_landlord,
+            exists (
+              select 1
+              from property_broker_assignment pba
+              join party_role pr on pr.org_id = pba.broker_org_id
+              where pba.property_id = p.id
+                and pba.provider_org_id = l.org_id
+                and pba.status = 'active'
+                and pba.revoked_at is null
+                and pr.party_id = $3::uuid
+                and pr.role = 'broker'
+                and pr.revoked_at is null
+                and pr.status = 'active'
+            ) as has_assigned_broker,
+            exists (
+              select 1 from property_authority pa
+              where pa.property_id = p.id
+                and pa.org_id = l.org_id
+                and pa.status = 'verified'
+            ) as property_authority_verified
      from listing l
      join unit u on u.id = l.unit_id
      join property p on p.id = u.property_id
@@ -490,11 +513,12 @@ async function assertListingPublishable(
     availableOn: row.available_on,
     orgStatus: row.org_status,
     claimStatus: row.claim_status,
-    hasAuthorizedLandlord: row.has_authorized_landlord,
+    hasAuthorizedLandlord: row.has_authorized_landlord || row.has_assigned_broker,
+    propertyAuthorityVerified: row.property_authority_verified,
   });
   if (gaps.includes('authorization')) {
     throw new AppError(
-      'only an authorized representative of this organization can publish the listing',
+      'only an authorized representative can publish the listing',
       'listing_not_authorized',
       403,
     );

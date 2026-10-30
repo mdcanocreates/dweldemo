@@ -166,20 +166,12 @@ export async function lapseHoldAndPromote(
     occurredAt: now,
   });
 
-  // Listing returns to active when unit freed.
+  // A lapsed hold does not publish. An already public listing keeps its
+  // confirmation time. Draft, paused, and expired rows stay unpublished.
   await client.query(
-    `update listing set status = 'active', last_confirmed_at = $2
-     where id = $1 and status <> 'rented'`,
+    `update listing set last_confirmed_at = $2 where id = $1 and status = 'active'`,
     [placement.listing_id, now],
   );
-  await emitDomainEvent(client, {
-    aggregateType: 'listing',
-    aggregateId: placement.listing_id,
-    eventType: 'listing.status_changed',
-    payload: { to: 'active', reason: 'hold_lapsed' },
-    actorKind: 'system',
-    occurredAt: now,
-  });
 
   const { rows: queue } = await client.query<{
     id: string;

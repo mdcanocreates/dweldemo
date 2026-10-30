@@ -34,6 +34,8 @@ export type PartnerIntakeRecord = {
   portfolio_size: string;
   property_types: string | null;
   notes: string | null;
+  reviewer_note: string | null;
+  provider_response: string | null;
   org_id: string | null;
   reviewed_at: string | null;
   created_at: string;
@@ -53,6 +55,8 @@ type IntakeRow = {
   portfolio_size: string;
   property_types: string | null;
   notes: string | null;
+  reviewer_note: string | null;
+  provider_response: string | null;
   org_id: string | null;
   reviewed_at: Date | null;
   created_at: Date;
@@ -61,8 +65,8 @@ type IntakeRow = {
 
 const SELECT_INTAKE = `
   select id, party_id, role, status, full_name, email, phone, organization_name,
-         market, portfolio_size, property_types, notes, org_id, reviewed_at,
-         created_at, updated_at
+         market, portfolio_size, property_types, notes, reviewer_note, provider_response,
+         org_id, reviewed_at, created_at, updated_at
   from partner_intake
 `;
 
@@ -80,6 +84,8 @@ function toRecord(row: IntakeRow): PartnerIntakeRecord {
     portfolio_size: row.portfolio_size,
     property_types: row.property_types,
     notes: row.notes,
+    reviewer_note: row.reviewer_note,
+    provider_response: row.provider_response,
     org_id: row.org_id,
     reviewed_at: row.reviewed_at ? row.reviewed_at.toISOString() : null,
     created_at: row.created_at.toISOString(),
@@ -122,8 +128,8 @@ export async function submitPartnerIntake(
          market, portfolio_size, property_types, notes
        ) values ($1,$2,'new',$3,$4,$5,$6,$7,$8,$9,$10)
        returning id, party_id, role, status, full_name, email, phone, organization_name,
-                 market, portfolio_size, property_types, notes, org_id, reviewed_at,
-                 created_at, updated_at`,
+                 market, portfolio_size, property_types, notes, reviewer_note, provider_response,
+                 org_id, reviewed_at, created_at, updated_at`,
       [
         partyId,
         input.role,
@@ -186,6 +192,7 @@ async function existingOrgForRole(
   const { rows } = await client.query<{ org_id: string }>(
     `select org_id from party_role
      where party_id = $1 and role = any($2::text[]) and org_id is not null
+       and revoked_at is null and status = 'active'
      limit 1`,
     [partyId, roles],
   );
@@ -221,7 +228,8 @@ export async function decidePartnerIntake(
 
   let orgId = row.org_id;
   if (input.decision === 'approved') {
-    orgId = orgId ?? (await existingOrgForRole(client, row.party_id, row.role));
+    const activeOrg = await existingOrgForRole(client, row.party_id, row.role);
+    orgId = orgId ?? activeOrg;
     if (!orgId) {
       const kind = row.role === 'broker' ? 'brokerage' : 'landlord';
       const org = await createOrg(client, {
@@ -231,6 +239,8 @@ export async function decidePartnerIntake(
         claimStatus: 'claimed',
       });
       orgId = org.id;
+    }
+    if (!activeOrg) {
       await grantRole(client, {
         partyId: row.party_id,
         orgId,
@@ -243,14 +253,15 @@ export async function decidePartnerIntake(
     `update partner_intake
      set status = $2,
          org_id = $3,
-         reviewed_by = $4,
+         reviewer_note = coalesce($4, reviewer_note),
+         reviewed_by = $5,
          reviewed_at = now(),
          updated_at = now()
      where id = $1
      returning id, party_id, role, status, full_name, email, phone, organization_name,
-               market, portfolio_size, property_types, notes, org_id, reviewed_at,
-               created_at, updated_at`,
-    [row.id, input.decision, orgId, input.actorPartyId],
+               market, portfolio_size, property_types, notes, reviewer_note, provider_response,
+               org_id, reviewed_at, created_at, updated_at`,
+    [row.id, input.decision, orgId, input.note ?? null, input.actorPartyId],
   );
   const record = toRecord(updated[0]!);
   const auditActorId = input.auditActorId ?? input.actorPartyId;
@@ -285,6 +296,36 @@ export async function decidePartnerIntake(
       actor_subject: input.actorSubject ?? null,
     },
     reasonCode: input.decision,
+  });
+  return record;
+}
+
+export async function respondToPartnerIntake(
+  client: DbClient,
+  input: { partyId: string; role: PartnerRole; response: string },
+): Promise<PartnerIntakeRecord> {
+  const current = await latestPartnerIntake(client, input.partyId, input.role);
+  if (!current) throw new AppError('intake not found', 'not_found', 404);
+  if (current.status !== 'new' && current.status !== 'under_review') {
+    throw new AppError('this intake is not waiting for a response', 'invalid_transition', 409);
+  }
+  const { rows } = await client.query<IntakeRow>(
+    `update partner_intake
+     set provider_response = $2, updated_at = now()
+     where id = $1
+     returning id, party_id, role, status, full_name, email, phone, organization_name,
+               market, portfolio_size, property_types, notes, reviewer_note, provider_response,
+               org_id, reviewed_at, created_at, updated_at`,
+    [current.id, input.response],
+  );
+  const record = toRecord(rows[0]!);
+  await emitDomainEvent(client, {
+    aggregateType: 'partner_intake',
+    aggregateId: record.id,
+    eventType: 'partner_intake.provider_responded',
+    payload: { party_id: input.partyId, role: input.role, status: record.status },
+    actorPartyId: input.partyId,
+    actorKind: 'user',
   });
   return record;
 }

@@ -30,6 +30,11 @@ import {
   listBrokerInvitations,
 } from '../modules/brokerage/invitations.js';
 import { revokeBrokerDelegation } from '../modules/brokerage/delegation.js';
+import {
+  listAssignedApplicants,
+  listBrokerPropertyAssignments,
+  updateAssignedListing,
+} from '../modules/brokerage/property-assignment.js';
 import { getOrgConnectStatus } from '../modules/payments/index.js';
 import { AppError } from '../modules/shared/errors.js';
 import { resolveActivePreviewContext } from './preview-context.js';
@@ -534,6 +539,72 @@ export async function handleBrokerRevokeDelegation(
         }),
     );
     sendJson(res, 200, { delegation });
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleBrokerAssignments(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: BrokerHandlerDeps,
+): Promise<void> {
+  try {
+    const { identity, orgId } = await requireBrokerOrg(deps.pool, req);
+    const assignments = await withTenantContext(deps.pool, { orgId, partyId: identity.partyId }, (client) =>
+      listBrokerPropertyAssignments(client, orgId),
+    );
+    sendJson(res, 200, { assignments });
+  } catch (err) {
+    sendError(res, err);
+  }
+}
+
+export async function handleBrokerUpdateAssignedListing(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: BrokerHandlerDeps,
+  listingId: string,
+): Promise<void> {
+  try {
+    const body = z
+      .object({
+        rent_amount_cents: z.number().int().positive().optional(),
+        status: z.enum(['draft', 'active', 'paused', 'rented']).optional(),
+      })
+      .parse(await readJsonBody(req));
+    const { identity, orgId } = await requireBrokerOrg(deps.pool, req);
+    const listing = await withTenantContext(deps.pool, { orgId, partyId: identity.partyId }, (client) =>
+      updateAssignedListing(client, {
+        brokerOrgId: orgId,
+        listingId,
+        actorPartyId: identity.partyId,
+        ...(body.rent_amount_cents != null ? { rentAmountCents: body.rent_amount_cents } : {}),
+        ...(body.status ? { status: body.status } : {}),
+      }),
+    );
+    sendJson(res, 200, listing);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid listing update' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleBrokerAssignedApplicants(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: BrokerHandlerDeps,
+  listingId: string,
+): Promise<void> {
+  try {
+    const { identity, orgId } = await requireBrokerOrg(deps.pool, req);
+    const applicants = await withTenantContext(deps.pool, { orgId, partyId: identity.partyId }, (client) =>
+      listAssignedApplicants(client, { brokerOrgId: orgId, listingId }),
+    );
+    sendJson(res, 200, { applicants });
   } catch (err) {
     sendError(res, err);
   }

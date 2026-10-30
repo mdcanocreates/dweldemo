@@ -762,3 +762,29 @@ tables:
 
       retention_class: identity
 
+    reviewer_note:
+
+      classification: free_text
+
+      retention_class: identity
+
+    provider_response:
+
+      classification: free_text
+
+      retention_class: identity
+
+  property_authority:
+
+    statement:
+
+      classification: free_text
+
+      retention_class: identity
+
+    reviewer_note:
+
+      classification: free_text
+
+      retention_class: identity
+

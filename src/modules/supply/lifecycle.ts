@@ -1,5 +1,6 @@
 import type { DbClient } from '../../db/pool.js';
 import { emitDomainEvent } from '../audit/index.js';
+import { setListingStatus } from '../listings/index.js';
 import { systemClock, type Clock } from '../shared/clock.js';
 import { AppError } from '../shared/errors.js';
 
@@ -73,10 +74,11 @@ export async function confirmListing(
   client: DbClient,
   listingId: string,
   clock: Clock = systemClock,
+  actorPartyId?: string | null,
 ): Promise<void> {
   const now = clock.now();
-  const { rows } = await client.query<{ status: string }>(
-    `select status from listing where id = $1 for update`,
+  const { rows } = await client.query<{ status: string; org_id: string }>(
+    `select status, org_id from listing where id = $1 for update`,
     [listingId],
   );
   const row = rows[0];
@@ -91,24 +93,21 @@ export async function confirmListing(
     );
   }
 
+  if (from === 'stale' || from === 'expired') {
+    await setListingStatus(client, {
+      listingId,
+      orgId: row.org_id,
+      status: 'active',
+      actorPartyId: actorPartyId ?? null,
+    });
+  }
+
   await client.query(
     `update listing
      set last_confirmed_at = $2,
-         status = case when status in ('stale','expired') then 'active' else status end,
          stale_at = null,
          expires_at = null
      where id = $1`,
     [listingId, now],
   );
-
-  if (from === 'stale' || from === 'expired') {
-    await emitDomainEvent(client, {
-      aggregateType: 'listing',
-      aggregateId: listingId,
-      eventType: 'listing.status_changed',
-      payload: { from, to: 'active' },
-      actorKind: 'user',
-      occurredAt: now,
-    });
-  }
 }

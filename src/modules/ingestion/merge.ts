@@ -92,7 +92,7 @@ export async function mergeCanonicalListing(
          id, org_id, unit_id, origin, primary_source_listing_id,
          rent_amount_cents, deposit_cents, available_on, lease_term_months,
          status, published_at, last_confirmed_at
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active', now(), now())`,
+       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft', null, now())`,
       [
         listingId,
         input.orgId,

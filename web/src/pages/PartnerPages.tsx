@@ -138,6 +138,32 @@ export function PartnerIntakePage({ role }: { role: Role }) {
               ? 'A reviewer is looking at this request. The dashboard stays closed until it is approved.'
               : 'This request is pending review. The dashboard stays closed until it is approved.'}
           </p>
+          {intake.reviewer_note && (
+            <p data-testid="reviewer-note">Reviewer note: {intake.reviewer_note}</p>
+          )}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              const response = String(data.get('response') ?? '').trim();
+              if (response.length < 2) return;
+              setBusy(true);
+              void api
+                .respondPartnerIntake(role, response)
+                .then((saved) => setIntake(saved.intake))
+                .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not send the response.'))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <label>
+              Response
+              <textarea name="response" rows={3} defaultValue={intake.provider_response ?? ''} />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={busy}>
+              Send response
+            </button>
+          </form>
+          {intake.provider_response && <p data-testid="provider-response">{intake.provider_response}</p>}
         </div>
       </Shell>
     );

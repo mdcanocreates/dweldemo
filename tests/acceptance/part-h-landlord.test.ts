@@ -210,6 +210,22 @@ describe('Part H — landlord portal APIs', () => {
     const beforeIds = ((before.body.listings as Array<{ id: string }>) ?? []).map((l) => l.id);
     expect(beforeIds).not.toContain(listingId);
 
+    await withBypass(db.pool, (client) =>
+      client.query(
+        `insert into property_authority (
+           org_id, property_id, submitted_by_party_id, authority_kind, statement, status, reviewed_at
+         )
+         select l.org_id, u.property_id, pr.party_id, 'owner',
+                'Existing acceptance fixture. Not a fabricated license.', 'verified', now()
+         from listing l
+         join unit u on u.id = l.unit_id
+         join party_role pr on pr.org_id = l.org_id and pr.role = 'landlord' and pr.revoked_at is null
+         where l.id = $1
+         limit 1`,
+        [listingId],
+      ),
+    );
+
     const pub = await request(port, 'POST', `/v1/landlord/listings/${listingId}/status`, {
       token: landlordToken,
       body: { status: 'active' },

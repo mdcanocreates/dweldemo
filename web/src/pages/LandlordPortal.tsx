@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   Link,
   Navigate,
@@ -240,6 +240,52 @@ export function LandlordOverviewPage() {
   );
 }
 
+function PropertyAuthorityForm({ listingId }: { listingId: string }) {
+  const [statement, setStatement] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await api.submitPropertyAuthority({
+        listing_id: listingId,
+        authority_kind: 'owner',
+        statement,
+      });
+      setMessage(saved.authority.status === 'verified' ? 'Property control is verified.' : 'Statement submitted for review.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not submit the property statement.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="stack" onSubmit={(event) => void onSubmit(event)}>
+      <label>
+        How you control this property
+        <textarea
+          name="statement"
+          required
+          minLength={8}
+          rows={2}
+          value={statement}
+          onChange={(event) => setStatement(event.target.value)}
+        />
+      </label>
+      <button className="btn btn-secondary" type="submit" disabled={busy}>
+        {busy ? 'Submitting…' : 'Submit property statement'}
+      </button>
+      {message && <p data-testid="authority-status">{message}</p>}
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
+
 export function LandlordListingsPage() {
   const [rows, setRows] = useState<Awaited<ReturnType<typeof api.landlordListings>>['listings'] | null>(
     null,
@@ -336,6 +382,7 @@ export function LandlordListingsPage() {
                         Publish
                       </button>
                     )}
+                    {r.status !== 'active' && r.status !== 'rented' && <PropertyAuthorityForm listingId={r.id} />}
                     {r.status === 'active' && (
                       <button type="button" className="btn btn-soft" onClick={() => void setStatus(r.id, 'paused')}>
                         Pause

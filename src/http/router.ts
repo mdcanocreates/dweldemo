@@ -65,6 +65,9 @@ import {
   handleLandlordListBrokerInvitations,
   handleLandlordAcceptBrokerInvitation,
   handleLandlordMakeLeaseAvailable,
+  handleSubmitPropertyAuthority,
+  handleGrantBrokerAssignment,
+  handleRevokeBrokerAssignment,
 } from './portal-handlers.js';
 import {
   handleBrokerAddNote,
@@ -72,6 +75,9 @@ import {
   handleBrokerCancelInvitation,
   handleBrokerCreateInvitation,
   handleBrokerRevokeDelegation,
+  handleBrokerAssignments,
+  handleBrokerUpdateAssignedListing,
+  handleBrokerAssignedApplicants,
   handleBrokerLeads,
   handleBrokerListInvitations,
   handleBrokerOverview,
@@ -153,6 +159,10 @@ import {
   handleAdminListPartnerIntakes,
   handleGetMyPartnerIntake,
   handleSubmitPartnerIntake,
+  handleRespondPartnerIntake,
+  handleAdminListPropertyAuthorities,
+  handleAdminReviewPropertyAuthority,
+  handleAdminReadApplication,
 } from './partner-handlers.js';
 import { handleInternalPreviewAccess, handleInternalPreviewSetRole } from './preview-handlers.js';
 import {
@@ -713,6 +723,21 @@ export function createApiRouter(deps: HttpHandlerDeps) {
       await handleLandlordListLeases(req, res, deps, listingId);
       return true;
     }
+    if (method === 'POST' && path === '/v1/landlord/property-authority') {
+      await handleSubmitPropertyAuthority(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/landlord/broker-assignments') {
+      await handleGrantBrokerAssignment(req, res, deps);
+      return true;
+    }
+    {
+      const revokeAssignment = path.match(/^\/v1\/landlord\/broker-assignments\/([0-9a-f-]{36})\/revoke$/i);
+      if (method === 'POST' && revokeAssignment) {
+        await handleRevokeBrokerAssignment(req, res, deps, revokeAssignment[1]!);
+        return true;
+      }
+    }
     {
       const m = path.match(
         /^\/v1\/landlord\/listings\/([0-9a-f-]{36})\/applicants\/([0-9a-f-]{36})\/leases\/([0-9a-f-]{36})\/make-available$/i,
@@ -763,6 +788,24 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     if (method === 'GET' && path === '/v1/broker/overview') {
       await handleBrokerOverview(req, res, deps);
       return true;
+    }
+    if (method === 'GET' && path === '/v1/broker/assignments') {
+      await handleBrokerAssignments(req, res, deps);
+      return true;
+    }
+    {
+      const brokerListing = path.match(/^\/v1\/broker\/listings\/([0-9a-f-]{36})$/i);
+      if (method === 'PUT' && brokerListing) {
+        await handleBrokerUpdateAssignedListing(req, res, deps, brokerListing[1]!);
+        return true;
+      }
+    }
+    {
+      const brokerApplicants = path.match(/^\/v1\/broker\/listings\/([0-9a-f-]{36})\/applicants$/i);
+      if (method === 'GET' && brokerApplicants) {
+        await handleBrokerAssignedApplicants(req, res, deps, brokerApplicants[1]!);
+        return true;
+      }
     }
     if (method === 'GET' && path === '/v1/broker/performance') {
       await handleBrokerPerformance(req, res, deps);
@@ -1034,6 +1077,11 @@ export function createApiRouter(deps: HttpHandlerDeps) {
         return true;
       }
     }
+    const partnerResponse = path.match(/^\/v1\/partner-intakes\/(landlord|broker)\/response$/);
+    if (method === 'POST' && partnerResponse) {
+      await handleRespondPartnerIntake(req, res, deps, partnerResponse[1]!);
+      return true;
+    }
     if (method === 'GET' && path === '/v1/admin/partner-intakes') {
       await handleAdminListPartnerIntakes(req, res, deps);
       return true;
@@ -1041,6 +1089,20 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     const partnerDecision = path.match(/^\/v1\/admin\/partner-intakes\/([0-9a-f-]{36})\/decision$/i);
     if (method === 'POST' && partnerDecision) {
       await handleAdminDecidePartnerIntake(req, res, deps, partnerDecision[1]!);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/admin/property-authorities') {
+      await handleAdminListPropertyAuthorities(req, res, deps);
+      return true;
+    }
+    const authorityDecision = path.match(/^\/v1\/admin\/property-authorities\/([0-9a-f-]{36})\/decision$/i);
+    if (method === 'POST' && authorityDecision) {
+      await handleAdminReviewPropertyAuthority(req, res, deps, authorityDecision[1]!);
+      return true;
+    }
+    const adminApplication = path.match(/^\/v1\/admin\/applications\/([0-9a-f-]{36})$/i);
+    if (method === 'GET' && adminApplication) {
+      await handleAdminReadApplication(req, res, deps, adminApplication[1]!);
       return true;
     }
 

@@ -553,12 +553,31 @@ export function BrokerPaymentsPage() {
 }
 
 export function BrokerListingsPage() {
+  const [rows, setRows] = useState<Array<{ id: string; line1: string | null; status: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void api
+      .brokerAssignments()
+      .then((body) => setRows(body.assignments))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load assignments.'));
+  }, []);
   return (
     <div className="stack">
-      <h1>Listings</h1>
-      <EmptyState title="No listings assigned yet">
-        Listings in your coverage area will appear here.
-      </EmptyState>
+      <h1>Assigned listings</h1>
+      {error && <ErrorState title="Assignments">{error}</ErrorState>}
+      {rows.length === 0 && !error ? (
+        <EmptyState title="No listings assigned yet">
+          A home provider assigns a specific property. Other homes stay hidden.
+        </EmptyState>
+      ) : (
+        <ul>
+          {rows.map((row) => (
+            <li key={row.id} data-testid={`assignment-${row.id}`}>
+              {row.line1 ?? 'Assigned property'} · {row.status}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

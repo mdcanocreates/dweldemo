@@ -12,6 +12,7 @@ import {
   AdminIndexRedirect,
   AdminOrgsPage,
   AdminPartnerIntakesPage,
+  AdminPropertyAuthoritiesPage,
   AdminSelfExecutionPage,
   AdminUsersPage,
 } from './pages/AdminPortal';
@@ -102,6 +103,7 @@ export default function App() {
         <Route index element={<AdminIndexRedirect />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="partner-intakes" element={<AdminPartnerIntakesPage />} />
+        <Route path="property-authorities" element={<AdminPropertyAuthoritiesPage />} />
         <Route path="orgs" element={<AdminOrgsPage />} />
         <Route path="config/consent" element={<AdminConsentPage />} />
         <Route path="integrations/certn" element={<AdminCertnPage />} />

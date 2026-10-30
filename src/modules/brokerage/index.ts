@@ -61,3 +61,11 @@ export {
   assertDelegatedAccess,
   type DelegationRow,
 } from './delegation.js';
+export {
+  grantPropertyBrokerAssignment,
+  listAssignedApplicants,
+  listBrokerPropertyAssignments,
+  revokePropertyBrokerAssignment,
+  updateAssignedListing,
+  type PropertyAssignment,
+} from './property-assignment.js';
