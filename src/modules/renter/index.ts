@@ -1,6 +1,7 @@
 export {
   getRenterProfile,
   upsertRenterProfile,
+  ProfileConflictError,
   normalizePhoneE164,
   MOVE_IN_URGENCY,
   type MoveInUrgency,

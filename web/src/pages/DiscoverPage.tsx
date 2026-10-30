@@ -27,6 +27,7 @@ function sameDraft(a: RenterAnswers, b: RenterAnswers): boolean {
     'rent_max_dollars',
     'preferred_state',
     'has_pets',
+    'household_size',
   ];
   return keys.every((key) => a[key] === b[key]);
 }
@@ -50,6 +51,7 @@ export function DiscoverPage() {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [pendingAnswers, setPendingAnswers] = useState<RenterAnswers | null>(null);
   const [code, setCode] = useState('');
+  const profileRevision = useRef<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -71,6 +73,7 @@ export function DiscoverPage() {
         if (cancelled || editGeneration.current !== generation) return;
         const merged = mergeServerRecords(local, data.profile, null);
         const savedOnAccount = serverProfileSaved(data.profile);
+        profileRevision.current = data.profile.updated_at;
         remember(merged);
         setBaseline(merged);
         saveAnswers(merged);
@@ -121,7 +124,30 @@ export function DiscoverPage() {
     }
     setSaveState('saving');
     setError(null);
-    const profile = await api.upsertRenterProfile(answersToProfilePayload(next));
+    let profile: { profile: Parameters<typeof mergeServerRecords>[1] & { updated_at?: string } };
+    try {
+      profile = await api.upsertRenterProfile(
+        answersToProfilePayload(next, profileRevision.current),
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'profile_conflict') {
+        const saved = (err.details as { profile?: Parameters<typeof mergeServerRecords>[1] } | null)
+          ?.profile;
+        if (saved) {
+          profileRevision.current = saved.updated_at;
+          const merged = mergeServerRecords(next, saved, null);
+          saveAnswers(merged);
+          remember(merged);
+          setBaseline(merged);
+        }
+        setSaveState('error');
+        setAccountProfile('loaded');
+        setError('This profile was saved in another session. The form now shows the saved account.');
+        return false;
+      }
+      throw err;
+    }
+    profileRevision.current = profile.profile.updated_at;
     const merged = mergeServerRecords(next, profile.profile, null);
     saveAnswers(merged);
     remember(merged);
@@ -176,6 +202,7 @@ export function DiscoverPage() {
       bedrooms_min: value('bedrooms_min'),
       preferred_state: value('preferred_state').toUpperCase(),
       has_pets: (form.elements.namedItem('has_pets') as HTMLInputElement | null)?.checked ?? false,
+      household_size: value('household_size'),
     };
     answersRef.current = next;
     void finishProfile(next);
@@ -332,6 +359,17 @@ export function DiscoverPage() {
               inputMode="numeric"
               value={answers.bedrooms_min ?? ''}
               onChange={(e) => setField('bedrooms_min', e.target.value)}
+            />
+          </label>
+          <label>
+            Household size
+            <input
+              name="household_size"
+              required
+              inputMode="numeric"
+              min={1}
+              value={answers.household_size ?? ''}
+              onChange={(e) => setField('household_size', e.target.value)}
             />
           </label>
           <label>

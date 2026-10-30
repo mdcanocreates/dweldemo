@@ -33,6 +33,7 @@ describe('renter answer payloads', () => {
     expect(payload.state).toBe('TX');
     expect(payload.move_in_urgency).toBe('flexible');
     expect(payload.rent_max_cents).toBe(180000);
+    expect(payload.household_size).toBeNull();
   });
 
   it('does not copy the preferred state into the current address', () => {
@@ -82,6 +83,7 @@ describe('renter answer payloads', () => {
           bedrooms_min: '1',
           rent_max_dollars: '1500',
           preferred_state: 'TX',
+          household_size: '2',
         }),
       ),
     ).toBe(true);

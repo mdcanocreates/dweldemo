@@ -73,6 +73,8 @@ type Input = {
   fee_paid?: boolean;
   lease_workflow_status?: string | null;
   cashback_status?: string | null;
+  record_kind?: string | null;
+  submitted_at?: string | null;
 };
 
 function statusLabel(status: string): string {
@@ -130,7 +132,15 @@ function ownerForStatus(s: string): NextActionOwner {
 function primaryFor(
   s: string,
   lease: string | null | undefined,
+  recordKind?: string | null,
 ): PrimaryAction {
+  if (s === 'draft' && recordKind === 'formal') {
+    return {
+      key: 'finish_application',
+      label: 'Finish and submit application',
+      href_hint: 'apply',
+    };
+  }
   if (s === 'draft') {
     return {
       key: 'finish_application',
@@ -199,21 +209,59 @@ export function buildApplicationProgress(input: Input): ApplicationProgress {
   };
 
   if (s === 'draft') {
+    const formal = input.record_kind === 'formal';
+    const action = formal
+      ? 'Finish the required fields, review them, and submit this application.'
+      : 'Finish and send your interest for this home.';
+    const next = formal
+      ? 'Review this application and submit it when the required fields are complete.'
+      : 'Open this application, confirm your details, and send interest for this home.';
     stages.push(
       stage(
         'not_submitted',
         'Not submitted',
         'current',
-        'This application has not been sent to the home provider.',
-        { action_required: 'Finish and send your interest for this home.' },
+        formal
+          ? 'This rental application has not been submitted.'
+          : 'This application has not been sent to the home provider.',
+        { action_required: action },
       ),
     );
     return summarize(
       stages,
       'not_submitted',
       input.created_at,
-      'Finish and send your interest for this home.',
-      'Open this application, confirm your details, and send interest for this home.',
+      action,
+      next,
+      input,
+      timestamps,
+    );
+  }
+
+  if (s === 'submitted') {
+    const submittedAt = input.submitted_at ?? input.created_at;
+    stages.push(
+      stage(
+        'application_submitted',
+        'Application submitted',
+        'complete',
+        'This rental application was submitted. Later profile edits do not change it.',
+        { completed_at: submittedAt },
+      ),
+      stage(
+        'hp_review',
+        'Home Provider reviewing',
+        'current',
+        'The home provider has the submitted application.',
+        { action_required: null },
+      ),
+    );
+    return summarize(
+      stages,
+      'hp_review',
+      submittedAt,
+      null,
+      'Wait for the home provider to review this application.',
       input,
       timestamps,
     );
@@ -573,7 +621,7 @@ function summarize(
   const current = stages.find((x) => x.key === currentKey);
   const actionRequired = action ?? current?.action_required ?? null;
   const nextOwner = ownerForStatus(input.status);
-  const primary = primaryFor(input.status, input.lease_workflow_status);
+  const primary = primaryFor(input.status, input.lease_workflow_status, input.record_kind);
   const outstanding: OutstandingStep[] = [];
   if (actionRequired && nextOwner === 'renter') {
     outstanding.push({

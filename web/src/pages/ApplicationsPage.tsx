@@ -119,7 +119,14 @@ export function ApplicationsPage() {
                   Listing: {listingStatusLabel(app.listing?.status)}
                 </p>
                 <p className="muted" style={{ margin: '0.2rem 0' }}>
-                  Applied {formatWhen(app.created_at)}
+                  {app.record_kind === 'formal' ? 'Rental application' : 'Interest'}
+                </p>
+                <p className="muted" style={{ margin: '0.2rem 0' }}>
+                  {app.record_kind === 'formal'
+                    ? app.submitted_at
+                      ? `Submitted ${formatWhen(app.submitted_at)}`
+                      : `Started ${formatWhen(app.created_at)}`
+                    : `Interest sent ${formatWhen(app.created_at)}`}
                 </p>
                 <p className="muted" style={{ margin: '0.2rem 0' }}>
                   Current stage: {app.progress?.current_label ?? 'Not recorded'}

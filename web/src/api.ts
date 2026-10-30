@@ -7,10 +7,12 @@ export type ApiErrorBody = { error?: string; message?: string };
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  readonly details: unknown;
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details ?? null;
   }
 }
 
@@ -124,6 +126,8 @@ export type RenterApplicationSummary = {
   status: string;
   listing_id: string | null;
   created_at: string;
+  submitted_at?: string | null;
+  record_kind?: 'interest' | 'formal' | string;
   progress?: ApplicationProgressView;
   listing: ListingSummary | null;
 };
@@ -246,6 +250,7 @@ async function request<T>(
       res.status,
       err.error ?? 'request_failed',
       err.message ?? `Request failed (${res.status})`,
+      body,
     );
   }
   return body as T;
@@ -296,6 +301,27 @@ export const api = {
     }>('/v1/applications', {
       method: 'POST',
       body: JSON.stringify({ listing_id: listingId }),
+    }),
+  startFormalApplication: (listingId: string) =>
+    request<{
+      application_id: string;
+      listing_id: string;
+      status: string;
+      record_kind: 'formal';
+      reused: boolean;
+    }>('/v1/renter/applications', {
+      method: 'POST',
+      body: JSON.stringify({ listing_id: listingId }),
+    }),
+  submitFormalApplication: (applicationId: string) =>
+    request<{
+      application_id: string;
+      status: string;
+      record_kind: 'formal';
+      reused: boolean;
+    }>(`/v1/renter/applications/${applicationId}/submit`, {
+      method: 'POST',
+      body: '{}',
     }),
   expressInterest: (listingId: string) =>
     request<{

@@ -25,7 +25,16 @@ export type RenterProfileInput = {
   hasPets: boolean;
   householdSize: number;
   preferredLeaseTermMonths?: number | null;
+  /** When set, the write succeeds only if the stored updated_at still matches. */
+  expectedUpdatedAt?: string | null;
 };
+
+export class ProfileConflictError extends AppError {
+  constructor(readonly profile: RenterProfileView) {
+    super('profile was updated in another session', 'profile_conflict', 409);
+    this.name = 'ProfileConflictError';
+  }
+}
 
 export type RenterProfileView = {
   party_id: string;
@@ -143,7 +152,7 @@ export async function upsertRenterProfile(
       ? Math.trunc(input.preferredLeaseTermMonths)
       : null;
 
-  await client.query(
+  const written = await client.query<{ party_id: string }>(
     `insert into renter_profile (
        party_id, given_name, family_name, phone_e164, email,
        annual_income_cents, move_in_urgency, bedrooms_min, rent_max_cents,
@@ -165,7 +174,11 @@ export async function upsertRenterProfile(
          excluded.preferred_lease_term_months,
          renter_profile.preferred_lease_term_months
        ),
-       updated_at = now()`,
+       updated_at = now()
+     where $14::timestamptz is null
+        or date_trunc('milliseconds', renter_profile.updated_at)
+           = date_trunc('milliseconds', $14::timestamptz)
+     returning party_id`,
     [
       partyId,
       input.givenName.trim(),
@@ -180,8 +193,13 @@ export async function upsertRenterProfile(
       input.hasPets,
       input.householdSize,
       leaseTerm,
+      input.expectedUpdatedAt ?? null,
     ],
   );
+  if (!written.rows[0] && input.expectedUpdatedAt) {
+    const current = await getRenterProfile(client, partyId);
+    if (current) throw new ProfileConflictError(current);
+  }
 
   const profile = await getRenterProfile(client, partyId);
   if (!profile) throw new AppError('profile missing after upsert', 'internal_error', 500);

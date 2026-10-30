@@ -60,6 +60,8 @@ export function checkApplicationCreationRateLimit(
   hitRate(listingKey, nowMs);
 }
 
+export type ApplicationRecordKind = 'interest' | 'formal';
+
 export type CreatePublicApplicationInput = {
   listingId: string;
   deviceId?: string | null;
@@ -67,7 +69,29 @@ export type CreatePublicApplicationInput = {
   /** When set, attach application to existing session party (authenticated interest). */
   partyId?: string | null;
   initialStatus?: string;
+  /** Interest and formal applications are separate open rows. Defaults to interest. */
+  recordKind?: ApplicationRecordKind;
 };
+
+export function isUniqueViolation(err: unknown): boolean {
+  if (typeof err === 'object' && err !== null && 'code' in err) {
+    if ((err as { code?: string }).code === '23505') return true;
+  }
+  if (typeof err === 'object' && err !== null && 'cause' in err) {
+    return isUniqueViolation((err as { cause?: unknown }).cause);
+  }
+  return false;
+}
+
+/** A unique violation aborts the current transaction. Retry in a new one. */
+export async function retryOnUniqueViolation<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    return await fn();
+  }
+}
 
 export type CreatePublicApplicationResult = {
   applicationId: string;
@@ -104,15 +128,16 @@ export async function createPublicApplication(
   }
 
   let partyId = input.partyId ?? null;
+  const recordKind = input.recordKind ?? 'interest';
   if (partyId) {
     const existing = await client.query<{ id: string; status: string }>(
       `select id, status from application
-       where party_id = $1 and listing_id = $2
+       where party_id = $1 and listing_id = $2 and record_kind = $3
          and closed_at is null
          and status not in ('declined','withdrawn','closed')
        order by created_at desc
        limit 1`,
-      [partyId, listing.id],
+      [partyId, listing.id, recordKind],
     );
     if (existing.rows[0]) {
       return {
@@ -150,8 +175,8 @@ export async function createPublicApplication(
   const { rows: app } = await client.query<{ id: string; status: string }>(
     `insert into application (
        party_id, renter_profile_id, listing_id, unit_id, org_id,
-       entry_point, status, device_id
-     ) values ($1,$2,$3,$4,$5,'renter_initiated',$7,$6)
+       entry_point, status, device_id, record_kind
+     ) values ($1,$2,$3,$4,$5,'renter_initiated',$7,$6,$8)
      returning id, status`,
     [
       partyId,
@@ -161,6 +186,7 @@ export async function createPublicApplication(
       listing.org_id,
       input.deviceId ?? null,
       status,
+      recordKind,
     ],
   );
 

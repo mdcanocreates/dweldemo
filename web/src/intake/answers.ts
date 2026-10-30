@@ -54,7 +54,7 @@ export const EMPTY_ANSWERS: RenterAnswers = {
   rent_max_dollars: '',
   preferred_state: '',
   has_pets: null,
-  household_size: '1',
+  household_size: '',
   current_address_line1: '',
   current_address_city: '',
   current_address_state: '',
@@ -121,6 +121,7 @@ export type ServerProfileFields = {
   preferred_state: string | null;
   has_pets: boolean | null;
   household_size: number | null;
+  updated_at?: string | null;
 };
 
 function preferText(server: string | null | undefined, local: string): string {
@@ -138,7 +139,8 @@ export function profileFieldsComplete(a: RenterAnswers): boolean {
       a.move_in_urgency &&
       a.bedrooms_min.trim() &&
       a.rent_max_dollars.trim() &&
-      a.preferred_state.trim().length === 2,
+      a.preferred_state.trim().length === 2 &&
+      Number(a.household_size) >= 1,
   );
 }
 
@@ -251,7 +253,7 @@ export function mergeServerRecords(
   return next;
 }
 
-export function answersToProfilePayload(a: RenterAnswers) {
+export function answersToProfilePayload(a: RenterAnswers, expectedUpdatedAt?: string | null) {
   const annual = Number(a.annual_income_dollars);
   const rent = Number(a.rent_max_dollars);
   const statedAnnual = a.annual_income_dollars.trim();
@@ -259,6 +261,7 @@ export function answersToProfilePayload(a: RenterAnswers) {
     statedAnnual && Number.isFinite(annual) && annual >= 0 ? Math.round(annual * 100) : null;
   const bedrooms = Number(a.bedrooms_min);
   const household = Number(a.household_size);
+  const statedHousehold = Number.isFinite(household) && household >= 1 ? Math.trunc(household) : null;
   return {
     given_name: a.given_name.trim(),
     family_name: a.family_name.trim(),
@@ -270,7 +273,8 @@ export function answersToProfilePayload(a: RenterAnswers) {
     rent_max_cents: Number.isFinite(rent) && rent > 0 ? Math.round(rent * 100) : 0,
     state: a.preferred_state.trim().toUpperCase(),
     has_pets: Boolean(a.has_pets),
-    household_size: Number.isFinite(household) && household >= 1 ? Math.trunc(household) : 1,
+    household_size: statedHousehold,
+    expected_updated_at: expectedUpdatedAt ?? null,
   };
 }
 

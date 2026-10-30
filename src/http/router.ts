@@ -101,6 +101,8 @@ import {
 } from './connect-handlers.js';
 import {
   handleCreateInterestApplication,
+  handleStartFormalApplication,
+  handleSubmitFormalApplication,
   handleGetConsentCopy,
   handleGetRenterIntake,
   handleGetApplicationIntakeDetail,
@@ -383,6 +385,15 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
     if (method === 'POST' && path === '/v1/renter/interest') {
       await handleCreateInterestApplication(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/renter/applications') {
+      await handleStartFormalApplication(req, res, deps);
+      return true;
+    }
+    const formalSubmit = path.match(/^\/v1\/renter\/applications\/([0-9a-f-]{36})\/submit$/i);
+    if (method === 'POST' && formalSubmit) {
+      await handleSubmitFormalApplication(req, res, deps, formalSubmit[1]!);
       return true;
     }
     if (method === 'GET' && path === '/v1/renter/saved') {

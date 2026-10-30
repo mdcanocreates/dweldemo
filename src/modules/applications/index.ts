@@ -5,7 +5,17 @@ export {
   type ApplicationCreationRateLimitInput,
   type CreatePublicApplicationInput,
   type CreatePublicApplicationResult,
+  type ApplicationRecordKind,
+  isUniqueViolation,
+  retryOnUniqueViolation,
 } from './create.js';
+
+export {
+  formalApplicationReady,
+  startFormalApplication,
+  submitFormalApplication,
+  FORMAL_SUBMITTED_STATUS,
+} from './formal.js';
 
 export {
   submitScreeningForApplication,

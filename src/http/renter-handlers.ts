@@ -10,6 +10,9 @@ import {
   createPublicApplication,
   payAndRecordConsent,
   presentRenterProgress,
+  retryOnUniqueViolation,
+  startFormalApplication,
+  submitFormalApplication,
 } from '../modules/applications/index.js';
 import {
   acknowledgeLeaseDocument,
@@ -44,6 +47,7 @@ import {
   snapshotIntakeOnApplication,
   upsertRenterIntake,
   upsertRenterProfile,
+  ProfileConflictError,
 } from '../modules/renter/index.js';
 import {
   createSupportCase,
@@ -91,6 +95,7 @@ const profileSchema = z.object({
   has_pets: z.boolean(),
   household_size: z.number().int().positive(),
   preferred_lease_term_months: z.number().int().positive().max(60).optional().nullable(),
+  expected_updated_at: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 const nyUploadSchema = z.object({
@@ -157,10 +162,15 @@ export async function handleUpsertRenterProfile(
           hasPets: body.has_pets,
           householdSize: body.household_size,
           preferredLeaseTermMonths: body.preferred_lease_term_months,
+          expectedUpdatedAt: body.expected_updated_at ?? null,
         }),
     );
     sendJson(res, 200, { profile });
   } catch (err) {
+    if (err instanceof ProfileConflictError) {
+      sendJson(res, 409, { error: err.code, message: err.message, profile: err.profile });
+      return;
+    }
     if (err instanceof z.ZodError) {
       sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
       return;
@@ -277,11 +287,13 @@ export async function handleListMyApplications(
           lease_workflow: string | null;
           cashback_status: string | null;
           listing_status: string | null;
+          record_kind: string;
+          submitted_at: Date | null;
         }>(
           `select a.id, a.status, a.listing_id, a.created_at,
                   a.move_forward_at, a.passed_at, a.info_requested_at,
                   a.screening_authorized_at, a.screened_at, a.closed_at,
-                  a.contact_revealed_at,
+                  a.contact_revealed_at, a.record_kind, a.submitted_at,
                   addr.city, addr.state,
                   coalesce(nullif(btrim(addr.line1), ''), addr.raw_input) as line1,
                   addr.postal_code,
@@ -398,14 +410,18 @@ export async function handleListMyApplications(
             fee_paid: Boolean(a.fee_paid),
             lease_workflow_status: a.lease_workflow,
             cashback_status: a.cashback_status,
+            record_kind: a.record_kind,
+            submitted_at: a.submitted_at?.toISOString() ?? null,
           }),
           a.listing_status,
         );
         return {
           application_id: a.id,
           status: a.status,
+          record_kind: a.record_kind,
           listing_id: a.listing_id,
           created_at: created,
+          submitted_at: a.submitted_at?.toISOString() ?? null,
           move_forward_at: a.move_forward_at?.toISOString() ?? null,
           passed_at: a.passed_at?.toISOString() ?? null,
           info_requested_at: a.info_requested_at?.toISOString() ?? null,
@@ -461,7 +477,8 @@ export async function handleCreateInterestApplication(
       return row.org_id;
     });
 
-    const created = await withTenantContext(
+    const created = await retryOnUniqueViolation(() =>
+      withTenantContext(
       deps.pool,
       { orgId: listingOrg, partyId: identity.partyId },
       async (client) => {
@@ -502,6 +519,7 @@ export async function handleCreateInterestApplication(
           ip,
           partyId: identity.partyId,
           initialStatus: 'awaiting_landlord_interest',
+          recordKind: 'interest',
         });
         if (!app.reused) {
           await snapshotIntakeOnApplication(client, app.applicationId, identity.partyId);
@@ -519,6 +537,7 @@ export async function handleCreateInterestApplication(
         });
         return { app, token, score };
       },
+    ),
     );
 
     sendJson(res, created.app.reused ? 200 : 201, {
@@ -536,6 +555,91 @@ export async function handleCreateInterestApplication(
       sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
       return;
     }
+    sendError(res, err);
+  }
+}
+
+export async function handleStartFormalApplication(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: RenterHandlerDeps,
+): Promise<void> {
+  try {
+    const identity = await requireSession(deps.pool, req);
+    const body = z
+      .object({ listing_id: z.string().uuid(), device_id: z.string().max(256).optional() })
+      .parse(await readJsonBody(req));
+    const ip = getClientIp(req);
+    checkApplicationCreationRateLimit({ ip, listingId: body.listing_id });
+    const listingOrg = await withTenantContext(deps.pool, {}, async (client) => {
+      const { rows } = await client.query<{ org_id: string; status: string }>(
+        `select org_id, status from listing where id = $1`,
+        [body.listing_id],
+      );
+      const row = rows[0];
+      if (!row) throw new AppError('listing not found', 'listing_not_found', 404);
+      if (row.status !== 'active') {
+        throw new AppError('listing not available', 'listing_not_available', 409);
+      }
+      return row.org_id;
+    });
+    const app = await retryOnUniqueViolation(() =>
+      withTenantContext(deps.pool, { orgId: listingOrg, partyId: identity.partyId }, (client) =>
+        startFormalApplication(client, {
+          partyId: identity.partyId,
+          listingId: body.listing_id,
+          deviceId: body.device_id ?? null,
+        }),
+      ),
+    );
+    sendJson(res, app.reused ? 200 : 201, {
+      application_id: app.applicationId,
+      listing_id: app.listingId,
+      status: app.status,
+      record_kind: 'formal',
+      reused: app.reused,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleSubmitFormalApplication(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: RenterHandlerDeps,
+  applicationId: string,
+): Promise<void> {
+  try {
+    const identity = await requireSession(deps.pool, req);
+    const submitted = await withTenantContext(
+      deps.pool,
+      { partyId: identity.partyId },
+      async (client) => {
+        const { rows } = await client.query<{ org_id: string }>(
+          `select org_id from application where id = $1 and party_id = $2`,
+          [applicationId, identity.partyId],
+        );
+        const orgId = rows[0]?.org_id;
+        if (!orgId) throw new AppError('application not found', 'application_not_found', 404);
+        await client.query(`select set_config('rbit.current_org_id', $1, true)`, [orgId]);
+        return submitFormalApplication(client, {
+          applicationId,
+          partyId: identity.partyId,
+        });
+      },
+    );
+    sendJson(res, submitted.reused ? 200 : 201, {
+      application_id: submitted.applicationId,
+      status: submitted.status,
+      record_kind: 'formal',
+      reused: submitted.reused,
+    });
+  } catch (err) {
     sendError(res, err);
   }
 }

@@ -181,6 +181,7 @@ describe('renter lifecycle browser', () => {
     await page.getByLabel('When do you need to move?').selectOption('flexible');
     await page.getByLabel('Max monthly rent').fill('1800');
     await page.getByLabel('Minimum bedrooms').fill('2');
+    await page.getByLabel('Household size').fill('2');
     await page.getByLabel('State').fill('TX');
     await page.getByRole('button', { name: 'Save profile' }).click();
     await page.waitForURL(/\/listings/);
@@ -211,6 +212,11 @@ describe('renter lifecycle browser', () => {
     }
     await submit.click();
     await see(returned, 'Interest sent');
+    await returned.goto(`${origin}/#/applications`);
+    await returned.goto(`${origin}/#/apply/${listingId}`);
+    await returned.getByLabel('Monthly income').fill('4000');
+    await returned.getByRole('button', { name: 'Submit rental application' }).click();
+    await see(returned, 'Application submitted');
     await returned.goto(`${origin}/#/applications`);
     await see(returned, '410 Renter Lane');
     await see(returned, /review your interest in this home/i);

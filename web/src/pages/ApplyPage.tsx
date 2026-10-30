@@ -15,6 +15,7 @@ import {
   loadAnswers,
   mergeServerRecords,
   profileComplete,
+  profileFieldsComplete,
   saveAnswers,
   type RenterAnswers,
 } from '../intake/answers';
@@ -40,6 +41,8 @@ export function ApplyPage() {
     'unknown',
   );
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [submittedKind, setSubmittedKind] = useState<'interest' | 'formal'>('interest');
+  const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const showSubmitFrog = useDelayedPending(hopping, 400);
@@ -81,6 +84,7 @@ export function ApplyPage() {
         setBootAnswers(merged);
         setAnswers(merged);
         setComplete(data.complete);
+        setProfileUpdatedAt(data.profile?.updated_at ?? null);
         setAccountLoad('ok');
       } catch (err) {
         if (!cancelled) {
@@ -124,7 +128,13 @@ export function ApplyPage() {
         'Add your current address and employment before submitting. Empty fields are not filled in for you.',
       );
     }
-    await api.upsertRenterProfile(answersToProfilePayload(fromAnswers));
+    if (!profileFieldsComplete(fromAnswers)) {
+      throw new ApiError(400, 'profile_incomplete', 'Save a complete renter profile before applying.');
+    }
+    const savedProfile = await api.upsertRenterProfile(
+      answersToProfilePayload(fromAnswers, profileUpdatedAt),
+    );
+    setProfileUpdatedAt(savedProfile.profile.updated_at);
     await api.upsertRenterIntake(answersToIntakePayload(fromAnswers, true));
     setComplete(true);
     if (editOnly) {
@@ -133,8 +143,69 @@ export function ApplyPage() {
     }
     const result = await api.expressInterest(listingId);
     rememberAccessToken(result.application_id, result.access_token);
+    setSubmittedKind('interest');
     setSubmittedId(result.application_id);
     track('application_submitted', { product: 'dwel', flow: 'apply' });
+  }
+
+  async function saveFormalDraft(fromAnswers: RenterAnswers = answers) {
+    setBusy(true);
+    setHopping(true);
+    setError(null);
+    try {
+      const signedIn = await ensureSession(fromAnswers);
+      if (!signedIn) return;
+      if (!profileFieldsComplete(fromAnswers)) {
+        throw new ApiError(400, 'profile_incomplete', 'Save a complete renter profile before applying.');
+      }
+      const savedProfile = await api.upsertRenterProfile(
+        answersToProfilePayload(fromAnswers, profileUpdatedAt),
+      );
+      setProfileUpdatedAt(savedProfile.profile.updated_at);
+      await api.upsertRenterIntake(answersToIntakePayload(fromAnswers, false));
+      const started = await api.startFormalApplication(listingId);
+      navigate(`/applications/${started.application_id}/details`);
+    } catch (err) {
+      setError(err instanceof ApiError || err instanceof Error ? err.message : 'Could not save the draft.');
+    } finally {
+      setBusy(false);
+      setHopping(false);
+    }
+  }
+
+  async function submitFormal(fromAnswers: RenterAnswers = answers) {
+    setBusy(true);
+    setHopping(true);
+    setError(null);
+    try {
+      const signedIn = await ensureSession(fromAnswers);
+      if (!signedIn) return;
+      const monthly = Number(fromAnswers.monthly_gross_income_dollars);
+      if (!fromAnswers.monthly_gross_income_dollars.trim() || !Number.isFinite(monthly) || monthly < 0) {
+        throw new ApiError(
+          409,
+          'formal_incomplete',
+          'Enter your monthly income before submitting. It is not calculated from rent.',
+        );
+      }
+      if (!profileFieldsComplete(fromAnswers) || !intakeFieldsReady(fromAnswers)) {
+        throw new ApiError(409, 'formal_incomplete', 'Address, employment, and household size are required.');
+      }
+      const savedProfile = await api.upsertRenterProfile(
+        answersToProfilePayload(fromAnswers, profileUpdatedAt),
+      );
+      setProfileUpdatedAt(savedProfile.profile.updated_at);
+      await api.upsertRenterIntake(answersToIntakePayload(fromAnswers, true));
+      const started = await api.startFormalApplication(listingId);
+      const submitted = await api.submitFormalApplication(started.application_id);
+      setSubmittedKind('formal');
+      setSubmittedId(submitted.application_id);
+    } catch (err) {
+      setError(err instanceof ApiError || err instanceof Error ? err.message : 'Could not submit the application.');
+    } finally {
+      setBusy(false);
+      setHopping(false);
+    }
   }
 
   async function submitAndInterest(fromAnswers: RenterAnswers = answers) {
@@ -171,8 +242,14 @@ export function ApplyPage() {
     return (
       <Shell>
         <p className="section-eyebrow">Submitted</p>
-        <h1 className="section-title">Interest sent</h1>
-        <p className="muted">Your application dossier was frozen for this listing review.</p>
+        <h1 className="section-title">
+          {submittedKind === 'formal' ? 'Application submitted' : 'Interest sent'}
+        </h1>
+        <p className="muted">
+          {submittedKind === 'formal'
+            ? 'The rental application you submitted is kept for this home. Later profile edits do not change it.'
+            : 'Your interest was sent for this home. It is not a completed rental application.'}
+        </p>
         <div className="row-between" style={{ marginTop: '1rem', gap: '0.75rem', flexWrap: 'wrap' }}>
           <Link className="btn btn-primary" to={`/applications/${submittedId}/details`}>
             View my application
@@ -290,6 +367,15 @@ export function ApplyPage() {
               ? ` · income ${moneyFromCents(Math.round(Number(answers.monthly_gross_income_dollars) * 100))}/mo`
               : ''}
           </p>
+          <label>
+            Monthly income
+            <input
+              inputMode="decimal"
+              value={answers.monthly_gross_income_dollars}
+              onChange={(e) => persist({ ...answers, monthly_gross_income_dollars: e.target.value })}
+            />
+          </label>
+          <p className="muted">Required for a rental application. It is not calculated from rent.</p>
           <div className="row-between" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
             <Link className="btn btn-secondary" to="/discover">
               Edit profile
@@ -301,6 +387,22 @@ export function ApplyPage() {
               onClick={() => setComplete(false)}
             >
               Edit address and employment
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void saveFormalDraft()}
+            >
+              Save application draft
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void submitFormal()}
+            >
+              Submit rental application
             </button>
             <button
               type="button"
