@@ -37,6 +37,7 @@ export {
   applicationStatusLabel,
   listingStatusLabel,
   classifySnapshotRecovery,
+  submittedContactEmail,
   submittedContactName,
   INTAKE_FROZEN_EVENT,
   type SnapshotRecovery,

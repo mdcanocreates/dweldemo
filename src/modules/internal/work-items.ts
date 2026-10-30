@@ -4,7 +4,7 @@
  */
 
 import type { DbClient } from '../../db/pool.js';
-import { applicationStatusLabel, submittedContactName } from '../renter/lifecycle.js';
+import { applicationStatusLabel, submittedContactName } from '../renter/index.js';
 import { AppError } from '../shared/errors.js';
 import { listSelfExecutionReviews } from '../admin/index.js';
 

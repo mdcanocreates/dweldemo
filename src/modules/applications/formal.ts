@@ -6,12 +6,12 @@
 import type { DbClient } from '../../db/pool.js';
 import { emitDomainEvent } from '../audit/index.js';
 import { AppError } from '../shared/errors.js';
-import { getRenterProfile } from '../renter/profile.js';
 import {
   getRenterIntake,
+  getRenterProfile,
   intakeRowReady,
   snapshotIntakeOnApplication,
-} from '../renter/intake.js';
+} from '../renter/index.js';
 import { createPublicApplication, type CreatePublicApplicationResult } from './create.js';
 
 export const FORMAL_SUBMITTED_STATUS = 'submitted';

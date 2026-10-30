@@ -2,7 +2,7 @@
  * State-derived renter application progress timeline.
  * No hardcoded demo stages — branches from application + screening + lease + cashback status.
  */
-import { applicationStatusLabel } from '../renter/lifecycle.js';
+import { applicationStatusLabel } from '../renter/index.js';
 
 export type ProgressStageStatus = 'complete' | 'current' | 'upcoming' | 'skipped' | 'blocked';
 

@@ -3,6 +3,9 @@ export {
   markPaymentEventProcessed,
 } from './payment-event.js';
 
+export { assertSandboxPaymentSucceeded } from './stripe-sandbox.js';
+export { readStripePaymentMode } from './stripe-mode.js';
+
 export {
   collectPayoutDestination,
   executePayout,

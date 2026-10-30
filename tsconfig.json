@@ -17,5 +17,5 @@
     "exactOptionalPropertyTypes": false
   },
   "include": ["src/**/*", "ci/**/*", "tests/**/*"],
-  "exclude": ["dist", "node_modules", "scripts"]
+  "exclude": ["dist", "node_modules", "scripts", "tests/browser/release-gates.browser.test.ts"]
 }

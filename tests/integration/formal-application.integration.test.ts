@@ -3,7 +3,8 @@
  * Disposable Postgres and the HTTP API. No production database.
  */
 import http from 'node:http';
-import type { AddressInfo, IncomingHttpHeaders } from 'node:http';
+import type { IncomingHttpHeaders } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiRouter } from '../../src/http/router.js';

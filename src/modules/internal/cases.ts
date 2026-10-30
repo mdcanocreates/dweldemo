@@ -9,20 +9,18 @@ import { assertAdmin, decideSelfExecutionReview } from '../admin/index.js';
 import { decideOnApplicant } from '../landlord/index.js';
 import { decidePartnerIntake } from '../partner/index.js';
 import {
+  applicationStatusLabel,
+  classifySnapshotRecovery,
+  INTAKE_FROZEN_EVENT,
   listMissingInfoDocuments,
+  listingStatusLabel,
   reviewMissingInfoResponse,
   signMissingInfoDocumentUrl,
+  submittedContactEmail,
+  submittedContactName,
   validateRequiredDocumentTypes,
 } from '../renter/index.js';
 import { AppError } from '../shared/errors.js';
-import {
-  applicationStatusLabel,
-  classifySnapshotRecovery,
-  listingStatusLabel,
-  submittedContactEmail,
-  submittedContactName,
-  INTAKE_FROZEN_EVENT,
-} from '../renter/lifecycle.js';
 import { findIdempotentResponse, storeIdempotentResponse } from './idempotency.js';
 import { writeCcOutboxEvent } from './outbox.js';
 import {

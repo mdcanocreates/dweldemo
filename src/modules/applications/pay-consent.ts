@@ -7,8 +7,7 @@ import {
 } from '../screening/index.js';
 import { AppError } from '../shared/errors.js';
 import { getVendorRegistry } from '../vendors/index.js';
-import { readStripePaymentMode } from '../payments/stripe-mode.js';
-import { assertSandboxPaymentSucceeded } from '../payments/stripe-sandbox.js';
+import { assertSandboxPaymentSucceeded, readStripePaymentMode } from '../payments/index.js';
 import {
   recordApplicantPurchasedReport,
   screeningFeeForState,
