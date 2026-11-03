@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { Footer } from './Footer';
+import { DWEL_FOOTER_LINKS } from '../config/footerLinks';
 
 export function ProductMark({ to = '/' }: { to?: string }) {
   return (
@@ -50,27 +52,27 @@ export function ProductHeader() {
 
 export function ProductFooter() {
   return (
-    <footer className="landing-footer">
-      <div>
+    <div className="landing-footer-wrap">
+      <div className="landing-footer-brand">
         <ProductMark />
         <p>Dwel, a product of RBIT Financial Inc.</p>
-        <p>© 2026 RBIT Financial Inc.</p>
       </div>
-      <nav>
-        <Link to="/listings">Browse homes</Link>
-        <Link to="/partner">Dwel Partner</Link>
-        <Link to="/discover">Start your profile</Link>
-        <Link to="/sign-in">Sign in</Link>
-      </nav>
-    </footer>
+      <Footer productName="Dwel" links={DWEL_FOOTER_LINKS} />
+    </div>
   );
 }
 
-export function ProductFrame({ children }: { children: ReactNode }) {
+export function ProductFrame({
+  children,
+  contentClassName = 'landing-section',
+}: {
+  children: ReactNode;
+  contentClassName?: string;
+}) {
   return (
     <div className="landing">
       <ProductHeader />
-      <main className="landing-section">{children}</main>
+      <main className={contentClassName}>{children}</main>
       <ProductFooter />
     </div>
   );

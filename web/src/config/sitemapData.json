@@ -1,0 +1,53 @@
+{
+  "baseUrlTodo": "TODO [NEEDS CONFIRMATION] — placeholder matches current production host; confirm before any sitemap.xml publish.",
+  "baseUrl": "https://dwel.rbitfinancial.com",
+  "hashRouter": true,
+  "flag": "App.tsx JSX routes are not programmatically enumerable. This file is the single source of truth for public sitemap URLs; keep it in sync when adding public top-level pages. Auth portal deep links are intentionally omitted.",
+  "sections": [
+    {
+      "title": "Discover",
+      "routes": [
+        { "path": "/", "label": "Home" },
+        { "path": "/discover", "label": "Start your profile" },
+        { "path": "/listings", "label": "Find a home" },
+        { "path": "/landlords", "label": "For landlords" },
+        { "path": "/brokers", "label": "For brokers" },
+        { "path": "/partner", "label": "Dwel Partner" },
+        { "path": "/sign-in", "label": "Sign in" }
+      ]
+    },
+    {
+      "title": "Company & help",
+      "routes": [
+        { "path": "/about", "label": "About" },
+        { "path": "/faqs", "label": "FAQs" },
+        { "path": "/sitemap", "label": "Sitemap" },
+        { "path": "/calculator", "label": "NOI calculator" }
+      ]
+    },
+    {
+      "title": "Legal",
+      "routes": [
+        { "path": "/terms", "label": "Terms of Service" },
+        { "path": "/privacy", "label": "Privacy Policy" },
+        { "path": "/ccpa", "label": "Do not sell or share my personal info" },
+        { "path": "/cashback-terms", "label": "Cashback Terms" },
+        { "path": "/legal/fair-housing", "label": "Fair housing" }
+      ]
+    },
+    {
+      "title": "Renter",
+      "routes": [
+        { "path": "/saved", "label": "Saved homes" },
+        { "path": "/applications", "label": "My applications" }
+      ]
+    },
+    {
+      "title": "Portals",
+      "routes": [
+        { "path": "/landlord", "label": "Home provider portal" },
+        { "path": "/broker", "label": "Broker portal" }
+      ]
+    }
+  ]
+}

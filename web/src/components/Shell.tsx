@@ -1,8 +1,20 @@
 import type { ReactNode } from 'react';
 import { ProductFrame } from './ProductChrome';
 
-export function Shell({ children }: { children: ReactNode; footer?: ReactNode; lockViewport?: boolean }) {
-  return <ProductFrame>{children}</ProductFrame>;
+export function Shell({
+  children,
+  fullBleed = false,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  lockViewport?: boolean;
+  fullBleed?: boolean;
+}) {
+  return (
+    <ProductFrame contentClassName={fullBleed ? 'landing-section landing-section--bleed' : 'landing-section'}>
+      {children}
+    </ProductFrame>
+  );
 }
 
 export function EmptyState({ title, children }: { title: string; children: ReactNode }) {

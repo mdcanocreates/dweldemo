@@ -25,9 +25,19 @@ import {
   BrokerPaymentsPage,
 } from './pages/BrokerPortal';
 import { CalculatorPage } from './pages/CalculatorPage';
+import {
+  AboutPage,
+  CashbackTermsPage,
+  CcpaPage,
+  FaqsPage,
+  PrivacyPage,
+  TermsPage,
+} from './pages/ContentPages';
 import { ConsentPage } from './pages/ConsentPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { HomePage } from './pages/HomePage';
+import { LegalFairHousingPage } from './pages/LegalPages';
+import { SitemapPage } from './pages/SitemapPage';
 import {
   LandlordApplicantsPage,
   LandlordEditListingPage,
@@ -69,6 +79,14 @@ export default function App() {
       <Route path="/landlords" element={<LandlordsMarketingPage />} />
       <Route path="/brokers" element={<BrokersMarketingPage />} />
       <Route path="/calculator" element={<CalculatorPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/faqs" element={<FaqsPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/ccpa" element={<CcpaPage />} />
+      <Route path="/cashback-terms" element={<CashbackTermsPage />} />
+      <Route path="/legal/fair-housing" element={<LegalFairHousingPage />} />
+      <Route path="/sitemap" element={<SitemapPage />} />
       <Route path="/sign-in" element={<SignInPage />} />
 
       <Route path="/landlord" element={<LandlordGuard />}>
