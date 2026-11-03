@@ -59,7 +59,11 @@ export function ListingMap({
       },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-    map.on('error', () => {
+    map.on('error', (event) => {
+      // Ignore intermittent tile provider denials; only surface style/bootstrap failures.
+      const err = event?.error as { status?: number; message?: string } | undefined;
+      const message = String(err?.message ?? '');
+      if (/tiles?|ajax|failed to fetch|403|429/i.test(message)) return;
       setTileError('The map could not load. The list of homes is still available.');
     });
     const observer = new ResizeObserver(() => map.resize());
