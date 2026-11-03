@@ -192,18 +192,32 @@ async function loadMedia(
 ): Promise<Map<string, Array<{ url: string }>>> {
   const map = new Map<string, Array<{ url: string }>>();
   if (listingIds.length === 0) return map;
-  const { rows } = await client.query<{ listing_id: string; url: string | null }>(
-    `select listing_id, url
+  const { rows } = await client.query<{
+    listing_id: string;
+    url: string | null;
+    storage_key: string | null;
+  }>(
+    `select listing_id, url, storage_key
      from listing_media
      where listing_id = any($1::uuid[])
-       and url is not null
+       and (url is not null or storage_key is not null)
      order by position asc, created_at asc`,
     [listingIds],
   );
+  const store = rows.some((row) => row.storage_key) ? getObjectStore() : null;
   for (const row of rows) {
-    if (!row.url) continue;
+    let url = row.url;
+    if (row.storage_key && store) {
+      try {
+        const signed = await store.signGetUrl(row.storage_key, { expiresInSeconds: 300 });
+        url = signed.url;
+      } catch {
+        // Keep a durable https URL when signing is unavailable.
+      }
+    }
+    if (!url) continue;
     const list = map.get(row.listing_id) ?? [];
-    list.push({ url: row.url });
+    list.push({ url });
     map.set(row.listing_id, list);
   }
   return map;
@@ -257,6 +271,9 @@ export type ListPublicListingsInput = {
   minBaths?: number;
   maxRentCents?: number;
   propertyType?: string;
+  inventoryKind?: 'partner' | 'external' | 'directory' | 'demo';
+  /** When true, omit HUD/directory rows (marketplace/profile browse). */
+  excludeDirectory?: boolean;
   sort?: PublicListingSort;
 };
 
@@ -318,6 +335,19 @@ export function parsePublicListingQuery(params: URLSearchParams): ListPublicList
   if (maxRentCents == null && params.get('max_rent_cents')) {
     throw new AppError('invalid price filter', 'validation_error', 400);
   }
+  const inventoryKindRaw = params.get('inventory_kind')?.trim() ?? '';
+  const inventoryKind =
+    inventoryKindRaw === 'partner' ||
+    inventoryKindRaw === 'external' ||
+    inventoryKindRaw === 'directory' ||
+    inventoryKindRaw === 'demo'
+      ? inventoryKindRaw
+      : undefined;
+  if (inventoryKindRaw && !inventoryKind) {
+    throw new AppError('invalid inventory kind', 'validation_error', 400);
+  }
+  const excludeDirectory =
+    params.get('exclude_directory') === '1' || params.get('exclude_directory') === 'true';
   return {
     limit: finiteNumber(params.get('limit'), 20),
     offset: finiteNumber(params.get('offset'), 0),
@@ -326,6 +356,8 @@ export function parsePublicListingQuery(params: URLSearchParams): ListPublicList
     minBaths,
     maxRentCents,
     propertyType: propertyType || undefined,
+    inventoryKind,
+    excludeDirectory: excludeDirectory || undefined,
     sort: sortRaw as PublicListingSort,
   };
 }
@@ -382,6 +414,12 @@ export async function listPublicListings(
   if (input.propertyType) {
     params.push(input.propertyType);
     where.push(`lower(p.property_type) = lower($${params.length})`);
+  }
+  if (input.inventoryKind) {
+    params.push(input.inventoryKind);
+    where.push(`coalesce(l.inventory_kind, 'partner') = $${params.length}`);
+  } else if (input.excludeDirectory) {
+    where.push(`coalesce(l.inventory_kind, 'partner') <> 'directory'`);
   }
 
   const whereSql = where.join(' and ');

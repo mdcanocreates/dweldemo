@@ -285,6 +285,8 @@ export type PublicListingQuery = {
   minBaths?: string;
   propertyType?: string;
   maxRentCents?: string;
+  inventoryKind?: 'partner' | 'external' | 'directory' | 'demo';
+  excludeDirectory?: boolean;
   sort?: 'newest' | 'rent_asc' | 'rent_desc' | 'cashback';
 };
 
@@ -300,6 +302,8 @@ export const api = {
     if (query.minBaths) params.set('min_baths', query.minBaths);
     if (query.propertyType) params.set('property_type', query.propertyType);
     if (query.maxRentCents) params.set('max_rent_cents', query.maxRentCents);
+    if (query.inventoryKind) params.set('inventory_kind', query.inventoryKind);
+    if (query.excludeDirectory) params.set('exclude_directory', '1');
     if (query.sort) params.set('sort', query.sort);
     return request<{ listings: Listing[]; pagination: { total: number; limit: number; offset: number } }>(
       `/v1/listings?${params.toString()}`,

@@ -39,6 +39,8 @@ export function ListingsPage() {
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [inventoryTab, setInventoryTab] = useState<InventoryTab>('rentals');
+  const [rentalTotal, setRentalTotal] = useState(0);
+  const [directoryTotal, setDirectoryTotal] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
@@ -50,37 +52,46 @@ export function ListingsPage() {
     setSearchPending(true);
     (async () => {
       try {
-        const data = await api.listListings({
+        const shared = {
           limit,
           offset: 0,
           q: queryApplied.trim() || undefined,
-          minBeds: beds || undefined,
-          minBaths: baths || undefined,
+          minBeds: inventoryTab === 'rentals' ? beds || undefined : undefined,
+          minBaths: inventoryTab === 'rentals' ? baths || undefined : undefined,
           propertyType: propertyType || undefined,
-          maxRentCents: maxRent || undefined,
-          sort,
-        });
+          maxRentCents: inventoryTab === 'rentals' ? maxRent || undefined : undefined,
+          sort: inventoryTab === 'rentals' ? sort : ('newest' as const),
+        };
+        const [data, rentalMeta, directoryMeta] = await Promise.all([
+          api.listListings({
+            ...shared,
+            excludeDirectory: inventoryTab === 'rentals' || undefined,
+            inventoryKind: inventoryTab === 'directory' ? 'directory' : undefined,
+          }),
+          api.listListings({ limit: 1, offset: 0, excludeDirectory: true, sort: 'newest' }),
+          api.listListings({ limit: 1, offset: 0, inventoryKind: 'directory', sort: 'newest' }),
+        ]);
         if (!cancelled) {
           const publishable = publishablePublicListings(data.listings);
           setListings(publishable);
           setTotal(publishable.length < data.listings.length ? publishable.length : data.pagination.total);
+          setRentalTotal(rentalMeta.pagination.total);
+          setDirectoryTotal(directoryMeta.pagination.total);
           setOffset(data.listings.length);
           setError(null);
           setSelectedListingId((current) =>
             current && publishable.some((listing) => listing.id === current) ? current : null,
           );
-          const parts = partitionPublicInventory(publishable);
           const activeFilters = Boolean(
             queryApplied.trim() || beds || baths || propertyType || maxRent,
           );
-          // Preserve the rentals tab when filters produced zero matches so controls stay visible.
-          // On a pristine load with only directory inventory, still open the directory tab.
           setInventoryTab((current) => {
-            if (current === 'rentals' && parts.rentals.length > 0) return 'rentals';
-            if (current === 'directory' && parts.directory.length > 0) return 'directory';
-            if (current === 'rentals' && activeFilters) return 'rentals';
-            if (parts.rentals.length > 0) return 'rentals';
-            if (parts.directory.length > 0) return 'directory';
+            if (current === 'rentals' && (rentalMeta.pagination.total > 0 || activeFilters)) {
+              return 'rentals';
+            }
+            if (current === 'directory' && directoryMeta.pagination.total > 0) return 'directory';
+            if (rentalMeta.pagination.total > 0) return 'rentals';
+            if (directoryMeta.pagination.total > 0) return 'directory';
             return current;
           });
         }
@@ -101,7 +112,7 @@ export function ListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [queryApplied, beds, baths, propertyType, maxRent, sort, reloadToken]);
+  }, [queryApplied, beds, baths, propertyType, maxRent, sort, inventoryTab, reloadToken]);
 
   const partitions = useMemo(
     () => partitionPublicInventory(listings ?? []),
@@ -109,9 +120,8 @@ export function ListingsPage() {
   );
   const visibleListings =
     inventoryTab === 'rentals' ? partitions.rentals : partitions.directory;
-  const rentalCount = partitions.rentals.length;
-  const directoryCount =
-    listings !== null && rentalCount === 0 ? total : partitions.directory.length;
+  const rentalCount = rentalTotal;
+  const directoryCount = directoryTotal;
   const catalogErrored = Boolean(error);
   const rentalsEmpty = !error && listings !== null && rentalCount === 0;
   const directoryEmpty = !error && listings !== null && directoryCount === 0;
@@ -140,8 +150,8 @@ export function ListingsPage() {
         ? rentalCount === 0
           ? null
           : rentalCount === 1
-            ? '1 rental matches your search'
-            : `${rentalCount} rentals match your search`
+            ? '1 property profile matches your search'
+            : `${rentalCount} property profiles match your search`
         : directoryCount === 0
           ? null
           : directoryCount === 1
@@ -165,17 +175,19 @@ export function ListingsPage() {
         limit,
         offset,
         q: queryApplied.trim() || undefined,
-        minBeds: beds || undefined,
-        minBaths: baths || undefined,
+        minBeds: inventoryTab === 'rentals' ? beds || undefined : undefined,
+        minBaths: inventoryTab === 'rentals' ? baths || undefined : undefined,
         propertyType: propertyType || undefined,
-        maxRentCents: maxRent || undefined,
-        sort,
+        maxRentCents: inventoryTab === 'rentals' ? maxRent || undefined : undefined,
+        sort: inventoryTab === 'rentals' ? sort : 'newest',
+        excludeDirectory: inventoryTab === 'rentals' || undefined,
+        inventoryKind: inventoryTab === 'directory' ? 'directory' : undefined,
       });
       const more = publishablePublicListings(data.listings);
       const merged = [...listings, ...more];
       setListings(merged);
       setOffset(offset + data.listings.length);
-      setTotal(merged.length);
+      setTotal(data.pagination.total);
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load more listings.');
