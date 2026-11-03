@@ -1,0 +1,25 @@
+[
+  {
+    "external_id": "rent_shared_1",
+    "source": "rent.com",
+    "property_name": "Shared Deal One",
+    "address": { "line1": "100 Main St", "city": "Austin", "state": "TX", "postal_code": "78701" },
+    "lat": 30.2672,
+    "lng": -97.7431,
+    "special_text": "8 weeks free",
+    "owner_email": null,
+    "contact_email_level": "property",
+    "source_updated_at": "2026-10-30T00:00:00Z"
+  },
+  {
+    "external_id": "rent_only_510",
+    "source": "rent.com",
+    "property_name": "Deal Only 510",
+    "address": { "line1": "200 Oak Ave", "city": "Austin", "state": "TX", "postal_code": "78702" },
+    "lat": 30.26,
+    "lng": -97.74,
+    "special_text": "6 weeks free",
+    "owner_email": null,
+    "source_updated_at": "2026-10-29T00:00:00Z"
+  }
+]

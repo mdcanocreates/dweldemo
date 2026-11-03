@@ -1,0 +1,14 @@
+[
+  {
+    "external_id": "hud_shared_1",
+    "source": "hud",
+    "listing_type": "hud_assisted",
+    "property_name": "Shared HUD One",
+    "address": { "line1": "400 Elm St", "city": "Austin", "state": "TX", "postal_code": "78704" },
+    "lat": 30.25,
+    "lng": -97.76,
+    "owner_email": "hud@example.test",
+    "pm_contact_name": "Jordan Lee",
+    "data_as_of": "2026-10-06"
+  }
+]

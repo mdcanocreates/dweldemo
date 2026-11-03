@@ -788,3 +788,37 @@ tables:
 
       retention_class: identity
 
+  external_source_snapshot:
+
+    raw_payload:
+
+      classification: free_text
+
+      retention_class: operational
+
+  property_contact_candidate:
+
+    contact_name:
+
+      classification: identity
+
+      retention_class: identity
+
+    contact_title:
+
+      classification: identity
+
+      retention_class: identity
+
+    contact_email:
+
+      classification: contact
+
+      retention_class: identity
+
+    contact_phone:
+
+      classification: contact
+
+      retention_class: identity
+

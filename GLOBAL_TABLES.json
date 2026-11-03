@@ -71,7 +71,13 @@
     "screening_provider_setting",
     "screening_provider_setting_change",
     "provider_screening",
-    "screening_comparison_run"
+    "screening_comparison_run",
+    "external_source",
+    "external_source_snapshot",
+    "external_property_candidate",
+    "listing_offer_candidate",
+    "property_contact_candidate",
+    "external_import_run"
   ],
   "justifications": {
     "schema_migrations": "Migration bookkeeping",
@@ -144,6 +150,12 @@
     "screening_provider_setting": "Singleton admin default screening provider selection",
     "screening_provider_setting_change": "Append-only admin provider selection audit",
     "provider_screening": "Provider-agnostic screening rows; requester_org_id scoped in handlers; workers under bypass pending dedicated RLS pass",
-    "screening_comparison_run": "Internal sandbox comparison runs; synthetic only"
+    "screening_comparison_run": "Internal sandbox comparison runs; synthetic only",
+    "external_source": "Platform source-rights registry for quarantined external packages. No owning org until a listing is claimed. RLS allows only rbit.bypass_rls.",
+    "external_source_snapshot": "Immutable raw package payloads for audit. Never public. Bypass-only RLS.",
+    "external_property_candidate": "Quarantined external property candidates before rights approval. Bypass-only RLS. Does not publish listings.",
+    "listing_offer_candidate": "Source-advertised offer staging. Not a Dwel entitlement. Bypass-only RLS.",
+    "property_contact_candidate": "Private contact quarantine for admin verification. Bypass-only RLS. Never public API.",
+    "external_import_run": "Quarantine import batch metadata and dry-run reports. Bypass-only RLS."
   }
 }

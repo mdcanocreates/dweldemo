@@ -1,0 +1,27 @@
+[
+  {
+    "external_id": "rent_shared_1",
+    "source": "rent.com",
+    "property_name": "Shared Deal One",
+    "address": { "line1": "100 Main St", "city": "Austin", "state": "TX", "postal_code": "78701" },
+    "lat": 30.2672,
+    "lng": -97.7431,
+    "special_text": "8 weeks free",
+    "owner_email": "manager@example.test",
+    "contact_email_level": "property",
+    "contact_email_source": "enriched_143",
+    "photos": ["https://cdn.example.test/a.jpg"],
+    "source_updated_at": "2026-10-31T00:00:00Z"
+  },
+  {
+    "external_id": "rent_extra_143",
+    "source": "rent.com",
+    "property_name": "Extra Deal 143",
+    "address": { "line1": "300 Pine Rd", "city": "Austin", "state": "TX", "postal_code": "78703" },
+    "lat": 30.28,
+    "lng": -97.75,
+    "owner_email": "firm@example.test",
+    "contact_email_level": "management_firm",
+    "source_updated_at": "2026-10-31T00:00:00Z"
+  }
+]

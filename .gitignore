@@ -18,6 +18,7 @@ coverage/
 !**/terraform/envs/**/*.tfvars.example
 !**/terraform/envs/**/backend.hcl.example
 evidence/tmp/
+tmp-listing-packages/
 .vitest/
 Dwel-Platform/node_modules/
 **/node_modules/

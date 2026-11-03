@@ -1,0 +1,23 @@
+[
+  {
+    "external_id": "hud_shared_1",
+    "source": "hud",
+    "property_name": "Shared HUD One",
+    "address": { "line1": "400 Elm St", "city": "Austin", "state": "TX", "postal_code": "78704" },
+    "lat": 30.25,
+    "lng": -97.76,
+    "owner_email": "hud@example.test",
+    "pm_contact_name": "Jordan Lee",
+    "pm_contact_phone": "+15155550100"
+  },
+  {
+    "external_id": "hud_only_pm",
+    "source": "hud",
+    "property_name": "HUD PM Only",
+    "address": { "line1": "600 Birch Ct", "city": "Austin", "state": "TX", "postal_code": "78706" },
+    "lat": 30.24,
+    "lng": -97.72,
+    "owner_email": "pm-only@example.test",
+    "pm_contact_name": "Casey Ng"
+  }
+]
