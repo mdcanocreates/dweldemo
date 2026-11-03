@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, type Listing, type RenterApplicationSummary } from '../api';
 import { useAuth } from '../auth';
 import { HeartButton } from '../components/listings/HeartButton';
-import { ListingMedia } from '../components/listings/ListingMedia';
 import { applicationStatusLabel } from '../lib/application-status';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
@@ -22,6 +21,7 @@ export function ListingDetailPage() {
   const { toggleSave, isSaved } = useSavedHomesContext();
   const [listing, setListing] = useState<Listing | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [heroFailed, setHeroFailed] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [existing, setExisting] = useState<RenterApplicationSummary | null>(null);
   const [applicationLookup, setApplicationLookup] = useState<'idle' | 'ok' | 'failed'>('idle');
@@ -114,6 +114,7 @@ export function ListingDetailPage() {
   const title = listing.property_name?.trim() || formatAddress(listing);
   const media = listing.media?.filter((item) => item.url) ?? [];
   const hero = media[photoIndex]?.url ?? media[0]?.url;
+  const visibleHero = hero && !heroFailed ? hero : null;
 
   async function saveHome() {
     setSavedNote(null);
@@ -157,15 +158,19 @@ export function ListingDetailPage() {
       <Link to="/listings" style={{ fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>
         ← Back to homes
       </Link>
-      <div className="dwel-detail-hero">
-        {hero ? (
-          <img src={hero} alt={title} loading="eager" />
+      <div className={visibleHero ? 'dwel-detail-hero' : 'dwel-detail-hero dwel-detail-hero--text'}>
+        {visibleHero ? (
+          <img src={visibleHero} alt={title} loading="eager" onError={() => setHeroFailed(true)} />
         ) : (
-          <ListingMedia title={title} imageUrl={null} kind={directory ? 'directory' : 'rental'} />
+          <p className="dwel-detail-photo-note">
+            {directory
+              ? 'Directory entry. No property photo is on file.'
+              : 'No licensed property photo is on file.'}
+          </p>
         )}
-        <HeartButton listing={listing} className="dwel-heart--overlay dwel-heart--detail" />
+        <HeartButton listing={listing} className={visibleHero ? 'dwel-heart--overlay dwel-heart--detail' : ''} />
       </div>
-      {media.length > 1 && (
+      {visibleHero && media.length > 1 && (
         <div className="dwel-detail-gallery" data-testid="listing-gallery">
           {media.map((item, index) => (
             <button
@@ -173,7 +178,10 @@ export function ListingDetailPage() {
               type="button"
               className={photoIndex === index ? 'is-active' : undefined}
               aria-label={`Photo ${index + 1}`}
-              onClick={() => setPhotoIndex(index)}
+              onClick={() => {
+                setHeroFailed(false);
+                setPhotoIndex(index);
+              }}
             >
               <img src={item.url} alt="" loading="lazy" />
             </button>

@@ -53,22 +53,27 @@ function RentalCard({
   return (
     <article
       id={`listing-card-${listing.id}`}
-      className={selected ? 'landing-card is-selected' : 'landing-card'}
+      className={selected ? `landing-card is-selected${img ? '' : ' landing-card--text'}` : `landing-card${img ? '' : ' landing-card--text'}`}
       data-testid={`card-listing-${listing.id}`}
       data-inventory-kind="rental"
     >
-      <div className="dwel-card-media-wrap">
-        <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
-          <ListingMedia title={title} imageUrl={img} compact={compact} kind="rental" badge={offer} />
-        </button>
-        <HeartButton listing={listing} className="dwel-heart--overlay" />
-      </div>
+      {img ? (
+        <div className="dwel-card-media-wrap">
+          <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
+            <ListingMedia title={title} imageUrl={img} compact={compact} kind="rental" badge={offer} />
+          </button>
+          <HeartButton listing={listing} className="dwel-heart--overlay" />
+        </div>
+      ) : null}
       <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
         <div className="landing-card-body">
-          <p className="landing-card-meta">
-            {titleCaseType(listing.property_type) ?? 'Home'}
-            {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
-          </p>
+          <div className="landing-card-row">
+            <p className="landing-card-meta">
+              {titleCaseType(listing.property_type) ?? 'Home'}
+              {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
+            </p>
+            {img ? null : <HeartButton listing={listing} />}
+          </div>
           <p className="landing-card-title">{title}</p>
           <p className="landing-card-place">{addressLine || city}</p>
           <div className="landing-card-row">
@@ -112,31 +117,30 @@ function ProfileCard({
       id={`listing-card-${listing.id}`}
       className={
         selected
-          ? 'landing-card landing-card--profile is-selected'
-          : 'landing-card landing-card--profile'
+          ? `landing-card landing-card--profile is-selected${img ? '' : ' landing-card--text'}`
+          : `landing-card landing-card--profile${img ? '' : ' landing-card--text'}`
       }
       data-testid={`card-listing-${listing.id}`}
       data-inventory-kind="external"
     >
-      <div className="dwel-card-media-wrap">
-        <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
-          <ListingMedia
-            title={title}
-            imageUrl={img}
-            compact={compact || !img}
-            kind="profile"
-            badge="Inquire"
-          />
-        </button>
-        <HeartButton listing={listing} className="dwel-heart--overlay" />
-      </div>
+      {img ? (
+        <div className="dwel-card-media-wrap">
+          <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
+            <ListingMedia title={title} imageUrl={img} compact={compact} kind="profile" badge="Inquire" />
+          </button>
+          <HeartButton listing={listing} className="dwel-heart--overlay" />
+        </div>
+      ) : null}
       <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
         <div className="landing-card-body">
-          <p className="landing-card-meta">
-            Property profile
-            {listing.property_type ? ` · ${titleCaseType(listing.property_type)}` : ''}
-            {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
-          </p>
+          <div className="landing-card-row">
+            <p className="landing-card-meta">
+              Property profile
+              {listing.property_type ? ` · ${titleCaseType(listing.property_type)}` : ''}
+              {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
+            </p>
+            {img ? null : <HeartButton listing={listing} />}
+          </div>
           <p className="landing-card-title">{title}</p>
           <p className="landing-card-place">{addressLine}</p>
           <div className="landing-card-row">
@@ -175,27 +179,19 @@ function DirectoryCard({
       id={`listing-card-${listing.id}`}
       className={
         selected
-          ? 'landing-card landing-card--directory is-selected'
-          : 'landing-card landing-card--directory'
+          ? 'landing-card landing-card--directory landing-card--text is-selected'
+          : 'landing-card landing-card--directory landing-card--text'
       }
       data-testid={`card-listing-${listing.id}`}
       data-inventory-kind="directory"
+      data-compact={compact ? 'true' : 'false'}
     >
-      <div className="dwel-card-media-wrap">
-        <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
-          <ListingMedia
-            title={title}
-            imageUrl={null}
-            compact={compact}
-            kind="directory"
-            badge="Directory"
-          />
-        </button>
-        <HeartButton listing={listing} className="dwel-heart--overlay" />
-      </div>
       <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
         <div className="landing-card-body">
-          <p className="landing-card-meta">Affordable housing directory</p>
+          <div className="landing-card-row">
+            <p className="landing-card-meta">Affordable housing directory</p>
+            <HeartButton listing={listing} />
+          </div>
           <p className="landing-card-title">{title}</p>
           <p className="landing-card-place">{addressLine}</p>
           <div className="landing-card-row">

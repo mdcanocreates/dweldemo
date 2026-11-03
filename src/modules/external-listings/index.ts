@@ -23,3 +23,16 @@ export type {
   PackageKind,
   ReconciliationReport,
 } from './types.js';
+export {
+  RENT_COM_DEAL_PACKAGE_PERMISSION,
+  decideImageUse,
+  type ImageUseDecision,
+  type SourceMediaPermission,
+} from './image-rights.js';
+export {
+  planDealImageIngest,
+  type DealImageGroup,
+  type DealImagePlan,
+  type ListingImageLink,
+  type PlannedDealImage,
+} from './image-plan.js';

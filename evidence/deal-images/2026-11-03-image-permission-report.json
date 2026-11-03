@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-11-03T22:20:22.032Z",
+  "manifest_path": "c:\\Users\\MDCan\\Desktop\\RBITMASTER\\apps\\DWEL_DEAL_PROPERTY_IMAGE_URL_MANIFEST.json",
+  "manifest_claims": {
+    "property_count": 588,
+    "image_url_references": 8612,
+    "unique_image_urls": 8603
+  },
+  "permission_source": "recorded_quarantine_default",
+  "permission": {
+    "providerKey": "rent_com_deal_package",
+    "status": "unverified",
+    "licenseEvidenceRef": "pending_rights_review",
+    "permittedFields": [
+      "address",
+      "rent_range",
+      "beds",
+      "special_text",
+      "coordinates_approximate"
+    ],
+    "mediaPolicy": "none"
+  },
+  "database": "not_configured",
+  "listing_links_matched": 0,
+  "images_discovered": 8612,
+  "properties_discovered": 588,
+  "properties_matched_by_external_id": 588,
+  "unique_image_urls": 8603,
+  "urls_tested": 8603,
+  "urls_reachable_image": 8603,
+  "urls_not_image_or_unreachable": 0,
+  "url_status_counts": {
+    "206:image/webp": 8603
+  },
+  "images_ingested": 0,
+  "images_rejected": 8612,
+  "rejected_by_reason": {
+    "source_status_unverified": 8612
+  },
+  "images_displayed_publicly": 0,
+  "display_verified": false,
+  "approved_to_host": 0,
+  "approved_to_hotlink": 0,
+  "limitation": "Recorded rent_com_deal_package grant is unverified, license evidence is pending_rights_review, and photos are not a permitted field. Package prompt text is not a display or rehost license. No Rent.com image bytes were copied into Dwel storage or published on listing media."
+}
