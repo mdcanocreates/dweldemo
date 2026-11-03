@@ -224,6 +224,11 @@ export function ListingDetailPage() {
             <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
               Directory entry only. Saving does not contact the property or confirm vacancy.
             </p>
+          ) : listing.inventory_kind === 'external' || !listing.rent_amount_cents ? (
+            <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
+              Property profile for inquiry only. This provider has not claimed the listing or accepted the $49
+              reusable Dwel application.
+            </p>
           ) : listing.offers?.[0] ? (
             <>
               <p style={{ fontWeight: 700 }}>{listing.offers[0].display_text}</p>
@@ -234,9 +239,12 @@ export function ListingDetailPage() {
           ) : (
             <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
               {listing.listing_channel ?? 'Partner listing'}. Saving does not contact the leasing office.
+              {!listing.reusable_application_eligible
+                ? ' Provider has not accepted Dwel applications yet.'
+                : ''}
             </p>
           )}
-          {applicationLookup === 'failed' && !directory && (
+          {applicationLookup === 'failed' && !directory && listing.reusable_application_eligible && (
             <p>
               Could not check whether you already applied. Submitting again reuses an open
               application for this home instead of creating a second one.
@@ -259,7 +267,7 @@ export function ListingDetailPage() {
             Request information
           </button>
           {savedNote && <p>{savedNote}</p>}
-          {!directory && existing ? (
+          {!directory && listing.reusable_application_eligible && existing ? (
             <>
               <p style={{ fontWeight: 700 }}>
                 You applied.{' '}
@@ -274,7 +282,7 @@ export function ListingDetailPage() {
                 View your application
               </Link>
             </>
-          ) : !directory ? (
+          ) : !directory && listing.reusable_application_eligible ? (
             <button
               type="button"
               className="btn btn-primary"
@@ -283,6 +291,11 @@ export function ListingDetailPage() {
             >
               Start application
             </button>
+          ) : !directory ? (
+            <p style={{ marginTop: '0.75rem', color: 'hsl(var(--muted-foreground))', fontSize: '0.85rem' }}>
+              A Dwel application becomes available after this provider claims the listing and accepts reusable
+              screening.
+            </p>
           ) : null}
           <Link
             to="/applications"

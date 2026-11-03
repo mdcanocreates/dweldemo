@@ -29,7 +29,8 @@
     "evidence:phase0": "tsx scripts/phase0-evidence.ts",
     "seed:test-accounts": "tsx scripts/seed-test-accounts.ts",
     "ops:import-listing-packages": "tsx src/scripts/import-listing-packages-quarantine.ts",
-    "ops:publish-hud-directory": "tsx src/scripts/publish-hud-directory.ts"
+    "ops:publish-hud-directory": "tsx src/scripts/publish-hud-directory.ts",
+    "ops:publish-deal-profiles": "tsx src/scripts/publish-deal-profiles.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.758.0",

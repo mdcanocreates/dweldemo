@@ -63,6 +63,10 @@ export {
 } from './application-savings.js';
 export { estimateSavedApplicationSavings } from './saved-savings.js';
 export {
+  resolveRenterApplicationProduct,
+  type RenterApplicationProduct,
+} from './application-product.js';
+export {
   createRenterInterest,
   type CreateInterestInput,
   type InterestAction,

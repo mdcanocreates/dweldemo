@@ -6,8 +6,8 @@ import {
   type SavingsEstimate,
 } from '../lib/applicationSavings';
 import { clearGuestSavedIds, readGuestSavedIds, writeGuestSavedIds } from '../lib/guestSaved';
-import { shouldShowSavingsPanel } from '../lib/marketplacePreservation';
-import { savingsEstimateEnabled } from '../lib/listingFeatures';
+import { isDirectoryListing } from '../lib/publicInventory';
+import type { SaveFeedback } from '../components/listings/SaveFeedbackToast';
 
 type SavingsPayload = {
   estimate: {
@@ -17,6 +17,7 @@ type SavingsPayload = {
   } | null;
   eligibleSaved?: number;
   savedCount: number;
+  dwelApplicationFeeCents?: number;
 };
 
 export type SavedHomesState = {
@@ -24,22 +25,43 @@ export type SavedHomesState = {
   savedCount: number;
   estimate: SavingsEstimate | null;
   estimateStatus: 'loading' | 'unavailable' | 'error' | 'ready';
-  savingsPanelVisible: boolean;
-  dismissSavings: () => void;
+  dwelFeeCents: number;
+  saveFeedback: SaveFeedback | null;
+  dismissSaveFeedback: () => void;
   toggleSave: (listing: Listing) => Promise<void>;
   isSaved: (listingId: string) => boolean;
   refreshing: boolean;
 };
+
+const DEFAULT_DWEL_FEE_CENTS = 4900;
 
 function toEstimate(payload: SavingsPayload | null | undefined): SavingsEstimate | null {
   if (!payload?.estimate?.completeEstimate) return null;
   return {
     eligibleHomes: payload.estimate.eligibleHomes,
     baselineFeesCents: 0,
-    dwelFeesCents: 0,
+    dwelFeesCents: payload.dwelApplicationFeeCents ?? DEFAULT_DWEL_FEE_CENTS,
     estimatedSavingsCents: payload.estimate.estimatedSavingsCents,
     completeEstimate: true,
   };
+}
+
+function feedbackForSave(
+  listing: Listing,
+  savedCount: number,
+  estimate: SavingsEstimate | null,
+  dwelFeeCents: number,
+): SaveFeedback {
+  if (isDirectoryListing(listing)) {
+    return { kind: 'directory', savedCount, estimate: null, dwelFeeCents };
+  }
+  if (!listing.reusable_application_eligible) {
+    return { kind: 'unclaimed', savedCount, estimate: null, dwelFeeCents };
+  }
+  if (estimate?.completeEstimate) {
+    return { kind: 'estimate', savedCount, estimate, dwelFeeCents };
+  }
+  return { kind: 'participating', savedCount, estimate: null, dwelFeeCents };
 }
 
 export function useSavedHomes(): SavedHomesState {
@@ -47,8 +69,9 @@ export function useSavedHomes(): SavedHomesState {
   const [savedIds, setSavedIds] = useState<Set<string>>(() => new Set(readGuestSavedIds()));
   const [estimate, setEstimate] = useState<SavingsEstimate | null>(null);
   const [estimateStatus, setEstimateStatus] = useState<SavedHomesState['estimateStatus']>('unavailable');
+  const [dwelFeeCents, setDwelFeeCents] = useState(DEFAULT_DWEL_FEE_CENTS);
   const [refreshing, setRefreshing] = useState(false);
-  const [savingsDismissed, setSavingsDismissed] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
 
   const refreshAccount = useCallback(async () => {
     if (!user) return;
@@ -68,6 +91,7 @@ export function useSavedHomes(): SavedHomesState {
       const data = await api.savedListings();
       setSavedIds(new Set(data.saved.map((row) => row.listing_id)));
       const savings = (data as { savings?: SavingsPayload }).savings;
+      if (savings?.dwelApplicationFeeCents) setDwelFeeCents(savings.dwelApplicationFeeCents);
       const next = toEstimate(savings);
       setEstimate(next);
       setEstimateStatus(next ? 'ready' : 'unavailable');
@@ -89,6 +113,8 @@ export function useSavedHomes(): SavedHomesState {
     void refreshAccount();
   }, [authLoading, user, refreshAccount]);
 
+  const dismissSaveFeedback = useCallback(() => setSaveFeedback(null), []);
+
   const toggleSave = useCallback(
     async (listing: Listing) => {
       const listingId = listing.id;
@@ -96,16 +122,21 @@ export function useSavedHomes(): SavedHomesState {
 
       if (!user) {
         const next = new Set(savedIds);
-        if (currentlySaved) next.delete(listingId);
-        else {
-          next.add(listingId);
-          setSavingsDismissed(false);
+        if (currentlySaved) {
+          next.delete(listingId);
+          setSavedIds(next);
+          writeGuestSavedIds([...next]);
+          setSaveFeedback(null);
+          setEstimate(null);
+          setEstimateStatus('unavailable');
+          return;
         }
+        next.add(listingId);
         setSavedIds(next);
         writeGuestSavedIds([...next]);
-        // Guests can save, but fee savings require signed-in verified fee data.
         setEstimate(null);
         setEstimateStatus('unavailable');
+        setSaveFeedback(feedbackForSave(listing, next.size, null, dwelFeeCents));
         return;
       }
 
@@ -118,45 +149,50 @@ export function useSavedHomes(): SavedHomesState {
             return next;
           });
           const savings = (result as { savings?: SavingsPayload }).savings;
+          if (savings?.dwelApplicationFeeCents) setDwelFeeCents(savings.dwelApplicationFeeCents);
           const nextEstimate = toEstimate(savings);
           setEstimate(nextEstimate);
           setEstimateStatus(nextEstimate ? 'ready' : 'unavailable');
+          setSaveFeedback(null);
         } else {
           const result = await api.saveListing(listingId);
+          const nextCount = savedIds.size + 1;
           setSavedIds((prev) => new Set(prev).add(listingId));
-          setSavingsDismissed(false);
+          if (result.savings?.dwelApplicationFeeCents) {
+            setDwelFeeCents(result.savings.dwelApplicationFeeCents);
+          }
           const nextEstimate = toEstimate(result.savings);
           setEstimate(nextEstimate);
           setEstimateStatus(nextEstimate ? 'ready' : 'unavailable');
+          setSaveFeedback(
+            feedbackForSave(
+              listing,
+              result.savings?.savedCount ?? nextCount,
+              nextEstimate,
+              result.savings?.dwelApplicationFeeCents ?? dwelFeeCents,
+            ),
+          );
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
-          // Fall back to guest save if session expired mid-click.
           const next = new Set(savedIds);
           if (currentlySaved) next.delete(listingId);
-          else {
-            next.add(listingId);
-            setSavingsDismissed(false);
-          }
+          else next.add(listingId);
           setSavedIds(next);
           writeGuestSavedIds([...next]);
+          if (!currentlySaved) {
+            setSaveFeedback(feedbackForSave(listing, next.size, null, dwelFeeCents));
+          }
           return;
         }
         setEstimateStatus('error');
         throw err;
       }
     },
-    [savedIds, user],
+    [savedIds, user, dwelFeeCents],
   );
 
   const isSaved = useCallback((listingId: string) => savedIds.has(listingId), [savedIds]);
-  const dismissSavings = useCallback(() => setSavingsDismissed(true), []);
-
-  const savingsPanelVisible = shouldShowSavingsPanel({
-    enabled: savingsEstimateEnabled(),
-    savedCount: savedIds.size,
-    dismissed: savingsDismissed,
-  });
 
   return useMemo(
     () => ({
@@ -164,8 +200,9 @@ export function useSavedHomes(): SavedHomesState {
       savedCount: savedIds.size,
       estimate,
       estimateStatus,
-      savingsPanelVisible,
-      dismissSavings,
+      dwelFeeCents,
+      saveFeedback,
+      dismissSaveFeedback,
       toggleSave,
       isSaved,
       refreshing,
@@ -174,8 +211,9 @@ export function useSavedHomes(): SavedHomesState {
       savedIds,
       estimate,
       estimateStatus,
-      savingsPanelVisible,
-      dismissSavings,
+      dwelFeeCents,
+      saveFeedback,
+      dismissSaveFeedback,
       toggleSave,
       isSaved,
       refreshing,
@@ -191,6 +229,7 @@ export function estimateFromListings(
 ): SavingsEstimate | null {
   const candidates = listings
     .filter((listing) => savedIds.has(listing.id))
+    .filter((listing) => !isDirectoryListing(listing))
     .map((listing) => ({
       listingId: listing.id,
       eligibleForReuse: Boolean(listing.reusable_application_eligible),

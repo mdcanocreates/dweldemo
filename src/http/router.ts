@@ -42,6 +42,13 @@ import {
   handleAdminProbeScreeningProvider,
 } from './screening-provider-handlers.js';
 import {
+  handleActivateProviderListingAccessTest,
+  handleCreateListingClaim,
+  handleGetProviderAccessPlan,
+  handleProviderLeadAccessStatus,
+  handleVerifyListingClaim,
+} from './provider-listing-handlers.js';
+import {
   handleLandlordCreateListing,
   handleLandlordDecideApplicant,
   handleLandlordReviewMissingInfo,
@@ -417,6 +424,26 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
     if (method === 'POST' && path === '/v1/renter/listing-inquiries') {
       await handleCreateListingInquiry(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/provider/access-plan') {
+      await handleGetProviderAccessPlan(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/provider/listing-claims') {
+      await handleCreateListingClaim(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/provider/listing-claims/verify') {
+      await handleVerifyListingClaim(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/provider/listing-access/test-activate') {
+      await handleActivateProviderListingAccessTest(req, res, deps);
+      return true;
+    }
+    if (method === 'GET' && path === '/v1/provider/listing-access') {
+      await handleProviderLeadAccessStatus(req, res, deps);
       return true;
     }
     if (method === 'DELETE' && path === '/v1/renter/saved') {

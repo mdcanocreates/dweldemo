@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
-import { ApplicationSavingsCard } from '../components/listings/ApplicationSavingsCard';
 import { InventoryWaitlist } from '../components/listings/InventoryWaitlist';
 import { ListingCard } from '../components/listings/ListingCard';
 import { ListingMap, type MapListing } from '../components/listings/ListingMap';
+import { SaveFeedbackToast } from '../components/listings/SaveFeedbackToast';
 import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
-import { mapStyleUrl, savingsEstimateEnabled } from '../lib/listingFeatures';
+import { mapStyleUrl } from '../lib/listingFeatures';
 import {
   emptyRentalsMode,
   filtersActive,
@@ -43,14 +43,7 @@ export function ListingsPage() {
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
   const styleUrl = mapStyleUrl();
-  const showDollarEstimate = savingsEstimateEnabled();
-  const {
-    estimate,
-    estimateStatus,
-    savedCount,
-    savingsPanelVisible,
-    dismissSavings,
-  } = useSavedHomesContext();
+  const { saveFeedback, dismissSaveFeedback } = useSavedHomesContext();
 
   useEffect(() => {
     let cancelled = false;
@@ -202,19 +195,12 @@ export function ListingsPage() {
         priceLabel:
           listing.inventory_kind === 'directory'
             ? 'Dir'
-            : moneyFromCents(listing.rent_amount_cents),
+            : listing.inventory_kind === 'external' || !listing.rent_amount_cents
+              ? 'Ask'
+              : moneyFromCents(listing.rent_amount_cents),
       },
     ];
   });
-
-  const savingsCardStatus =
-    !showDollarEstimate
-      ? 'unavailable'
-      : error
-        ? 'error'
-        : initialLoading
-          ? 'loading'
-          : estimateStatus;
 
   function renderEmptyRentals() {
     if (rentalsEmptyMode === 'no_match') {
@@ -251,14 +237,9 @@ export function ListingsPage() {
               </button>
             </div>
           )}
-          {savingsPanelVisible && (
+          {saveFeedback && (
             <div className="dwel-listings-toolbar__savings">
-              <ApplicationSavingsCard
-                estimate={estimate}
-                status={savingsCardStatus}
-                savedCount={savedCount}
-                onDismiss={dismissSavings}
-              />
+              <SaveFeedbackToast feedback={saveFeedback} onDismiss={dismissSaveFeedback} />
             </div>
           )}
         </div>

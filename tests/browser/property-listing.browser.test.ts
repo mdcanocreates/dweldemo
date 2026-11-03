@@ -176,6 +176,7 @@ describe('property listing browser journey', () => {
     const page = await guest.newPage();
     await page.goto(`${origin}/#/listings`);
     await see(page, '410 Catalog Lane');
+    expect(await page.getByTestId('save-feedback-toast').count()).toBe(0);
     expect(await page.getByTestId('application-savings').count()).toBe(0);
     expect(await page.getByTestId('rental-filter-bar').count()).toBe(1);
     expect(await page.getByTestId('listings-list-workspace').count()).toBe(1);

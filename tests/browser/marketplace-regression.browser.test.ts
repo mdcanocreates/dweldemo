@@ -153,19 +153,19 @@ describe('marketplace regression preservation', () => {
     expect(await page.locator('#ptype').count()).toBe(1);
     expect(await page.locator('#sort').count()).toBe(1);
 
-    // Savings hidden before any heart.
+    // Savings toast hidden before any heart.
+    expect(await page.getByTestId('save-feedback-toast').count()).toBe(0);
     expect(await page.getByTestId('application-savings').count()).toBe(0);
 
-    // Heart save drives savings panel + nav count.
+    // Heart save drives compact toast + nav count.
     await page.getByRole('button', { name: 'Save this home' }).first().click();
-    await page.getByTestId('application-savings').waitFor({ state: 'visible' });
-    await see(page, /Saved — estimate not ready|Application savings/);
-    await see(page, 'Saved');
+    await page.getByTestId('save-feedback-toast').waitFor({ state: 'visible' });
+    await see(page, /home saved|homes saved/i);
     expect(await page.locator('.dwel-nav-count').innerText()).toMatch(/1/);
 
-    // Dismiss frees permanent toolbar space.
-    await page.getByRole('button', { name: 'Dismiss savings estimate' }).click();
-    expect(await page.getByTestId('application-savings').count()).toBe(0);
+    // Dismiss frees toolbar space.
+    await page.getByRole('button', { name: 'Dismiss' }).click();
+    expect(await page.getByTestId('save-feedback-toast').count()).toBe(0);
 
     // List / Map switch with shared selection.
     await page.getByRole('button', { name: 'Map', exact: true }).click();

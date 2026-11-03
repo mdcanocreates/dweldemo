@@ -15,7 +15,8 @@ export type ApplicableScreeningFee = {
 };
 
 const FALLBACK: ScreeningFeeConfig = {
-  default_cents: 2900,
+  // Mirrors dwel_renter_application_product ($49 once) until config resolves.
+  default_cents: 4900,
   state_overrides: {
     NY: { max_cents: 2000, note: 'RPL §238-a cap' },
   },
@@ -27,7 +28,7 @@ export async function resolveScreeningFeeConfig(
 ): Promise<ScreeningFeeConfig> {
   try {
     const cfg = await resolveConfig(client, 'screening_fee_by_state', at);
-    const payload = (cfg?.payload ?? {}) as Partial<ScreeningFeeConfig>;
+    const payload = (cfg ?? {}) as Partial<ScreeningFeeConfig>;
     return {
       default_cents: Number(payload.default_cents ?? FALLBACK.default_cents),
       state_overrides: payload.state_overrides ?? FALLBACK.state_overrides,

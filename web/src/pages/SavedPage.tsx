@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
 import { useAuth } from '../auth';
-import { ApplicationSavingsCard } from '../components/listings/ApplicationSavingsCard';
 import { ListingCard } from '../components/listings/ListingCard';
+import { SaveFeedbackToast } from '../components/listings/SaveFeedbackToast';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { useDelayedPending } from '../hooks/useDelayedPending';
@@ -15,10 +15,10 @@ export function SavedPage() {
   const {
     savedIds,
     savedCount,
+    saveFeedback,
+    dismissSaveFeedback,
     estimate,
-    estimateStatus,
-    savingsPanelVisible,
-    dismissSavings,
+    dwelFeeCents,
     refreshing,
   } = useSavedHomesContext();
   const [listings, setListings] = useState<Listing[] | null>(null);
@@ -92,15 +92,15 @@ export function SavedPage() {
         </p>
       )}
 
-      {savingsPanelVisible && (
+      {saveFeedback && (
         <div style={{ marginTop: '1rem', maxWidth: '28rem' }}>
-          <ApplicationSavingsCard
-            estimate={estimate}
-            status={estimateStatus}
-            savedCount={savedCount}
-            onDismiss={dismissSavings}
-          />
+          <SaveFeedbackToast feedback={saveFeedback} onDismiss={dismissSaveFeedback} />
         </div>
+      )}
+      {!saveFeedback && estimate?.completeEstimate && (
+        <p className="muted" style={{ marginTop: '0.75rem' }} data-testid="saved-estimate-readonly">
+          Estimated application savings {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(estimate.estimatedSavingsCents / 100)} across {estimate.eligibleHomes} eligible {estimate.eligibleHomes === 1 ? 'home' : 'homes'} after one ${(dwelFeeCents / 100).toFixed(0)} Dwel application. Not money already saved.
+        </p>
       )}
 
       {error && <ErrorState title="Saved homes unavailable">{error}</ErrorState>}

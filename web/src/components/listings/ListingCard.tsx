@@ -21,6 +21,11 @@ export function ListingCard({
       <DirectoryCard listing={listing} selected={selected} onSelect={onSelect} compact={compact} />
     );
   }
+  if (listing.inventory_kind === 'external' || !listing.rent_amount_cents) {
+    return (
+      <ProfileCard listing={listing} selected={selected} onSelect={onSelect} compact={compact} />
+    );
+  }
   return <RentalCard listing={listing} selected={selected} onSelect={onSelect} compact={compact} />;
 }
 
@@ -73,10 +78,78 @@ function RentalCard({
           {offer ? (
             <p className="dwel-offer-disclaimer">Offer advertised by property; terms apply.</p>
           ) : null}
+          {!listing.reusable_application_eligible ? (
+            <p className="dwel-offer-disclaimer">Provider has not accepted Dwel applications yet.</p>
+          ) : null}
         </div>
       </button>
       <Link className="dwel-listing-open" to={`/listings/${listing.id}`}>
         View home →
+      </Link>
+    </article>
+  );
+}
+
+/** External deal / unconfirmed market profile — text-first, inquiry only. */
+function ProfileCard({
+  listing,
+  selected,
+  onSelect,
+  compact,
+}: {
+  listing: Listing;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  compact: boolean;
+}) {
+  const title = listing.property_name?.trim() || formatAddress(listing);
+  const img = listing.media?.[0]?.url ?? null;
+  const city = [listing.address.city, listing.address.state].filter(Boolean).join(', ');
+  const addressLine = [listing.address.line1, city].filter(Boolean).join(', ');
+
+  return (
+    <article
+      id={`listing-card-${listing.id}`}
+      className={
+        selected
+          ? 'landing-card landing-card--profile is-selected'
+          : 'landing-card landing-card--profile'
+      }
+      data-testid={`card-listing-${listing.id}`}
+      data-inventory-kind="external"
+    >
+      <div className="dwel-card-media-wrap">
+        <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
+          <ListingMedia
+            title={title}
+            imageUrl={img}
+            compact={compact || !img}
+            kind="profile"
+            badge="Inquire"
+          />
+        </button>
+        <HeartButton listing={listing} className="dwel-heart--overlay" />
+      </div>
+      <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
+        <div className="landing-card-body">
+          <p className="landing-card-meta">
+            Property profile
+            {listing.property_type ? ` · ${titleCaseType(listing.property_type)}` : ''}
+            {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
+          </p>
+          <p className="landing-card-title">{title}</p>
+          <p className="landing-card-place">{addressLine}</p>
+          <div className="landing-card-row">
+            <span>Inquire about availability</span>
+          </div>
+          <p className="dwel-offer-disclaimer">
+            Factual property profile. Rent, specials, and vacancy are not confirmed on Dwel until the leasing
+            office claims this listing.
+          </p>
+        </div>
+      </button>
+      <Link className="dwel-listing-open" to={`/listings/${listing.id}`}>
+        View property →
       </Link>
     </article>
   );

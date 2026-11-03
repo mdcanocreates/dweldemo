@@ -319,6 +319,7 @@ export const api = {
         } | null;
         eligibleSaved: number;
         savedCount: number;
+        dwelApplicationFeeCents?: number;
       };
     }>('/v1/renter/saved', {
       method: 'POST',
@@ -335,6 +336,7 @@ export const api = {
         } | null;
         eligibleSaved: number;
         savedCount: number;
+        dwelApplicationFeeCents?: number;
       };
     }>('/v1/renter/saved', {
       method: 'DELETE',

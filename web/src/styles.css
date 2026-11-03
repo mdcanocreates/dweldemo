@@ -1445,19 +1445,66 @@ a.landing-card { display: block; color: inherit; text-decoration: none; }
   text-transform: uppercase;
   color: #8a9990;
 }
-.draft-banner {
-  background: #0b1420;
-  color: #4dfa9f;
-  border: 2px solid #4dfa9f;
-  border-radius: 0.65rem;
-  padding: 0.85rem 1rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
+.draft-banner,
+.legal-status-note {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  font-family: inherit;
+}
+.legal-counsel-note {
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+.dwel-save-toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.85rem;
+  background: hsl(var(--card));
+  box-shadow: 0 8px 24px hsl(220 20% 10% / 0.08);
+  max-width: 22rem;
+}
+.dwel-save-toast__title {
+  margin: 0;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+}
+.dwel-save-toast__line {
+  margin: 0.25rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.8rem;
   line-height: 1.4;
-  margin-bottom: 1rem;
+}
+.dwel-save-toast__dismiss {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.landing-card-media--profile,
+.landing-card-fallback--profile {
+  min-height: 5.5rem;
+}
+.landing-card--profile .landing-card-media {
+  height: auto;
 }
 .legal-doc { max-width: 42rem; }
 .legal-h {
