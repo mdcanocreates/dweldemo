@@ -1,9 +1,10 @@
 # Authority Lite implementation matrix
 
 Branch: `feature/dwel-authority-lite`  
+Tip: `b1f58f8b624fabc0bb7647e66ba2f452a3350bcc` (ancestor `964bcc1` is not current)  
 Parent: `15e9cbc083a6e62b7f8de21106699b2fbd01c291`  
 Worktree: `apps/dwel-authority-lite`  
-Date: 2026-10-29
+Date: 2026-10-29 (matrix rows); tip verified 2026-11-02
 
 States are only ones this pass actually reached. Nothing is release-ready or deployed. Institutional SSO was not verified.
 
