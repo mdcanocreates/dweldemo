@@ -37,6 +37,8 @@ import {
   listSavedListings,
   addSavedListing,
   removeSavedListing,
+  estimateSavedApplicationSavings,
+  createRenterInterest,
   respondToMissingInfo,
   uploadMissingInfoDocument,
   signMissingInfoDocumentUrl,
@@ -1293,12 +1295,12 @@ export async function handleListSavedListings(
   try {
     const identity = await requireSession(deps.pool, req);
     const { partyId } = await effectiveRenterPartyId(deps.pool, req, identity);
-    const listings = await withTenantContext(
-      deps.pool,
-      { partyId },
-      (client) => listSavedListings(client, partyId),
-    );
-    sendJson(res, 200, { saved: listings });
+    const payload = await withTenantContext(deps.pool, { partyId }, async (client) => {
+      const listings = await listSavedListings(client, partyId);
+      const savings = await estimateSavedApplicationSavings(client, partyId);
+      return { saved: listings, savings };
+    });
+    sendJson(res, 200, payload);
   } catch (err) {
     sendError(res, err);
   }
@@ -1313,12 +1315,49 @@ export async function handleAddSavedListing(
     const body = z.object({ listing_id: z.string().uuid() }).parse(await readJsonBody(req));
     const identity = await requireSession(deps.pool, req);
     const { partyId } = await effectiveRenterPartyId(deps.pool, req, identity);
-    const saved = await withTenantContext(
-      deps.pool,
-      { partyId },
-      (client) => addSavedListing(client, { partyId, listingId: body.listing_id }),
+    const payload = await withTenantContext(deps.pool, { partyId }, async (client) => {
+      const saved = await addSavedListing(client, { partyId, listingId: body.listing_id });
+      const savings = await estimateSavedApplicationSavings(client, partyId);
+      return { ...saved, savings };
+    });
+    sendJson(res, 201, payload);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });
+      return;
+    }
+    sendError(res, err);
+  }
+}
+
+export async function handleCreateListingInquiry(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: RenterHandlerDeps,
+): Promise<void> {
+  try {
+    const body = z
+      .object({
+        listing_id: z.string().uuid(),
+        requested_action: z.enum(['request_information', 'ask_availability', 'schedule_tour']),
+        consent_version: z.string().min(1),
+        contact_share_scope: z.array(z.string().min(1)).min(1),
+        idempotency_key: z.string().min(8).max(128),
+      })
+      .parse(await readJsonBody(req));
+    const identity = await requireSession(deps.pool, req);
+    const { partyId } = await effectiveRenterPartyId(deps.pool, req, identity);
+    const result = await withTenantContext(deps.pool, { partyId }, (client) =>
+      createRenterInterest(client, {
+        partyId,
+        listingId: body.listing_id,
+        requestedAction: body.requested_action,
+        consentVersion: body.consent_version,
+        contactShareScope: body.contact_share_scope,
+        idempotencyKey: body.idempotency_key,
+      }),
     );
-    sendJson(res, 201, saved);
+    sendJson(res, 201, result);
   } catch (err) {
     if (err instanceof z.ZodError) {
       sendJson(res, 400, { error: 'validation_error', message: 'invalid request body' });

@@ -118,6 +118,7 @@ import {
   handleListMyApplications,
   handleListSavedListings,
   handleAddSavedListing,
+  handleCreateListingInquiry,
   handleRemoveSavedListing,
   handleListSupportCases,
   handleCreateSupportCase,
@@ -412,6 +413,10 @@ export function createApiRouter(deps: HttpHandlerDeps) {
     }
     if (method === 'POST' && path === '/v1/renter/saved') {
       await handleAddSavedListing(req, res, deps);
+      return true;
+    }
+    if (method === 'POST' && path === '/v1/renter/listing-inquiries') {
+      await handleCreateListingInquiry(req, res, deps);
       return true;
     }
     if (method === 'DELETE' && path === '/v1/renter/saved') {
