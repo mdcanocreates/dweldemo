@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
 import { ApplicationSavingsCard } from '../components/listings/ApplicationSavingsCard';
+import { InventoryWaitlist } from '../components/listings/InventoryWaitlist';
 import { ListingMap, type MapListing } from '../components/listings/ListingMap';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
@@ -73,14 +74,15 @@ export function ListingsPage() {
   const [beds, setBeds] = useState('');
   const [baths, setBaths] = useState('');
   const [propertyType, setPropertyType] = useState('');
-  const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('cashback');
+  const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('rent_asc');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
   const styleUrl = mapStyleUrl();
   const showDollarEstimate = savingsEstimateEnabled();
-  const mapMode = viewMode === 'map';
+  const catalogEmpty = !error && listings !== null && listings.length === 0;
+  const mapMode = viewMode === 'map' && !catalogEmpty;
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +107,7 @@ export function ListingsPage() {
           setSelectedListingId((current) =>
             current && publishable.some((listing) => listing.id === current) ? current : null,
           );
+          if (publishable.length === 0) setViewMode('list');
         }
       } catch (err) {
         if (!cancelled) {
@@ -127,9 +130,11 @@ export function ListingsPage() {
   const matchLabel =
     listings === null || error
       ? null
-      : total === 1
-        ? '1 home matches your search'
-        : `${total} homes match your search`;
+      : catalogEmpty
+        ? null
+        : total === 1
+          ? '1 home matches your search'
+          : `${total} homes match your search`;
 
   function runSearch() {
     setQueryApplied(query);
@@ -177,7 +182,7 @@ export function ListingsPage() {
     }];
   });
 
-  const savingsStatus = !showDollarEstimate
+  const savingsStatus = catalogEmpty || !showDollarEstimate
     ? 'unavailable'
     : error
       ? 'error'
@@ -190,88 +195,99 @@ export function ListingsPage() {
       {showFrog ? <p className="muted">Loading homes…</p> : null}
       <div
         className={mapMode ? 'dwel-listings-shell dwel-listings-shell--map' : 'dwel-listings-shell'}
-        data-view={viewMode}
+        data-view={mapMode ? 'map' : 'list'}
+        data-catalog={catalogEmpty ? 'empty' : 'ready'}
       >
         <div className="dwel-listings-toolbar">
           <div className="dwel-listings-toolbar__intro">
             {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
             <h1 className="section-title">Find a home</h1>
           </div>
-          <div className="dwel-listings-toolbar__modes" role="group" aria-label="List or map">
-            <button type="button" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}>
-              List
-            </button>
-            <button type="button" aria-pressed={viewMode === 'map'} onClick={() => setViewMode('map')}>
-              Map
-            </button>
-          </div>
-          <div className="dwel-listings-toolbar__savings">
-            <ApplicationSavingsCard estimate={null} status={savingsStatus} />
-          </div>
+          {!catalogEmpty && (
+            <div className="dwel-listings-toolbar__modes" role="group" aria-label="List or map">
+              <button type="button" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}>
+                List
+              </button>
+              <button type="button" aria-pressed={viewMode === 'map'} onClick={() => setViewMode('map')}>
+                Map
+              </button>
+            </div>
+          )}
+          {!catalogEmpty && showDollarEstimate && (
+            <div className="dwel-listings-toolbar__savings">
+              <ApplicationSavingsCard estimate={null} status={savingsStatus} />
+            </div>
+          )}
         </div>
 
-        <div className="search-row">
-          <div className="field" style={{ margin: 0 }}>
-            <label htmlFor="loc">Location</label>
-            <input
-              id="loc"
-              placeholder="City, neighborhood, or address"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ alignSelf: 'end' }}
-            onClick={() => void runSearch()}
-            disabled={searchPending}
-          >
-            Search homes
-          </button>
-        </div>
-        <div className="filter-bar">
-          <div className="field">
-            <label htmlFor="beds">Beds</label>
-            <select id="beds" value={beds} onChange={(e) => setBeds(e.target.value)}>
-              <option value="">Any</option>
-              <option value="1">1+</option>
-              <option value="2">2+</option>
-              <option value="3">3+</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="baths">Baths</label>
-            <select id="baths" value={baths} onChange={(e) => setBaths(e.target.value)}>
-              <option value="">Any</option>
-              <option value="1">1+</option>
-              <option value="2">2+</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="ptype">Property type</label>
-            <select id="ptype" value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
-              <option value="">Any</option>
-              <option value="multifamily">Multifamily</option>
-              <option value="single_family">Single family</option>
-              <option value="condo">Condo</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="sort">Sort</label>
-            <select
-              id="sort"
-              value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-            >
-              <option value="cashback">Top cashback</option>
-              <option value="rent_asc">Rent: low to high</option>
-              <option value="rent_desc">Rent: high to low</option>
-            </select>
-          </div>
-        </div>
+        {!catalogEmpty && (
+          <>
+            <div className="search-row">
+              <div className="field" style={{ margin: 0 }}>
+                <label htmlFor="loc">Location</label>
+                <input
+                  id="loc"
+                  placeholder="City, neighborhood, or address"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ alignSelf: 'end' }}
+                onClick={() => void runSearch()}
+                disabled={searchPending}
+              >
+                Search homes
+              </button>
+            </div>
+            <div className="filter-bar">
+              <div className="field">
+                <label htmlFor="beds">Beds</label>
+                <select id="beds" value={beds} onChange={(e) => setBeds(e.target.value)}>
+                  <option value="">Any</option>
+                  <option value="1">1+</option>
+                  <option value="2">2+</option>
+                  <option value="3">3+</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="baths">Baths</label>
+                <select id="baths" value={baths} onChange={(e) => setBaths(e.target.value)}>
+                  <option value="">Any</option>
+                  <option value="1">1+</option>
+                  <option value="2">2+</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="ptype">Property type</label>
+                <select id="ptype" value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
+                  <option value="">Any</option>
+                  <option value="multifamily">Multifamily</option>
+                  <option value="single_family">Single family</option>
+                  <option value="condo">Condo</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="sort">Sort</label>
+                <select
+                  id="sort"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as typeof sort)}
+                >
+                  <option value="rent_asc">Rent: low to high</option>
+                  <option value="rent_desc">Rent: high to low</option>
+                  <option value="cashback">Verified cashback</option>
+                </select>
+              </div>
+            </div>
+          </>
+        )}
 
-        {mapMode ? (
+        {catalogEmpty ? (
+          <InventoryWaitlist initialCity={queryApplied || query} />
+        ) : mapMode ? (
           <div className="dwel-map-workspace" data-testid="listings-map-workspace">
             <div className="dwel-map-workspace__map">
               <ListingMap
@@ -288,12 +304,6 @@ export function ListingsPage() {
                   {[0, 1, 2].map((i) => (
                     <div key={i} className="skeleton" style={{ height: '12rem' }} />
                   ))}
-                </div>
-              )}
-              {!error && listings && listings.length === 0 && (
-                <div className="empty-state" data-testid="listings-empty">
-                  No authorized homes are available to show right now. Check back soon, or adjust your
-                  filters when inventory is published.
                 </div>
               )}
               {!error && listings && listings.length > 0 && (
@@ -333,12 +343,6 @@ export function ListingsPage() {
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="skeleton" style={{ height: '16rem' }} />
                 ))}
-              </div>
-            )}
-            {!error && listings && listings.length === 0 && (
-              <div className="empty-state" data-testid="listings-empty" style={{ marginTop: '1.5rem' }}>
-                No authorized homes are available to show right now. Check back soon, or adjust your
-                filters when inventory is published.
               </div>
             )}
             {!error && listings && listings.length > 0 && (
