@@ -28,10 +28,13 @@ function listing(partial: Partial<Listing> & { line1: string }): Listing {
 }
 
 describe('publicInventory fiction filter', () => {
-  it('hides Fake/Mock/Imaginary seed addresses', () => {
+  it('hides Fake/Mock/Imaginary and storybook seed addresses', () => {
     expect(looksFictionalListing(listing({ line1: '1200 Fake Cedar Ln' }))).toBe(true);
     expect(looksFictionalListing(listing({ line1: '800 Mock Bayou St' }))).toBe(true);
     expect(looksFictionalListing(listing({ line1: '1 Imaginary Ave' }))).toBe(true);
+    expect(looksFictionalListing(listing({ line1: '301 Illusion Ave' }))).toBe(true);
+    expect(looksFictionalListing(listing({ line1: '42 Make-believe Blvd' }))).toBe(true);
+    expect(looksFictionalListing(listing({ line1: '100 Dev Sandbox Ave' }))).toBe(true);
   });
 
   it('keeps ordinary addresses', () => {

@@ -6,7 +6,7 @@ import type { Listing } from '../api';
  * Prefer server-side `is_demo` once that migration is applied.
  */
 const FICTIONAL_RE =
-  /\b(fake|mock|imaginary|phantom|demo|sample|placeholder|test listing)\b/i;
+  /\b(fake|mock|imaginary|phantom|demo|sample|placeholder|test listing|illusion|mirage|make-believe|makebelieve|pretend|fable|storybook|sandbox|phase\s*4\s*seed|drury lane)\b/i;
 
 export function looksFictionalListing(listing: Listing): boolean {
   const haystack = [
