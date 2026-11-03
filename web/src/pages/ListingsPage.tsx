@@ -91,9 +91,14 @@ export function ListingsPage() {
   );
   const visibleListings =
     inventoryTab === 'rentals' ? partitions.rentals : partitions.directory;
+  // Until the API supports inventory_kind filters, approximate counts from the loaded page.
+  // When the loaded public catalog is directory-only, use the server total.
+  const rentalCount = partitions.rentals.length;
+  const directoryCount =
+    listings !== null && rentalCount === 0 ? total : partitions.directory.length;
   const catalogErrored = Boolean(error);
-  const rentalsEmpty = !error && listings !== null && partitions.rentals.length === 0;
-  const directoryEmpty = !error && listings !== null && partitions.directory.length === 0;
+  const rentalsEmpty = !error && listings !== null && rentalCount === 0;
+  const directoryEmpty = !error && listings !== null && directoryCount === 0;
   const visibleEmpty =
     !error && listings !== null && visibleListings.length === 0;
   const mapAvailable = Boolean(styleUrl) && !catalogErrored;
@@ -103,16 +108,16 @@ export function ListingsPage() {
     listings === null || error
       ? null
       : inventoryTab === 'rentals'
-        ? partitions.rentals.length === 0
+        ? rentalCount === 0
           ? null
-          : partitions.rentals.length === 1
+          : rentalCount === 1
             ? '1 rental matches your search'
-            : `${partitions.rentals.length} rentals match your search`
-        : partitions.directory.length === 0
+            : `${rentalCount} rentals match your search`
+        : directoryCount === 0
           ? null
-          : partitions.directory.length === 1
+          : directoryCount === 1
             ? '1 directory property'
-            : `${partitions.directory.length} directory properties`;
+            : `${directoryCount} directory properties`;
 
   function runSearch() {
     setQueryApplied(query);
@@ -237,7 +242,7 @@ export function ListingsPage() {
                 onClick={() => setInventoryTab('rentals')}
               >
                 Available rentals
-                <span>{partitions.rentals.length}</span>
+                <span>{rentalCount}</span>
               </button>
               <button
                 type="button"
@@ -247,7 +252,7 @@ export function ListingsPage() {
                 onClick={() => setInventoryTab('directory')}
               >
                 Housing directory
-                <span>{partitions.directory.length}</span>
+                <span>{directoryCount}</span>
               </button>
             </div>
             <div className="search-row">
@@ -270,7 +275,7 @@ export function ListingsPage() {
                 Search homes
               </button>
             </div>
-            {inventoryTab === 'rentals' && !rentalsEmpty && (
+            {inventoryTab === 'rentals' && listings !== null && !rentalsEmpty && (
               <div className="filter-bar">
                 <div className="field">
                   <label htmlFor="beds">Beds</label>
