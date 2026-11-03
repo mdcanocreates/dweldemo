@@ -1667,6 +1667,12 @@ a.landing-card { display: block; color: inherit; text-decoration: none; }
   font-size: 0.875rem;
   font-weight: 700;
 }
+.dwel-offer-disclaimer {
+  margin: 0.35rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
 @media (max-width: 1024px) {
   .dwel-listings-toolbar {
     grid-template-columns: 1fr;

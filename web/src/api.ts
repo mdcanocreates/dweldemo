@@ -57,6 +57,13 @@ export type SavedListing = {
   status: string;
 };
 
+export type ListingOffer = {
+  display_text: string;
+  offer_type: string;
+  qualifier_text?: string | null;
+  attribution_text?: string | null;
+};
+
 export type Listing = {
   id: string;
   rent_amount_cents: number;
@@ -68,7 +75,12 @@ export type Listing = {
   available_on: string | null;
   lease_term_months: number | null;
   description: string | null;
+  inventory_kind?: 'partner' | 'external' | 'demo' | null;
+  listing_channel?: string | null;
   cashback_cents?: number | null;
+  offers?: ListingOffer[] | null;
+  application_fee_cents?: number | null;
+  reusable_application_eligible?: boolean;
   media?: Array<{ url: string }> | null;
   address: {
     line1: string | null;
@@ -293,10 +305,33 @@ export const api = {
   getListing: (id: string) => request<{ listing: Listing }>(`/v1/listings/${id}`),
   savedListings: () => request<{ saved: SavedListing[] }>('/v1/renter/saved'),
   saveListing: (listingId: string) =>
-    request<{ listing_id: string; created_at: string }>('/v1/renter/saved', {
+    request<{
+      listing_id: string;
+      created_at: string;
+      savings?: {
+        estimate: {
+          eligibleHomes: number;
+          estimatedSavingsCents: number;
+          completeEstimate: boolean;
+        } | null;
+        eligibleSaved: number;
+        savedCount: number;
+      };
+    }>('/v1/renter/saved', {
       method: 'POST',
       body: JSON.stringify({ listing_id: listingId }),
     }),
+  createListingInquiry: (input: {
+    listing_id: string;
+    requested_action: 'request_information' | 'ask_availability' | 'schedule_tour';
+    consent_version: string;
+    contact_share_scope: string[];
+    idempotency_key: string;
+  }) =>
+    request<{ interest_id: string; state: string; notification: { status: string; transport: string } }>(
+      '/v1/renter/listing-inquiries',
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   myPartnerIntake: (role: 'landlord' | 'broker') =>
     request<{ intake: PartnerIntake | null }>(`/v1/partner-intakes/${role}`),
   submitPartnerIntake: (

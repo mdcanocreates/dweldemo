@@ -112,10 +112,39 @@ export function ListingDetailPage() {
   async function saveHome() {
     setSavedNote(null);
     try {
-      await api.saveListing(listing!.id);
-      setSavedNote('Saved to your account.');
+      const saved = await api.saveListing(listing!.id);
+      const savings = saved.savings;
+      if (savings?.estimate?.completeEstimate) {
+        setSavedNote(
+          `Saved. Estimated application-fee savings across ${savings.estimate.eligibleHomes} eligible saved homes: ${moneyFromCents(savings.estimate.estimatedSavingsCents)}.`,
+        );
+      } else {
+        setSavedNote(
+          `Saved to your account.${savings ? ` ${savings.savedCount} saved · Estimate unavailable until participating fees are verified.` : ''}`,
+        );
+      }
     } catch (err) {
       setSavedNote(err instanceof ApiError ? err.message : 'Could not save this home.');
+    }
+  }
+
+  async function requestInfo() {
+    setSavedNote(null);
+    try {
+      const result = await api.createListingInquiry({
+        listing_id: listing!.id,
+        requested_action: 'request_information',
+        consent_version: 'listing_inquiry_v1',
+        contact_share_scope: ['name', 'email', 'phone'],
+        idempotency_key: `inq-${listing!.id}-${Date.now()}`,
+      });
+      setSavedNote(
+        result.notification.transport === 'mock'
+          ? 'Request recorded. Leasing-office delivery stays mocked until outreach is authorized.'
+          : 'Request submitted.',
+      );
+    } catch (err) {
+      setSavedNote(err instanceof ApiError ? err.message : 'Could not send this request.');
     }
   }
 
@@ -183,10 +212,19 @@ export function ListingDetailPage() {
         </div>
 
         <aside className="card" style={{ padding: '1.25rem', alignSelf: 'start' }}>
-          <p className="section-eyebrow">Interest</p>
-          <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
-            Estimated cashback {moneyFromCents(listing.cashback_cents ?? 0)}.
-          </p>
+          <p className="section-eyebrow">Next step</p>
+          {listing.offers?.[0] ? (
+            <>
+              <p style={{ fontWeight: 700 }}>{listing.offers[0].display_text}</p>
+              <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.85rem' }}>
+                {listing.offers[0].qualifier_text ?? 'Offer advertised by property; terms apply.'}
+              </p>
+            </>
+          ) : (
+            <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
+              {listing.listing_channel ?? 'Partner listing'}. Saving does not contact the leasing office.
+            </p>
+          )}
           {applicationLookup === 'failed' && (
             <p>
               Could not check whether you already applied. Submitting again reuses an open
@@ -194,14 +232,24 @@ export function ListingDetailPage() {
             </p>
           )}
           {user && (
-            <button
-              type="button"
-              className="btn btn-outline"
-              style={{ width: '100%', marginTop: '0.75rem' }}
-              onClick={() => void saveHome()}
-            >
-              Save this home
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: '100%', marginTop: '0.75rem' }}
+                onClick={() => void saveHome()}
+              >
+                Save this home
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={() => void requestInfo()}
+              >
+                Request information
+              </button>
+            </>
           )}
           {savedNote && <p>{savedNote}</p>}
           {existing ? (
@@ -226,7 +274,7 @@ export function ListingDetailPage() {
               style={{ width: '100%', marginTop: '0.75rem' }}
               onClick={() => navigate(`/apply/${id}`)}
             >
-              I&apos;m interested
+              Start application
             </button>
           )}
           <Link

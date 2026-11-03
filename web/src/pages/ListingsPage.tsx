@@ -21,7 +21,7 @@ function ListingCard({
 }) {
   const title = formatAddress(listing);
   const img = listing.media?.[0]?.url;
-  const cash = listing.cashback_cents ?? 0;
+  const offer = listing.offers?.[0]?.display_text ?? null;
   const city = [listing.address.city, listing.address.state].filter(Boolean).join(', ');
   return (
     <article
@@ -32,18 +32,22 @@ function ListingCard({
       <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
         <div className={compact ? 'landing-card-media landing-card-media--compact' : 'landing-card-media'}>
           {img ? <img src={img} alt={title} /> : <div className="landing-card-fallback" />}
-          {cash > 0 && <span className="landing-card-cash">{moneyFromCents(cash)} back</span>}
+          {offer && <span className="landing-card-cash">{offer}</span>}
         </div>
         <div className="landing-card-body">
           <p className="landing-card-meta">
             {titleCaseType(listing.property_type) ?? 'Home'}
             {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
+            {listing.listing_channel ? ` · ${listing.listing_channel}` : ''}
           </p>
           <p className="landing-card-title">{title}</p>
           <p className="landing-card-place">{city}</p>
           <div className="landing-card-row">
             <span>{moneyFromCents(listing.rent_amount_cents)}/mo</span>
           </div>
+          {offer && (
+            <p className="dwel-offer-disclaimer">Offer advertised by property; terms apply.</p>
+          )}
         </div>
       </button>
       <Link className="dwel-listing-open" to={`/listings/${listing.id}`}>

@@ -11,6 +11,7 @@ import { publishableMapLocation } from './map-location.js';
 
 type ListingRow = {
   id: string;
+  org_id: string;
   rent_amount_cents: number;
   deposit_cents: number | null;
   available_on: string | null;
@@ -21,6 +22,10 @@ type ListingRow = {
   property_type: string | null;
   status: string;
   description: string | null;
+  is_demo: boolean;
+  inventory_kind: 'partner' | 'external' | 'demo';
+  application_fee_cents: number | null;
+  reusable_application_eligible: boolean;
   line1: string | null;
   line2: string | null;
   city: string | null;
@@ -39,14 +44,28 @@ type ListingRow = {
   media_policy: string | null;
 };
 
+type ListingOfferRow = {
+  listing_id: string;
+  display_text: string;
+  offer_type: string;
+  qualifier_text: string | null;
+  attribution_text: string | null;
+  offer_status: string;
+};
+
 const LISTING_SELECT = `
   select
     l.id,
+    l.org_id,
     l.rent_amount_cents,
     l.deposit_cents,
     l.available_on::text,
     l.lease_term_months,
     l.status,
+    coalesce(l.is_demo, false) as is_demo,
+    coalesce(l.inventory_kind, 'partner') as inventory_kind,
+    l.application_fee_cents,
+    coalesce(l.reusable_application_eligible, false) as reusable_application_eligible,
     u.bedrooms,
     u.bathrooms,
     u.sqft,
@@ -77,6 +96,13 @@ const LISTING_SELECT = `
   left join source_display_rule sdr on sdr.id = s.display_rule_id
 `;
 
+function publicCatalogWhere(): string {
+  const includeDemo = process.env.DWEL_PUBLIC_INCLUDE_DEMO === 'true';
+  return includeDemo
+    ? `l.status = 'active'`
+    : `l.status = 'active' and coalesce(l.is_demo, false) = false`;
+}
+
 function rowToDisplayRule(row: ListingRow): SourceDisplayRule | null {
   if (!row.rule_name || !row.rule_version) return null;
   return {
@@ -92,10 +118,22 @@ function rowToDisplayRule(row: ListingRow): SourceDisplayRule | null {
   };
 }
 
-function rowToApiShape(row: ListingRow, media: Array<{ url: string }>): ListingApiShape {
-  // interim_v1: renter cashback display = 20% of first month rent (integer cents).
-  // Not from rs_price_book / lease credit ledger — tagged interim until contractual offer rows exist.
-  const cashbackCents = Math.round(row.rent_amount_cents * 0.2);
+function rowToApiShape(
+  row: ListingRow,
+  media: Array<{ url: string }>,
+  offers: ListingOfferRow[],
+): ListingApiShape {
+  const verifiedOffers = offers
+    .filter((offer) => offer.offer_status === 'verified')
+    .map((offer) => ({
+      display_text: offer.display_text,
+      offer_type: offer.offer_type,
+      qualifier_text:
+        offer.qualifier_text ?? 'Offer advertised by property; terms apply.',
+      attribution_text: offer.attribution_text,
+    }));
+  const cashbackOffer = verifiedOffers.find((offer) => offer.offer_type === 'cashback');
+  const inventoryKind = row.inventory_kind === 'external' ? 'external' : row.inventory_kind === 'demo' ? 'demo' : 'partner';
   return {
     id: row.id,
     rent_amount_cents: row.rent_amount_cents,
@@ -107,8 +145,15 @@ function rowToApiShape(row: ListingRow, media: Array<{ url: string }>): ListingA
     available_on: row.available_on,
     lease_term_months: row.lease_term_months,
     description: row.description,
-    cashback_cents: cashbackCents,
-    cashback_interim_v1: true,
+    inventory_kind: inventoryKind,
+    listing_channel: inventoryKind === 'external' ? 'Listed by external property' : 'Partner listing',
+    application_fee_cents: row.application_fee_cents,
+    reusable_application_eligible: row.reusable_application_eligible,
+    // Dwel cashback only from a verified cashback offer. Never invent a percentage from rent.
+    cashback_cents: null,
+    cashback_interim_v1: false,
+    has_verified_cashback_offer: Boolean(cashbackOffer),
+    offers: verifiedOffers,
     media,
     address: {
       line1: row.line1,
@@ -149,16 +194,40 @@ async function loadMedia(
   return map;
 }
 
+async function loadOffers(
+  client: DbClient,
+  listingIds: string[],
+): Promise<Map<string, ListingOfferRow[]>> {
+  const map = new Map<string, ListingOfferRow[]>();
+  if (listingIds.length === 0) return map;
+  const { rows } = await client.query<ListingOfferRow>(
+    `select listing_id, display_text, offer_type, qualifier_text, attribution_text, offer_status
+     from listing_offer
+     where listing_id = any($1::uuid[])
+       and offer_status = 'verified'
+     order by created_at asc`,
+    [listingIds],
+  );
+  for (const row of rows) {
+    const list = map.get(row.listing_id) ?? [];
+    list.push(row);
+    map.set(row.listing_id, list);
+  }
+  return map;
+}
+
 async function serializeRows(
   client: DbClient,
   rows: ListingRow[],
 ): Promise<Record<string, unknown>[]> {
-  const mediaMap = await loadMedia(
-    client,
-    rows.map((r) => r.id),
-  );
+  const ids = rows.map((r) => r.id);
+  const mediaMap = await loadMedia(client, ids);
+  const offerMap = await loadOffers(client, ids);
   return rows.map((row) =>
-    serializeListingForApi(rowToApiShape(row, mediaMap.get(row.id) ?? []), rowToDisplayRule(row)),
+    serializeListingForApi(
+      rowToApiShape(row, mediaMap.get(row.id) ?? [], offerMap.get(row.id) ?? []),
+      rowToDisplayRule(row),
+    ),
   );
 }
 
@@ -269,7 +338,7 @@ export async function listPublicListings(
   const limit = clampInt(input.limit ?? 20, 1, 100);
   const offset = clampInt(input.offset ?? 0, 0, 100_000);
   const params: unknown[] = [];
-  const where = [`l.status = 'active'`];
+  const where = [publicCatalogWhere()];
 
   if (input.q?.trim()) {
     params.push(`%${input.q.trim().replace(/[%_\\]/g, '\\$&')}%`);
@@ -333,7 +402,7 @@ export async function getPublicListingById(
 ): Promise<Record<string, unknown>> {
   const { rows } = await client.query<ListingRow>(
     `${LISTING_SELECT}
-     where l.id = $1 and l.status = 'active'`,
+     where l.id = $1 and ${publicCatalogWhere()}`,
     [listingId],
   );
   const row = rows[0];
