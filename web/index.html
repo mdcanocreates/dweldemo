@@ -4,17 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/faviconrbit.png" />
-    <title>Dwel — Move with more back.</title>
+    <link rel="preload" as="image" href="/landing/hero-01.webp" fetchpriority="high" />
+    <title>Dwel | Find a home that fits</title>
     <meta
       name="description"
-      content="One Dwel application. Unlimited listings. Receive cash back on your first month's rent."
+      content="Browse rentals, compare property offers, and find your next home with Dwel."
     />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,700&family=Poppins:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,700&family=Poppins:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // HashRouter deep-link recovery for path URLs served as the SPA document.
+      (function () {
+        var path = location.pathname || '/';
+        if (path !== '/' && path !== '/index.html' && !location.hash) {
+          location.replace('/#' + path + location.search);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

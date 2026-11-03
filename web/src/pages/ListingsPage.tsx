@@ -7,6 +7,7 @@ import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 import { mapStyleUrl, savingsEstimateEnabled } from '../lib/listingFeatures';
+import { publishablePublicListings } from '../lib/publicInventory';
 
 function ListingCard({
   listing,
@@ -96,12 +97,13 @@ export function ListingsPage() {
           sort,
         });
         if (!cancelled) {
-          setListings(data.listings);
-          setTotal(data.pagination.total);
+          const publishable = publishablePublicListings(data.listings);
+          setListings(publishable);
+          setTotal(publishable.length < data.listings.length ? publishable.length : data.pagination.total);
           setOffset(data.listings.length);
           setError(null);
           setSelectedListingId((current) =>
-            current && data.listings.some((listing) => listing.id === current) ? current : null,
+            current && publishable.some((listing) => listing.id === current) ? current : null,
           );
         }
       } catch (err) {
@@ -151,9 +153,11 @@ export function ListingsPage() {
         propertyType: propertyType || undefined,
         sort,
       });
-      setListings([...listings, ...data.listings]);
+      const more = publishablePublicListings(data.listings);
+      const merged = [...listings, ...more];
+      setListings(merged);
       setOffset(offset + data.listings.length);
-      setTotal(data.pagination.total);
+      setTotal(merged.length);
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load more listings.');
@@ -288,8 +292,8 @@ export function ListingsPage() {
               )}
               {!error && listings && listings.length === 0 && (
                 <div className="empty-state" data-testid="listings-empty">
-                  No homes match your search. Adjust your filters or check back — new listings are added
-                  daily.
+                  No authorized homes are available to show right now. Check back soon, or adjust your
+                  filters when inventory is published.
                 </div>
               )}
               {!error && listings && listings.length > 0 && (
@@ -333,8 +337,8 @@ export function ListingsPage() {
             )}
             {!error && listings && listings.length === 0 && (
               <div className="empty-state" data-testid="listings-empty" style={{ marginTop: '1.5rem' }}>
-                No homes match your search. Adjust your filters or check back — new listings are added
-                daily.
+                No authorized homes are available to show right now. Check back soon, or adjust your
+                filters when inventory is published.
               </div>
             )}
             {!error && listings && listings.length > 0 && (

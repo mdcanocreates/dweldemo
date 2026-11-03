@@ -6,6 +6,7 @@ import { AuthProvider } from './auth';
 import { StagingBanner } from './components/layout/StagingBanner';
 import { configureAnalytics, startEngagementTracking, trackPageview } from './lib/analytics';
 import './styles.css';
+import './styles/landing-v5.css';
 
 configureAnalytics({
   enabled: import.meta.env.VITE_ANALYTICS_ENABLED === 'true',

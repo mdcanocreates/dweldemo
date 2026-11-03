@@ -1,0 +1,434 @@
+/* Landing v5 — white split hero; decorative photo crossfade only. */
+.landing-v5 {
+  background: #fff;
+  color: #141b22;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.landing-v5 .landing-header {
+  background: #fff;
+  border-bottom: 1px solid #f0f2f1;
+  backdrop-filter: none;
+}
+.lv5-page {
+  max-width: 1500px;
+  margin: auto;
+  padding: 28px 34px 0;
+}
+.lv5-hero-layout {
+  display: grid;
+  grid-template-columns: 1.07fr 0.93fr;
+  gap: 24px;
+  align-items: stretch;
+}
+.lv5-hero-photo {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 663px;
+  border-radius: 24px;
+  background: #3f5d66;
+}
+.lv5-photo-stack,
+.lv5-hero-slide,
+.lv5-photo-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.lv5-photo-stack {
+  pointer-events: none;
+  user-select: none;
+}
+.lv5-hero-slide {
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  will-change: opacity;
+  pointer-events: none;
+}
+.lv5-hero-slide.is-active {
+  opacity: 1;
+  z-index: 1;
+}
+.lv5-photo-overlay {
+  z-index: 2;
+  background: linear-gradient(
+    0deg,
+    rgba(5, 20, 21, 0.79) 0%,
+    rgba(4, 16, 18, 0.5) 37%,
+    rgba(3, 16, 17, 0.14) 74%,
+    rgba(2, 13, 17, 0.04) 100%
+  );
+  pointer-events: none;
+}
+.lv5-hero-copy {
+  position: absolute;
+  z-index: 3;
+  left: 43px;
+  right: 42px;
+  bottom: 51px;
+  color: #fff;
+  pointer-events: auto;
+}
+.lv5-hero-kicker {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.19em;
+  margin-bottom: 19px;
+  color: #a4f4d1;
+}
+.lv5-hero-copy h1 {
+  font-weight: 770;
+  font-size: clamp(41px, 4.15vw, 64px);
+  letter-spacing: -0.058em;
+  line-height: 1.045;
+  margin: 0 0 16px;
+  max-width: 670px;
+}
+.lv5-hero-copy em {
+  font-style: normal;
+  color: #8bf0c0;
+}
+.lv5-hero-copy p {
+  font-size: 16px;
+  line-height: 1.58;
+  color: #eff8f3;
+  max-width: 440px;
+  margin: 0 0 26px;
+}
+.lv5-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lv5-button {
+  min-height: 46px;
+  padding: 13px 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-weight: 720;
+  font-size: 13px;
+  border-radius: 12px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.lv5-button:hover {
+  text-decoration: none;
+}
+.lv5-button-mint {
+  background: #8bf0c0;
+  color: #0f3e2c;
+}
+.lv5-button-mint:hover {
+  background: #adf8d8;
+}
+.lv5-button-outline {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.lv5-button-dark {
+  background: #182129;
+  color: #fff;
+}
+.lv5-intake-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #e2e7e8;
+  border-radius: 24px;
+  padding: 39px 40px 27px;
+  box-shadow: 0 10px 44px rgba(30, 53, 53, 0.03);
+  background: #fff;
+}
+.lv5-intake-heading h2 {
+  margin: 0 0 9px;
+  font-size: 36px;
+  letter-spacing: -0.051em;
+  line-height: 1.12;
+  font-weight: 750;
+}
+.lv5-intake-heading p {
+  color: #67727c;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+  max-width: 400px;
+}
+.lv5-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 15px;
+  row-gap: 15px;
+}
+.lv5-field {
+  min-width: 0;
+}
+.lv5-field-full {
+  grid-column: 1 / -1;
+}
+.lv5-field label {
+  display: block;
+  margin: 0 0 7px;
+  font-size: 12px;
+  font-weight: 690;
+  color: #263039;
+}
+.lv5-field label span {
+  color: #526b5e;
+}
+.lv5-field input,
+.lv5-field select {
+  width: 100%;
+  min-width: 0;
+  height: 43px;
+  border: 1px solid #d5dde1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 11px;
+  color: #1c2730;
+  font-size: 13px;
+  outline: none;
+}
+.lv5-field input:focus,
+.lv5-field select:focus {
+  border-color: #11805a;
+  box-shadow: 0 0 0 3px rgba(101, 217, 166, 0.14);
+}
+.lv5-form-divider {
+  position: relative;
+  margin: 22px 0 17px;
+  border-top: 1px solid #edf0f1;
+}
+.lv5-form-divider span {
+  display: block;
+  position: relative;
+  top: -0.6em;
+  width: max-content;
+  background: #fff;
+  padding-right: 10px;
+  color: #6c797f;
+  letter-spacing: 0.11em;
+  font-size: 10px;
+  font-weight: 700;
+}
+.lv5-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 49px;
+  border: 0;
+  border-radius: 12px;
+  background: #182129;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 740;
+  margin-top: 21px;
+  cursor: pointer;
+}
+.lv5-submit:hover:not(:disabled) {
+  background: #2c3b44;
+}
+.lv5-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+.lv5-form-disclosure {
+  margin: 12px 0 0;
+  text-align: center;
+  color: #78838b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.lv5-form-disclosure a,
+.lv5-intake-footer a {
+  color: #13865b;
+  font-weight: 680;
+}
+.lv5-text-button {
+  border: 0;
+  background: transparent;
+  color: #13865b;
+  font: inherit;
+  font-weight: 680;
+  cursor: pointer;
+  padding: 0;
+}
+.lv5-text-button:disabled {
+  color: #95a0aa;
+  cursor: default;
+}
+.lv5-intake-footer {
+  margin-top: auto;
+  text-align: center;
+  border-top: 1px solid #f0f2f1;
+  padding-top: 19px;
+  color: #6d7981;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.lv5-footer-dot {
+  padding: 0 6px;
+  color: #b5bec2;
+}
+.lv5-form-status {
+  background: #f0f9f4;
+  border: 1px solid #afd9c1;
+  color: #285c43;
+  border-radius: 9px;
+  font-size: 12px;
+  padding: 10px 12px;
+  line-height: 1.45;
+  margin-top: 14px;
+}
+.lv5-form-status.error {
+  background: #fff4f4;
+  border-color: #e6b8b8;
+  color: #8e3030;
+}
+.lv5-signed-in {
+  margin-bottom: 18px;
+}
+.lv5-signed-in p {
+  color: #67727c;
+  font-size: 14px;
+  margin: 0 0 16px;
+}
+.lv5-code-lead {
+  color: #67727c;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.lv5-faq-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid #e2e7e8;
+  border-bottom: 1px solid #e2e7e8;
+  margin-top: 28px;
+}
+.lv5-faq-bar a {
+  min-height: 69px;
+  padding: 17px 16px 17px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 610;
+  color: #303c45;
+  border-right: 1px solid #e2e7e8;
+  text-decoration: none;
+}
+.lv5-faq-bar a:last-child {
+  border-right: 0;
+}
+.lv5-faq-bar a span {
+  font-size: 20px;
+  font-weight: 350;
+  color: #247c54;
+}
+.landing-v5 .landing-footer-wrap {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 23px 34px 36px;
+}
+
+@media (max-width: 1150px) {
+  .lv5-hero-layout {
+    gap: 16px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .lv5-intake-panel {
+    padding: 30px 24px 22px;
+  }
+  .lv5-hero-photo {
+    min-height: 620px;
+  }
+  .lv5-hero-copy {
+    left: 28px;
+    right: 24px;
+    bottom: 40px;
+  }
+  .lv5-hero-copy h1 {
+    font-size: 46px;
+  }
+  .lv5-intake-heading h2 {
+    font-size: 31px;
+  }
+}
+
+@media (max-width: 800px) {
+  .lv5-page {
+    padding: 16px 18px 0;
+  }
+  .lv5-hero-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .lv5-hero-photo {
+    height: 430px;
+    min-height: 0;
+  }
+  .lv5-intake-panel {
+    padding: 29px 25px 25px;
+  }
+  .lv5-faq-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lv5-faq-bar a:nth-child(2) {
+    border-right: 0;
+  }
+  .lv5-faq-bar a:nth-child(-n + 2) {
+    border-bottom: 1px solid #e2e7e8;
+  }
+}
+
+@media (max-width: 500px) {
+  .lv5-page {
+    padding: 11px 12px 0;
+  }
+  .lv5-hero-photo {
+    height: 405px;
+    border-radius: 17px;
+  }
+  .lv5-hero-copy {
+    left: 22px;
+    right: 20px;
+    bottom: 26px;
+  }
+  .lv5-hero-copy h1 {
+    font-size: 37px;
+  }
+  .lv5-intake-panel {
+    border-radius: 17px;
+    padding: 25px 19px 23px;
+  }
+  .lv5-intake-heading h2 {
+    font-size: 29px;
+  }
+  .lv5-faq-bar a {
+    font-size: 11.5px;
+    padding: 15px 9px 15px 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lv5-hero-slide {
+    transition: none !important;
+  }
+  .lv5-hero-slide:not(:first-child) {
+    display: none !important;
+  }
+  .lv5-hero-slide:first-child {
+    opacity: 1 !important;
+  }
+}
