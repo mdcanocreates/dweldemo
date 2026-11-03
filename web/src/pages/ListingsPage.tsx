@@ -196,7 +196,10 @@ export function ListingsPage() {
       id: listing.id,
       latitude: location.latitude,
       longitude: location.longitude,
-      priceLabel: moneyFromCents(listing.rent_amount_cents),
+      priceLabel:
+        listing.inventory_kind === 'directory'
+          ? 'Dir'
+          : moneyFromCents(listing.rent_amount_cents),
     }];
   });
 
