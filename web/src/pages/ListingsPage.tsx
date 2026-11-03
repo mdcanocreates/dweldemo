@@ -9,10 +9,15 @@ import { ErrorState, Shell } from '../components/Shell';
 import { moneyFromCents } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 import { mapStyleUrl, savingsEstimateEnabled } from '../lib/listingFeatures';
+import {
+  emptyRentalsMode,
+  filtersActive,
+  shouldShowDirectoryFilters,
+  shouldShowRentalFilters,
+  type InventoryTab,
+} from '../lib/marketplacePreservation';
 import { partitionPublicInventory, publishablePublicListings } from '../lib/publicInventory';
 import { useSavedHomesContext } from '../savedHomes';
-
-type InventoryTab = 'rentals' | 'directory';
 
 export function ListingsPage() {
   const [params] = useSearchParams();
@@ -29,6 +34,7 @@ export function ListingsPage() {
   const [beds, setBeds] = useState('');
   const [baths, setBaths] = useState('');
   const [propertyType, setPropertyType] = useState('');
+  const [maxRent, setMaxRent] = useState('');
   const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('rent_asc');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
@@ -38,7 +44,13 @@ export function ListingsPage() {
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
   const styleUrl = mapStyleUrl();
   const showDollarEstimate = savingsEstimateEnabled();
-  const { estimate, estimateStatus } = useSavedHomesContext();
+  const {
+    estimate,
+    estimateStatus,
+    savedCount,
+    savingsPanelVisible,
+    dismissSavings,
+  } = useSavedHomesContext();
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +64,7 @@ export function ListingsPage() {
           minBeds: beds || undefined,
           minBaths: baths || undefined,
           propertyType: propertyType || undefined,
+          maxRentCents: maxRent || undefined,
           sort,
         });
         if (!cancelled) {
@@ -64,7 +77,19 @@ export function ListingsPage() {
             current && publishable.some((listing) => listing.id === current) ? current : null,
           );
           const parts = partitionPublicInventory(publishable);
-          setInventoryTab(parts.rentals.length > 0 ? 'rentals' : 'directory');
+          const activeFilters = Boolean(
+            queryApplied.trim() || beds || baths || propertyType || maxRent,
+          );
+          // Preserve the rentals tab when filters produced zero matches so controls stay visible.
+          // On a pristine load with only directory inventory, still open the directory tab.
+          setInventoryTab((current) => {
+            if (current === 'rentals' && parts.rentals.length > 0) return 'rentals';
+            if (current === 'directory' && parts.directory.length > 0) return 'directory';
+            if (current === 'rentals' && activeFilters) return 'rentals';
+            if (parts.rentals.length > 0) return 'rentals';
+            if (parts.directory.length > 0) return 'directory';
+            return current;
+          });
         }
       } catch (err) {
         if (!cancelled) {
@@ -83,7 +108,7 @@ export function ListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [queryApplied, beds, baths, propertyType, sort, reloadToken]);
+  }, [queryApplied, beds, baths, propertyType, maxRent, sort, reloadToken]);
 
   const partitions = useMemo(
     () => partitionPublicInventory(listings ?? []),
@@ -91,8 +116,6 @@ export function ListingsPage() {
   );
   const visibleListings =
     inventoryTab === 'rentals' ? partitions.rentals : partitions.directory;
-  // Until the API supports inventory_kind filters, approximate counts from the loaded page.
-  // When the loaded public catalog is directory-only, use the server total.
   const rentalCount = partitions.rentals.length;
   const directoryCount =
     listings !== null && rentalCount === 0 ? total : partitions.directory.length;
@@ -103,6 +126,19 @@ export function ListingsPage() {
     !error && listings !== null && visibleListings.length === 0;
   const mapAvailable = Boolean(styleUrl) && !catalogErrored;
   const mapMode = viewMode === 'map' && mapAvailable;
+  const searchFiltersActive = filtersActive({
+    queryApplied,
+    beds,
+    baths,
+    propertyType,
+    maxRent,
+  });
+  const rentalsEmptyMode = emptyRentalsMode({
+    rentalsEmpty,
+    filtersActive: searchFiltersActive,
+  });
+  const showRentalFilters = shouldShowRentalFilters({ inventoryTab, catalogErrored });
+  const showDirectoryFilters = shouldShowDirectoryFilters({ inventoryTab, catalogErrored });
 
   const matchLabel =
     listings === null || error
@@ -139,6 +175,7 @@ export function ListingsPage() {
         minBeds: beds || undefined,
         minBaths: baths || undefined,
         propertyType: propertyType || undefined,
+        maxRentCents: maxRent || undefined,
         sort,
       });
       const more = publishablePublicListings(data.listings);
@@ -179,6 +216,17 @@ export function ListingsPage() {
           ? 'loading'
           : estimateStatus;
 
+  function renderEmptyRentals() {
+    if (rentalsEmptyMode === 'no_match') {
+      return (
+        <p className="muted" style={{ marginTop: '1.5rem' }} data-testid="listings-no-match">
+          No homes match your search. Adjust your filters.
+        </p>
+      );
+    }
+    return <InventoryWaitlist initialCity={queryApplied || query} />;
+  }
+
   return (
     <Shell fullBleed={mapMode}>
       {showFrog ? <p className="muted">Loading homes…</p> : null}
@@ -203,9 +251,14 @@ export function ListingsPage() {
               </button>
             </div>
           )}
-          {showDollarEstimate && (
+          {savingsPanelVisible && (
             <div className="dwel-listings-toolbar__savings">
-              <ApplicationSavingsCard estimate={estimate} status={savingsCardStatus} />
+              <ApplicationSavingsCard
+                estimate={estimate}
+                status={savingsCardStatus}
+                savedCount={savedCount}
+                onDismiss={dismissSavings}
+              />
             </div>
           )}
         </div>
@@ -275,8 +328,19 @@ export function ListingsPage() {
                 Search homes
               </button>
             </div>
-            {inventoryTab === 'rentals' && listings !== null && !rentalsEmpty && (
-              <div className="filter-bar">
+            {showRentalFilters && (
+              <div className="filter-bar" data-testid="rental-filter-bar">
+                <div className="field">
+                  <label htmlFor="price">Price</label>
+                  <select id="price" value={maxRent} onChange={(e) => setMaxRent(e.target.value)}>
+                    <option value="">Any</option>
+                    <option value="150000">Up to $1,500</option>
+                    <option value="200000">Up to $2,000</option>
+                    <option value="250000">Up to $2,500</option>
+                    <option value="300000">Up to $3,000</option>
+                    <option value="400000">Up to $4,000</option>
+                  </select>
+                </div>
                 <div className="field">
                   <label htmlFor="beds">Beds</label>
                   <select id="beds" value={beds} onChange={(e) => setBeds(e.target.value)}>
@@ -317,6 +381,24 @@ export function ListingsPage() {
                 </div>
               </div>
             )}
+            {showDirectoryFilters && (
+              <div className="filter-bar" data-testid="directory-filter-bar">
+                <div className="field">
+                  <label htmlFor="dir-ptype">Property type</label>
+                  <select
+                    id="dir-ptype"
+                    value={propertyType}
+                    onChange={(e) => setPropertyType(e.target.value)}
+                  >
+                    <option value="">Any</option>
+                    <option value="multifamily">Multifamily</option>
+                    <option value="single_family">Single family</option>
+                    <option value="condo">Condo</option>
+                    <option value="residential">Residential</option>
+                  </select>
+                </div>
+              </div>
+            )}
             {inventoryTab === 'directory' && !directoryEmpty && (
               <p className="dwel-directory-banner">
                 Affordable housing directory entries are not confirmed vacant rentals. Availability and
@@ -340,7 +422,7 @@ export function ListingsPage() {
             <aside className="dwel-map-workspace__rail" aria-label="Matching homes">
               {visibleEmpty ? (
                 inventoryTab === 'rentals' ? (
-                  <InventoryWaitlist initialCity={queryApplied || query} />
+                  renderEmptyRentals()
                 ) : (
                   <p className="muted">No directory properties match this search.</p>
                 )
@@ -386,7 +468,7 @@ export function ListingsPage() {
           </div>
         ) : visibleEmpty ? (
           inventoryTab === 'rentals' ? (
-            <InventoryWaitlist initialCity={queryApplied || query} />
+            renderEmptyRentals()
           ) : (
             <p className="muted" style={{ marginTop: '1.5rem' }}>
               No directory properties match this search.

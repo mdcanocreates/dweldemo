@@ -19,7 +19,7 @@ export function ListingDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const { toggleSave, isSaved, estimate } = useSavedHomesContext();
+  const { toggleSave, isSaved } = useSavedHomesContext();
   const [listing, setListing] = useState<Listing | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -122,14 +122,10 @@ export function ListingDetailPage() {
       await toggleSave(listing!);
       if (wasSaved) {
         setSavedNote('Removed from saved homes. The savings estimate updates automatically.');
-      } else if (estimate?.completeEstimate) {
-        setSavedNote(
-          `Saved. Estimated application-fee savings use only verified reusable-screening fees across eligible saved homes.`,
-        );
+      } else if (user) {
+        setSavedNote('Saved to your account.');
       } else {
-        setSavedNote(
-          'Saved. A dollar estimate appears only when participating application fees are verified.',
-        );
+        setSavedNote('Saved on this device. Sign in to sync across devices.');
       }
     } catch (err) {
       setSavedNote(err instanceof ApiError ? err.message : 'Could not update saved homes.');

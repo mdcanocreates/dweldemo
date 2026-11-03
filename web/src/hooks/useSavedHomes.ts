@@ -6,6 +6,8 @@ import {
   type SavingsEstimate,
 } from '../lib/applicationSavings';
 import { clearGuestSavedIds, readGuestSavedIds, writeGuestSavedIds } from '../lib/guestSaved';
+import { shouldShowSavingsPanel } from '../lib/marketplacePreservation';
+import { savingsEstimateEnabled } from '../lib/listingFeatures';
 
 type SavingsPayload = {
   estimate: {
@@ -22,6 +24,8 @@ export type SavedHomesState = {
   savedCount: number;
   estimate: SavingsEstimate | null;
   estimateStatus: 'loading' | 'unavailable' | 'error' | 'ready';
+  savingsPanelVisible: boolean;
+  dismissSavings: () => void;
   toggleSave: (listing: Listing) => Promise<void>;
   isSaved: (listingId: string) => boolean;
   refreshing: boolean;
@@ -44,6 +48,7 @@ export function useSavedHomes(): SavedHomesState {
   const [estimate, setEstimate] = useState<SavingsEstimate | null>(null);
   const [estimateStatus, setEstimateStatus] = useState<SavedHomesState['estimateStatus']>('unavailable');
   const [refreshing, setRefreshing] = useState(false);
+  const [savingsDismissed, setSavingsDismissed] = useState(false);
 
   const refreshAccount = useCallback(async () => {
     if (!user) return;
@@ -92,7 +97,10 @@ export function useSavedHomes(): SavedHomesState {
       if (!user) {
         const next = new Set(savedIds);
         if (currentlySaved) next.delete(listingId);
-        else next.add(listingId);
+        else {
+          next.add(listingId);
+          setSavingsDismissed(false);
+        }
         setSavedIds(next);
         writeGuestSavedIds([...next]);
         // Guests can save, but fee savings require signed-in verified fee data.
@@ -116,6 +124,7 @@ export function useSavedHomes(): SavedHomesState {
         } else {
           const result = await api.saveListing(listingId);
           setSavedIds((prev) => new Set(prev).add(listingId));
+          setSavingsDismissed(false);
           const nextEstimate = toEstimate(result.savings);
           setEstimate(nextEstimate);
           setEstimateStatus(nextEstimate ? 'ready' : 'unavailable');
@@ -125,7 +134,10 @@ export function useSavedHomes(): SavedHomesState {
           // Fall back to guest save if session expired mid-click.
           const next = new Set(savedIds);
           if (currentlySaved) next.delete(listingId);
-          else next.add(listingId);
+          else {
+            next.add(listingId);
+            setSavingsDismissed(false);
+          }
           setSavedIds(next);
           writeGuestSavedIds([...next]);
           return;
@@ -138,6 +150,13 @@ export function useSavedHomes(): SavedHomesState {
   );
 
   const isSaved = useCallback((listingId: string) => savedIds.has(listingId), [savedIds]);
+  const dismissSavings = useCallback(() => setSavingsDismissed(true), []);
+
+  const savingsPanelVisible = shouldShowSavingsPanel({
+    enabled: savingsEstimateEnabled(),
+    savedCount: savedIds.size,
+    dismissed: savingsDismissed,
+  });
 
   return useMemo(
     () => ({
@@ -145,11 +164,22 @@ export function useSavedHomes(): SavedHomesState {
       savedCount: savedIds.size,
       estimate,
       estimateStatus,
+      savingsPanelVisible,
+      dismissSavings,
       toggleSave,
       isSaved,
       refreshing,
     }),
-    [savedIds, estimate, estimateStatus, toggleSave, isSaved, refreshing],
+    [
+      savedIds,
+      estimate,
+      estimateStatus,
+      savingsPanelVisible,
+      dismissSavings,
+      toggleSave,
+      isSaved,
+      refreshing,
+    ],
   );
 }
 

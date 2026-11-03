@@ -284,6 +284,7 @@ export type PublicListingQuery = {
   minBeds?: string;
   minBaths?: string;
   propertyType?: string;
+  maxRentCents?: string;
   sort?: 'newest' | 'rent_asc' | 'rent_desc' | 'cashback';
 };
 
@@ -298,6 +299,7 @@ export const api = {
     if (query.minBeds) params.set('min_beds', query.minBeds);
     if (query.minBaths) params.set('min_baths', query.minBaths);
     if (query.propertyType) params.set('property_type', query.propertyType);
+    if (query.maxRentCents) params.set('max_rent_cents', query.maxRentCents);
     if (query.sort) params.set('sort', query.sort);
     return request<{ listings: Listing[]; pagination: { total: number; limit: number; offset: number } }>(
       `/v1/listings?${params.toString()}`,

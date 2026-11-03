@@ -43,6 +43,9 @@ export function ListingMap({
     selectedRef.current = selectedListingId;
   }, [selectedListingId]);
 
+  // Stabilize object-style configs so parent re-renders do not remount MapLibre.
+  const styleKey = typeof styleUrl === 'string' ? styleUrl : JSON.stringify(styleUrl);
+
   useEffect(() => {
     if (!containerRef.current || !styleUrl) return;
     setTileError(null);
@@ -57,16 +60,22 @@ export function ListingMap({
         customAttribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       },
+      fadeDuration: 0,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+    map.on('load', () => {
+      map.resize();
+    });
     map.on('error', (event) => {
       // Ignore intermittent tile provider denials; only surface style/bootstrap failures.
       const err = event?.error as { status?: number; message?: string } | undefined;
-      const message = String(err?.message ?? '');
-      if (/tiles?|ajax|failed to fetch|403|429/i.test(message)) return;
-      setTileError('The map could not load. The list of homes is still available.');
+      const message = String(err?.message ?? event?.error ?? '');
+      if (/tiles?|ajax|failed to fetch|403|429|AbortError/i.test(message)) return;
+      setTileError('Map tiles are delayed. Markers and the list of homes still work.');
     });
-    const observer = new ResizeObserver(() => map.resize());
+    const observer = new ResizeObserver(() => {
+      map.resize();
+    });
     observer.observe(containerRef.current);
     mapRef.current = map;
     cityKey.current = '';
@@ -78,7 +87,9 @@ export function ListingMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [styleUrl]);
+    // styleKey captures styleUrl identity without remounting on equivalent object literals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styleKey]);
 
   useEffect(() => {
     const map = mapRef.current;

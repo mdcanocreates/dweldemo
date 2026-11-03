@@ -255,6 +255,7 @@ export type ListPublicListingsInput = {
   q?: string;
   minBeds?: number;
   minBaths?: number;
+  maxRentCents?: number;
   propertyType?: string;
   sort?: PublicListingSort;
 };
@@ -307,11 +308,15 @@ export function parsePublicListingQuery(params: URLSearchParams): ListPublicList
   }
   const minBeds = optionalNumber(params.get('min_beds'));
   const minBaths = optionalNumber(params.get('min_baths'));
+  const maxRentCents = optionalNumber(params.get('max_rent_cents'));
   if (minBeds == null && params.get('min_beds')) {
     throw new AppError('invalid bedrooms filter', 'validation_error', 400);
   }
   if (minBaths == null && params.get('min_baths')) {
     throw new AppError('invalid bathrooms filter', 'validation_error', 400);
+  }
+  if (maxRentCents == null && params.get('max_rent_cents')) {
+    throw new AppError('invalid price filter', 'validation_error', 400);
   }
   return {
     limit: finiteNumber(params.get('limit'), 20),
@@ -319,6 +324,7 @@ export function parsePublicListingQuery(params: URLSearchParams): ListPublicList
     q: q || undefined,
     minBeds,
     minBaths,
+    maxRentCents,
     propertyType: propertyType || undefined,
     sort: sortRaw as PublicListingSort,
   };
@@ -368,6 +374,10 @@ export async function listPublicListings(
   if (input.minBaths != null) {
     params.push(input.minBaths);
     where.push(`u.bathrooms >= $${params.length}`);
+  }
+  if (input.maxRentCents != null) {
+    params.push(input.maxRentCents);
+    where.push(`l.rent_amount_cents <= $${params.length}`);
   }
   if (input.propertyType) {
     params.push(input.propertyType);
