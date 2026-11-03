@@ -822,3 +822,19 @@ tables:
 
       retention_class: identity
 
+  renter_interest:
+
+    notes:
+
+      classification: free_text
+
+      retention_class: identity
+
+  property_listing_claim:
+
+    evidence_summary:
+
+      classification: free_text
+
+      retention_class: identity
+

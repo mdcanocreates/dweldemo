@@ -77,7 +77,10 @@
     "external_property_candidate",
     "listing_offer_candidate",
     "property_contact_candidate",
-    "external_import_run"
+    "external_import_run",
+    "interest_notification_outbox",
+    "notification_suppression_contact",
+    "provider_access_plan"
   ],
   "justifications": {
     "schema_migrations": "Migration bookkeeping",
@@ -156,6 +159,9 @@
     "external_property_candidate": "Quarantined external property candidates before rights approval. Bypass-only RLS. Does not publish listings.",
     "listing_offer_candidate": "Source-advertised offer staging. Not a Dwel entitlement. Bypass-only RLS.",
     "property_contact_candidate": "Private contact quarantine for admin verification. Bypass-only RLS. Never public API.",
-    "external_import_run": "Quarantine import batch metadata and dry-run reports. Bypass-only RLS."
+    "external_import_run": "Quarantine import batch metadata and dry-run reports. Bypass-only RLS.",
+    "interest_notification_outbox": "Mock/staging leasing-office notification queue. No tenant owner until delivery workers run under bypass. Never sends live mail unless transport=live is separately authorized.",
+    "notification_suppression_contact": "Platform suppression list keyed by address fingerprint. Bypass-only RLS.",
+    "provider_access_plan": "Catalog of provider access billing models. Amounts are configured explicitly; no silent default price."
   }
 }
