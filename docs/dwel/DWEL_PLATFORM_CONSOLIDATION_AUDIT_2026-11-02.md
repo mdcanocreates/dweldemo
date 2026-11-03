@@ -237,13 +237,17 @@ Secret heuristic on Authority and marketplace **committed** trees: only placehol
 
 ## 7. Clean GitHub preservation status
 
-| Branch | Intended action | Notes |
+**Remote:** `https://github.com/mdcanocreates/dweldemo.git`  
+**Before:** 3 heads. **After this pass:** 8 heads (no `main` rewrite; no deploy).
+
+| Branch | Tip on origin | Notes |
 | --- | --- | --- |
-| `feature/dwel-next-phase-slice-a` | Push tip `0b2521d` | Marketplace intact |
-| `feature/dwel-authority-lite` | Push tip `b1f58f8` | Correct tip beyond stale `964bcc1` |
-| `release/dwel-auth-otp-rc` | Push tip `6a93723` | Clean |
-| `release/dwel-consolidation` | Push tip `3489f31` | Clean tip |
-| `release/dwel-prod-rc` | Push tip `2c1feed` | Tip only; dirty `.env.example` not committed |
+| `feature/dwel-next-phase-slice-a` | `0b2521d` | Marketplace intact |
+| `feature/dwel-authority-lite` | `b1f58f8` | Correct tip beyond stale `964bcc1` |
+| `docs/dwel-platform-consolidation-2026-11-02` | docs commit from `0b2521d` | Audit only; does not move marketplace tip |
+| `release/dwel-auth-otp-rc` | `6a93723` | Clean |
+| `release/dwel-consolidation` | `3489f31` | Clean tip |
+| `release/dwel-prod-rc` | `2c1feed` | Tip only; dirty `.env.example` not committed |
 | Together / Match branches | **N/A** | No code to preserve |
 | Merge to `main` / deploy | **Forbidden** this pass | |
 
