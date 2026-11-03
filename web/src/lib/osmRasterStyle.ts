@@ -20,9 +20,13 @@ export type OsmStyleConfig = {
 
 const DEFAULT_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
+const styleCache = new Map<string, OsmStyleConfig>();
+
 export function osmRasterStyle(): OsmStyleConfig {
   const tileUrl = String(import.meta.env.VITE_DWEL_MAP_TILE_URL ?? '').trim() || DEFAULT_TILE_URL;
-  return {
+  const cached = styleCache.get(tileUrl);
+  if (cached) return cached;
+  const style: OsmStyleConfig = {
     version: 8,
     name: 'dwel-osm-raster',
     sources: {
@@ -37,4 +41,6 @@ export function osmRasterStyle(): OsmStyleConfig {
     },
     layers: [{ id: 'osm-raster', type: 'raster', source: 'osm' }],
   };
+  styleCache.set(tileUrl, style);
+  return style;
 }

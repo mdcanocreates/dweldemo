@@ -176,7 +176,8 @@ describe('property listing browser journey', () => {
     const page = await guest.newPage();
     await page.goto(`${origin}/#/listings`);
     await see(page, '410 Catalog Lane');
-    await see(page, 'See how much you could save');
+    expect(await page.getByTestId('application-savings').count()).toBe(0);
+    expect(await page.getByTestId('rental-filter-bar').count()).toBe(1);
     expect(await page.getByTestId('listings-list-workspace').count()).toBe(1);
     expect(await page.getByText('900 Draft Road').count()).toBe(0);
     await page.getByRole('contentinfo').getByRole('link', { name: 'Terms', exact: true }).waitFor({ state: 'visible' });
