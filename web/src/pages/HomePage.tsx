@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
+import { LandingFaqAccordion } from '../components/LandingFaqAccordion';
 import { ProductFooter, ProductHeader } from '../components/ProductChrome';
 import {
   EMPTY_ANSWERS,
@@ -442,20 +443,7 @@ export function HomePage() {
           </section>
         </div>
 
-        <nav className="lv5-faq-bar" aria-label="Helpful questions">
-          <Link to="/faqs">
-            How does Dwel work?<span aria-hidden="true">→</span>
-          </Link>
-          <Link to="/cashback-terms">
-            How does cashback work?<span aria-hidden="true">→</span>
-          </Link>
-          <Link to="/faqs">
-            Can I browse without joining?<span aria-hidden="true">→</span>
-          </Link>
-          <Link to="/partner">
-            For home partners<span aria-hidden="true">→</span>
-          </Link>
-        </nav>
+        <LandingFaqAccordion />
       </main>
 
       <ProductFooter />

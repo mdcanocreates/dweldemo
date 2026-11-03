@@ -77,12 +77,14 @@ export function ListingsPage() {
   const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('rent_asc');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [reloadToken, setReloadToken] = useState(0);
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
   const styleUrl = mapStyleUrl();
   const showDollarEstimate = savingsEstimateEnabled();
   const catalogEmpty = !error && listings !== null && listings.length === 0;
-  const mapMode = viewMode === 'map' && !catalogEmpty;
+  const catalogErrored = Boolean(error);
+  const mapMode = viewMode === 'map' && !catalogEmpty && !catalogErrored;
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +127,7 @@ export function ListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [queryApplied, beds, baths, propertyType, sort]);
+  }, [queryApplied, beds, baths, propertyType, sort, reloadToken]);
 
   const matchLabel =
     listings === null || error
@@ -203,7 +205,7 @@ export function ListingsPage() {
             {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
             <h1 className="section-title">Find a home</h1>
           </div>
-          {!catalogEmpty && (
+          {!catalogEmpty && !catalogErrored && (
             <div className="dwel-listings-toolbar__modes" role="group" aria-label="List or map">
               <button type="button" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}>
                 List
@@ -213,14 +215,35 @@ export function ListingsPage() {
               </button>
             </div>
           )}
-          {!catalogEmpty && showDollarEstimate && (
+          {!catalogEmpty && !catalogErrored && showDollarEstimate && (
             <div className="dwel-listings-toolbar__savings">
               <ApplicationSavingsCard estimate={null} status={savingsStatus} />
             </div>
           )}
         </div>
 
-        {!catalogEmpty && (
+        {catalogErrored && (
+          <div className="dwel-listings-error" data-testid="listings-server-error">
+            <ErrorState title="We could not load homes">{error}</ErrorState>
+            <p className="muted">
+              This is a temporary service problem, not an empty catalog. Try again in a moment.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setError(null);
+                setListings(null);
+                setInitialLoading(true);
+                setReloadToken((n) => n + 1);
+              }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!catalogEmpty && !catalogErrored && (
           <>
             <div className="search-row">
               <div className="field" style={{ margin: 0 }}>
@@ -287,7 +310,7 @@ export function ListingsPage() {
 
         {catalogEmpty ? (
           <InventoryWaitlist initialCity={queryApplied || query} />
-        ) : mapMode ? (
+        ) : catalogErrored ? null : mapMode ? (
           <div className="dwel-map-workspace" data-testid="listings-map-workspace">
             <div className="dwel-map-workspace__map">
               <ListingMap

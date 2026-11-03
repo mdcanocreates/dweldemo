@@ -130,13 +130,13 @@ export function SignInPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
-            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <label className="dwel-checkbox-row">
               <input
                 type="checkbox"
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
               />
-              Remember this device for 30 days
+              <span>Remember this device for 30 days</span>
             </label>
             <button type="submit" className="btn btn-primary" disabled={busy}>
               {busy ? 'Sending…' : 'Email me a code'}
