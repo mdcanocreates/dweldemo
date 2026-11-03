@@ -19,7 +19,8 @@ export type SourceDisplayRule = {
 
 export type ListingApiShape = {
   id: string;
-  rent_amount_cents: number;
+  rent_amount_cents: number | null;
+  rent_max_cents?: number | null;
   deposit_cents?: number | null;
   bedrooms?: number | null;
   bathrooms?: number | null;

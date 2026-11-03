@@ -36,3 +36,4 @@ export {
   type ListingImageLink,
   type PlannedDealImage,
 } from './image-plan.js';
+export { buildPropertyOffer, offerHeadline } from './offer-headline.js';

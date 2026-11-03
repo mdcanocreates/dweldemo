@@ -56,17 +56,8 @@ function normalizeType(raw: string | null | undefined): string {
 }
 
 function profileDescription(row: DealRow): string {
-  const name = row.property_name?.trim() || 'This property';
-  const site = row.property_website?.trim();
-  const sourceUrl = row.source_url?.trim();
-  const bits = [
-    `${name} is listed as a Dwel property profile for inquiry only.`,
-    'Availability, current rent, floor plans, and move-in specials are not confirmed on Dwel.',
-    'Request information to notify the leasing contact. The provider must claim this listing and accept Dwel applications before reusable screening applies.',
-    site ? `Property website on file: ${site}.` : null,
-    sourceUrl ? `Source listing reference: ${sourceUrl}.` : null,
-  ];
-  return bits.filter(Boolean).join(' ');
+  const name = row.property_name?.trim() || 'This community';
+  return `${name} is listed on Dwel. Request information to connect with the leasing office. Move-in specials are advertised by the property; restrictions may apply.`;
 }
 
 function resolveSsl(): pg.ClientConfig['ssl'] | undefined {

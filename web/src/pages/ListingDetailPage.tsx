@@ -6,7 +6,7 @@ import { HeartButton } from '../components/listings/HeartButton';
 import { applicationStatusLabel } from '../lib/application-status';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
-import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
+import { formatAddress, formatBedsBaths, formatListedRent, titleCaseType } from '../format';
 import { track } from '../lib/analytics';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 import { isDirectoryListing } from '../lib/publicInventory';
@@ -162,11 +162,10 @@ export function ListingDetailPage() {
         {visibleHero ? (
           <img src={visibleHero} alt={title} loading="eager" onError={() => setHeroFailed(true)} />
         ) : (
-          <p className="dwel-detail-photo-note">
-            {directory
-              ? 'Directory entry. No property photo is on file.'
-              : 'No licensed property photo is on file.'}
-          </p>
+          <div className="dwel-detail-hero-fallback">
+            <p className="font-display">{title}</p>
+            <p>{[listing.address.city, listing.address.state].filter(Boolean).join(', ')}</p>
+          </div>
         )}
         <HeartButton listing={listing} className={visibleHero ? 'dwel-heart--overlay dwel-heart--detail' : ''} />
       </div>
@@ -208,18 +207,29 @@ export function ListingDetailPage() {
           {directory ? (
             <p className="dwel-detail-rent">Income-based · availability not confirmed</p>
           ) : (
-            <p className="dwel-detail-rent">
-              {moneyFromCents(listing.rent_amount_cents)}
-              <span>/mo</span>
+            <p className="dwel-detail-rent font-mono">
+              {formatListedRent(listing.rent_amount_cents, listing.rent_max_cents)}
             </p>
           )}
           {!directory && listing.bedrooms != null && (
             <p style={{ color: 'hsl(var(--muted-foreground))' }}>
               {formatBedsBaths(listing.bedrooms, listing.bathrooms)}
+              {listing.sqft ? ` · ${listing.sqft.toLocaleString()} sq ft` : ''}
             </p>
           )}
           {!directory && listing.available_on && (
             <p style={{ color: 'hsl(var(--muted-foreground))' }}>Available {listing.available_on}</p>
+          )}
+          {!directory && listing.offers?.[0] && (
+            <div className="dwel-detail-offer" data-testid="listing-offer">
+              <span className="dwel-incentive-badge__tag">Move-in special</span>
+              <p className="dwel-detail-offer__headline font-display">{listing.offers[0].display_text}</p>
+              <p className="dwel-detail-offer__terms">
+                {listing.offers[0].qualifier_text ??
+                  listing.offers[0].attribution_text ??
+                  'Offer advertised by property; terms apply.'}
+              </p>
+            </div>
           )}
           {listing.description && (
             <p style={{ marginTop: '1rem', maxWidth: '40rem' }}>{listing.description}</p>
@@ -230,26 +240,15 @@ export function ListingDetailPage() {
           <p className="section-eyebrow">Next step</p>
           {directory ? (
             <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
-              Directory entry only. Saving does not contact the property or confirm vacancy.
+              Directory entry. Saving does not contact the property or confirm vacancy.
             </p>
-          ) : listing.inventory_kind === 'external' || !listing.rent_amount_cents ? (
+          ) : listing.reusable_application_eligible ? (
             <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
-              Property profile for inquiry only. This provider has not claimed the listing or accepted the $49
-              reusable Dwel application.
+              This home accepts Dwel&apos;s one-time $49 reusable application.
             </p>
-          ) : listing.offers?.[0] ? (
-            <>
-              <p style={{ fontWeight: 700 }}>{listing.offers[0].display_text}</p>
-              <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.85rem' }}>
-                {listing.offers[0].qualifier_text ?? 'Offer advertised by property; terms apply.'}
-              </p>
-            </>
           ) : (
             <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
-              {listing.listing_channel ?? 'Partner listing'}. Saving does not contact the leasing office.
-              {!listing.reusable_application_eligible
-                ? ' Provider has not accepted Dwel applications yet.'
-                : ''}
+              Request information to reach the leasing office. Saving a home never starts an application.
             </p>
           )}
           {applicationLookup === 'failed' && !directory && listing.reusable_application_eligible && (

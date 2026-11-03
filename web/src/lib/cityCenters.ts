@@ -29,13 +29,24 @@ const DEFAULT: CityCenter = {
 
 export function resolveCityCenter(query: string | null | undefined): CityCenter {
   const raw = String(query ?? '').trim().toLowerCase();
-  if (!raw) return { ...CITIES[0]! };
+  // Empty search = national overview. Never force Austin while nationwide cards load.
+  if (!raw) return { ...DEFAULT };
   for (const city of CITIES) {
     if (raw.includes(city.name)) return city;
-    if (city.state && (raw === city.state || raw.endsWith(` ${city.state}`))) {
-      // Prefer Austin for bare TX searches in this market.
-      if (city.state === 'tx') return CITIES[0]!;
-    }
+  }
+  // Tampa / Orlando / Miami / San Diego / LA used by deal inventory.
+  const extras: CityCenter[] = [
+    { name: 'tampa', state: 'fl', latitude: 27.9506, longitude: -82.4572, zoom: 11 },
+    { name: 'orlando', state: 'fl', latitude: 28.5383, longitude: -81.3792, zoom: 11 },
+    { name: 'miami', state: 'fl', latitude: 25.7617, longitude: -80.1918, zoom: 11 },
+    { name: 'jacksonville', state: 'fl', latitude: 30.3322, longitude: -81.6557, zoom: 11 },
+    { name: 'san diego', state: 'ca', latitude: 32.7157, longitude: -117.1611, zoom: 11 },
+    { name: 'los angeles', state: 'ca', latitude: 34.0522, longitude: -118.2437, zoom: 11 },
+    { name: 'brooklyn', state: 'ny', latitude: 40.6782, longitude: -73.9442, zoom: 12 },
+    { name: 'new york', state: 'ny', latitude: 40.7128, longitude: -74.006, zoom: 11 },
+  ];
+  for (const city of extras) {
+    if (raw.includes(city.name)) return city;
   }
   return DEFAULT;
 }

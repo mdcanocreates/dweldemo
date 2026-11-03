@@ -7,6 +7,13 @@ import { prepareMapPins, type MapPinInput } from '../../lib/mapPins';
 
 export type MapListing = MapPinInput;
 
+export type MapBounds = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+};
+
 type Props = {
   listings: MapListing[];
   selectedListingId: string | null;
@@ -14,6 +21,8 @@ type Props = {
   styleUrl: MapStyleValue;
   /** Optional location query used for city-level centering when pins are absent. */
   searchQuery?: string;
+  /** Emits current map viewport so the list rail stays geographically synced. */
+  onBoundsChange?: (bounds: MapBounds) => void;
 };
 
 function prefersReducedMotion(): boolean {
@@ -26,11 +35,13 @@ export function ListingMap({
   onSelectListing,
   styleUrl,
   searchQuery,
+  onBoundsChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const selectRef = useRef(onSelectListing);
   const selectedRef = useRef(selectedListingId);
+  const boundsRef = useRef(onBoundsChange);
   const [tileError, setTileError] = useState<string | null>(null);
   const fittedKey = useRef('');
   const cityKey = useRef('');
@@ -42,6 +53,10 @@ export function ListingMap({
   useEffect(() => {
     selectedRef.current = selectedListingId;
   }, [selectedListingId]);
+
+  useEffect(() => {
+    boundsRef.current = onBoundsChange;
+  }, [onBoundsChange]);
 
   // Stabilize object-style configs so parent re-renders do not remount MapLibre.
   const styleKey = typeof styleUrl === 'string' ? styleUrl : JSON.stringify(styleUrl);
@@ -63,15 +78,30 @@ export function ListingMap({
       fadeDuration: 0,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+    const emitBounds = () => {
+      const b = map.getBounds();
+      boundsRef.current?.({
+        west: b.getWest(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        north: b.getNorth(),
+      });
+    };
     map.on('load', () => {
       map.resize();
+      setTileError(null);
+      emitBounds();
     });
+    map.on('moveend', emitBounds);
     map.on('error', (event) => {
       // Ignore intermittent tile provider denials; only surface style/bootstrap failures.
       const err = event?.error as { status?: number; message?: string } | undefined;
       const message = String(err?.message ?? event?.error ?? '');
       if (/tiles?|ajax|failed to fetch|403|429|AbortError/i.test(message)) return;
-      setTileError('Map tiles are delayed. Markers and the list of homes still work.');
+      // Avoid alarming when tiles later recover — only keep the note if style never loads.
+      if (!map.isStyleLoaded()) {
+        setTileError('Map tiles are delayed. Markers and the list of homes still work.');
+      }
     });
     const observer = new ResizeObserver(() => {
       map.resize();

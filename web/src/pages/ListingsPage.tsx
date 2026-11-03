@@ -3,10 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
 import { InventoryWaitlist } from '../components/listings/InventoryWaitlist';
 import { ListingCard } from '../components/listings/ListingCard';
-import { ListingMap, type MapListing } from '../components/listings/ListingMap';
+import { ListingMap, type MapBounds, type MapListing } from '../components/listings/ListingMap';
 import { SaveFeedbackToast } from '../components/listings/SaveFeedbackToast';
 import { ErrorState, Shell } from '../components/Shell';
-import { moneyFromCents } from '../format';
+import { formatListedRent, hasListedRent } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 import { mapStyleUrl } from '../lib/listingFeatures';
 import {
@@ -41,6 +41,7 @@ export function ListingsPage() {
   const [inventoryTab, setInventoryTab] = useState<InventoryTab>('rentals');
   const [rentalTotal, setRentalTotal] = useState(0);
   const [directoryTotal, setDirectoryTotal] = useState(0);
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
@@ -118,8 +119,23 @@ export function ListingsPage() {
     () => partitionPublicInventory(listings ?? []),
     [listings],
   );
-  const visibleListings =
+  const tabListings =
     inventoryTab === 'rentals' ? partitions.rentals : partitions.directory;
+  const visibleListings = useMemo(() => {
+    if (viewMode !== 'map' || !mapBounds) return tabListings;
+    const filtered = tabListings.filter((listing) => {
+      const loc = listing.map_location;
+      if (!loc) return false;
+      return (
+        loc.longitude >= mapBounds.west &&
+        loc.longitude <= mapBounds.east &&
+        loc.latitude >= mapBounds.south &&
+        loc.latitude <= mapBounds.north
+      );
+    });
+    // Keep the shared result set if the viewport momentarily excludes every pin mid-pan.
+    return filtered.length > 0 ? filtered : tabListings;
+  }, [viewMode, mapBounds, tabListings]);
   const rentalCount = rentalTotal;
   const directoryCount = directoryTotal;
   const catalogErrored = Boolean(error);
@@ -150,8 +166,8 @@ export function ListingsPage() {
         ? rentalCount === 0
           ? null
           : rentalCount === 1
-            ? '1 property profile matches your search'
-            : `${rentalCount} property profiles match your search`
+            ? '1 rental matches your search'
+            : `${rentalCount} rentals match your search`
         : directoryCount === 0
           ? null
           : directoryCount === 1
@@ -159,6 +175,7 @@ export function ListingsPage() {
             : `${directoryCount} directory properties`;
 
   function runSearch() {
+    setMapBounds(null);
     setQueryApplied(query);
   }
 
@@ -196,9 +213,11 @@ export function ListingsPage() {
     }
   }
 
-  const mapListings: MapListing[] = visibleListings.flatMap((listing) => {
+  // Markers use the full search result set; the rail may narrow to the current viewport.
+  const mapListings: MapListing[] = tabListings.flatMap((listing) => {
     const location = listing.map_location;
     if (!location) return [];
+    if (!Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) return [];
     return [
       {
         id: listing.id,
@@ -207,9 +226,9 @@ export function ListingsPage() {
         priceLabel:
           listing.inventory_kind === 'directory'
             ? 'Dir'
-            : listing.inventory_kind === 'external' || !listing.rent_amount_cents
-              ? 'Ask'
-              : moneyFromCents(listing.rent_amount_cents),
+            : hasListedRent(listing.rent_amount_cents)
+              ? formatListedRent(listing.rent_amount_cents).replace(/\/mo$/, '')
+              : '•',
       },
     ];
   });
@@ -410,6 +429,7 @@ export function ListingsPage() {
                 onSelectListing={selectListing}
                 styleUrl={styleUrl}
                 searchQuery={queryApplied || query}
+                onBoundsChange={setMapBounds}
               />
             </div>
             <aside className="dwel-map-workspace__rail" aria-label="Matching homes">

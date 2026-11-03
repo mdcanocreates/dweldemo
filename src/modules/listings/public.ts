@@ -12,7 +12,8 @@ import { publishableMapLocation } from './map-location.js';
 type ListingRow = {
   id: string;
   org_id: string;
-  rent_amount_cents: number;
+  rent_amount_cents: number | null;
+  rent_max_cents: number | null;
   deposit_cents: number | null;
   available_on: string | null;
   lease_term_months: number | null;
@@ -58,7 +59,8 @@ const LISTING_SELECT = `
   select
     l.id,
     l.org_id,
-    l.rent_amount_cents,
+    nullif(l.rent_amount_cents, 0) as rent_amount_cents,
+    l.rent_max_cents,
     l.deposit_cents,
     l.available_on::text,
     l.lease_term_months,
@@ -146,6 +148,7 @@ function rowToApiShape(
   return {
     id: row.id,
     rent_amount_cents: row.rent_amount_cents,
+    rent_max_cents: row.rent_max_cents,
     deposit_cents: row.deposit_cents,
     bedrooms: row.bedrooms,
     bathrooms: row.bathrooms,
@@ -409,7 +412,8 @@ export async function listPublicListings(
   }
   if (input.maxRentCents != null) {
     params.push(input.maxRentCents);
-    where.push(`l.rent_amount_cents <= $${params.length}`);
+    // Exclude missing/zero rent from price filters — never treat unknown as $0.
+    where.push(`nullif(l.rent_amount_cents, 0) is not null and l.rent_amount_cents <= $${params.length}`);
   }
   if (input.propertyType) {
     params.push(input.propertyType);
@@ -425,9 +429,9 @@ export async function listPublicListings(
   const whereSql = where.join(' and ');
   const orderSql =
     input.sort === 'rent_asc'
-      ? 'l.rent_amount_cents asc, l.created_at desc'
+      ? 'nullif(l.rent_amount_cents, 0) asc nulls last, l.created_at desc'
       : input.sort === 'rent_desc' || input.sort === 'cashback'
-        ? 'l.rent_amount_cents desc, l.created_at desc'
+        ? 'nullif(l.rent_amount_cents, 0) desc nulls last, l.created_at desc'
         : 'l.published_at desc nulls last, l.created_at desc';
 
   const fromSql = `

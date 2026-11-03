@@ -66,7 +66,8 @@ export type ListingOffer = {
 
 export type Listing = {
   id: string;
-  rent_amount_cents: number;
+  rent_amount_cents: number | null;
+  rent_max_cents?: number | null;
   deposit_cents: number | null;
   bedrooms: number | string | null;
   bathrooms: number | string | null;

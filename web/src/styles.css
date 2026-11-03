@@ -1229,7 +1229,8 @@ h1, h2, h3 {
 .landing-card-media { position: relative; aspect-ratio: 4 / 3; background: #f8faf9; }
 .landing-card-media img,
 .landing-card-fallback { width: 100%; height: 100%; object-fit: cover; }
-.landing-card-cash {
+.landing-card-cash,
+.landing-card-cash--mint {
   position: absolute;
   left: 12px;
   top: 12px;
@@ -1239,14 +1240,99 @@ h1, h2, h3 {
   padding: 0.25rem 0.6rem;
   font-size: 0.75rem;
   font-weight: 700;
+  font-family: var(--font-m);
+}
+.landing-card-media--empty {
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(145deg, #f3faf6 0%, #e8f3ee 55%, #f7faf8 100%);
+}
+.landing-card-media-empty-label {
+  font-family: var(--font-m);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b747f;
 }
 .landing-card-body { padding: 1rem; }
 .landing-card-meta,
-.landing-card-place { margin: 0; color: #6b747f; font-size: 0.8rem; }
-.landing-card-title { margin: 0.35rem 0 0.15rem; font-weight: 600; }
+.landing-card-place { margin: 0; color: #6b747f; font-size: 0.8rem; font-family: var(--font-b); }
+.landing-card-title {
+  margin: 0.35rem 0 0.15rem;
+  font-family: var(--font-d);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.landing-card-rent { font-size: 1.05rem; font-weight: 600; }
 .landing-card-row { margin-top: 0.85rem; }
 .landing-card-row span:first-child { font-size: 1.1rem; font-weight: 600; }
 .landing-card-row span:last-child { font-size: 0.875rem; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.landing-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0 1rem 1rem;
+}
+.dwel-incentive-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.75rem 0 0;
+}
+.dwel-incentive-badge__tag {
+  display: inline-flex;
+  align-self: flex-start;
+  border-radius: 999px;
+  background: #4dfa9f;
+  color: #0b1420;
+  padding: 0.15rem 0.55rem;
+  font-family: var(--font-m);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dwel-incentive-badge__headline {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #0b1420;
+}
+.dwel-detail-offer {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: #f3faf6;
+  border: 1px solid #d7efe3;
+}
+.dwel-detail-offer__headline {
+  margin: 0.35rem 0 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+.dwel-detail-offer__terms {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.dwel-detail-hero-fallback {
+  display: grid;
+  place-content: center;
+  gap: 0.35rem;
+  min-height: 14rem;
+  padding: 2rem;
+  text-align: center;
+  background: linear-gradient(145deg, #f3faf6, #e8f3ee);
+}
+.dwel-detail-hero-fallback .font-display {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
 .landing-empty {
   margin-top: 2rem;
   border: 1px dashed #d1d5db;

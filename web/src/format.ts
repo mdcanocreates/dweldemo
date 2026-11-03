@@ -7,6 +7,26 @@ export function moneyFromCents(cents: number | null | undefined): string {
   }).format(Number(cents) / 100);
 }
 
+/** Never render missing rent as $0. */
+export function formatListedRent(
+  minCents: number | null | undefined,
+  maxCents?: number | null,
+): string {
+  const min = minCents == null ? null : Number(minCents);
+  const max = maxCents == null ? null : Number(maxCents);
+  if (min == null || !Number.isFinite(min) || min <= 0) return 'Price not listed';
+  const minLabel = moneyFromCents(min);
+  if (max != null && Number.isFinite(max) && max > min) {
+    return `${minLabel}–${moneyFromCents(max)}/mo`;
+  }
+  return `${minLabel}/mo`;
+}
+
+export function hasListedRent(minCents: number | null | undefined): boolean {
+  const min = minCents == null ? null : Number(minCents);
+  return min != null && Number.isFinite(min) && min > 0;
+}
+
 export function moneyFromDollars(n: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

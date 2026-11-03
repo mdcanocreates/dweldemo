@@ -31,6 +31,7 @@
     "ops:import-listing-packages": "tsx src/scripts/import-listing-packages-quarantine.ts",
     "ops:publish-hud-directory": "tsx src/scripts/publish-hud-directory.ts",
     "ops:publish-deal-profiles": "tsx src/scripts/publish-deal-profiles.ts",
+    "ops:refresh-deal-marketplace": "tsx src/scripts/refresh-deal-marketplace.ts",
     "ops:ingest-deal-images": "tsx src/scripts/ingest-deal-property-images.ts"
   },
   "dependencies": {
