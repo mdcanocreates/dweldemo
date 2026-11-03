@@ -21,39 +21,54 @@ function ListingCard({
   onSelect: (id: string) => void;
   compact?: boolean;
 }) {
-  const title = formatAddress(listing);
+  const isDirectory = listing.inventory_kind === 'directory';
+  const title = listing.property_name?.trim() || formatAddress(listing);
   const img = listing.media?.[0]?.url;
-  const offer = listing.offers?.[0]?.display_text ?? null;
+  const offer = !isDirectory ? listing.offers?.[0]?.display_text ?? null : null;
   const city = [listing.address.city, listing.address.state].filter(Boolean).join(', ');
+  const channel =
+    listing.listing_channel ||
+    (isDirectory ? 'Affordable housing directory · Inquire to confirm availability' : null);
   return (
     <article
       id={`listing-card-${listing.id}`}
       className={selected ? 'landing-card is-selected' : 'landing-card'}
       data-testid={`card-listing-${listing.id}`}
+      data-inventory-kind={listing.inventory_kind ?? 'partner'}
     >
       <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
         <div className={compact ? 'landing-card-media landing-card-media--compact' : 'landing-card-media'}>
           {img ? <img src={img} alt={title} /> : <div className="landing-card-fallback" />}
           {offer && <span className="landing-card-cash">{offer}</span>}
+          {isDirectory && !offer && <span className="landing-card-cash">Directory</span>}
         </div>
         <div className="landing-card-body">
           <p className="landing-card-meta">
             {titleCaseType(listing.property_type) ?? 'Home'}
             {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
-            {listing.listing_channel ? ` · ${listing.listing_channel}` : ''}
+            {channel ? ` · ${channel}` : ''}
           </p>
           <p className="landing-card-title">{title}</p>
           <p className="landing-card-place">{city}</p>
           <div className="landing-card-row">
-            <span>{moneyFromCents(listing.rent_amount_cents)}/mo</span>
+            <span>
+              {isDirectory
+                ? 'Income-based · availability not confirmed'
+                : `${moneyFromCents(listing.rent_amount_cents)}/mo`}
+            </span>
           </div>
           {offer && (
             <p className="dwel-offer-disclaimer">Offer advertised by property; terms apply.</p>
           )}
+          {isDirectory && (
+            <p className="dwel-offer-disclaimer">
+              Directory entry only. Contact the property to confirm openings and eligibility.
+            </p>
+          )}
         </div>
       </button>
       <Link className="dwel-listing-open" to={`/listings/${listing.id}`}>
-        View home →
+        {isDirectory ? 'View property →' : 'View home →'}
       </Link>
     </article>
   );
@@ -84,7 +99,8 @@ export function ListingsPage() {
   const showDollarEstimate = savingsEstimateEnabled();
   const catalogEmpty = !error && listings !== null && listings.length === 0;
   const catalogErrored = Boolean(error);
-  const mapMode = viewMode === 'map' && !catalogEmpty && !catalogErrored;
+  const mapAvailable = Boolean(styleUrl) && !catalogErrored;
+  const mapMode = viewMode === 'map' && mapAvailable;
 
   useEffect(() => {
     let cancelled = false;
@@ -109,13 +125,13 @@ export function ListingsPage() {
           setSelectedListingId((current) =>
             current && publishable.some((listing) => listing.id === current) ? current : null,
           );
-          if (publishable.length === 0) setViewMode('list');
         }
       } catch (err) {
         if (!cancelled) {
           setListings(null);
           setTotal(0);
           setError(err instanceof ApiError ? err.message : 'Listings could not be loaded.');
+          setViewMode('list');
         }
       } finally {
         if (!cancelled) {
@@ -205,7 +221,7 @@ export function ListingsPage() {
             {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
             <h1 className="section-title">Find a home</h1>
           </div>
-          {!catalogEmpty && !catalogErrored && (
+          {mapAvailable && (
             <div className="dwel-listings-toolbar__modes" role="group" aria-label="List or map">
               <button type="button" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}>
                 List
@@ -243,7 +259,7 @@ export function ListingsPage() {
           </div>
         )}
 
-        {!catalogEmpty && !catalogErrored && (
+        {!catalogErrored && (
           <>
             <div className="search-row">
               <div className="field" style={{ margin: 0 }}>
@@ -265,52 +281,52 @@ export function ListingsPage() {
                 Search homes
               </button>
             </div>
-            <div className="filter-bar">
-              <div className="field">
-                <label htmlFor="beds">Beds</label>
-                <select id="beds" value={beds} onChange={(e) => setBeds(e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="1">1+</option>
-                  <option value="2">2+</option>
-                  <option value="3">3+</option>
-                </select>
+            {!catalogEmpty && (
+              <div className="filter-bar">
+                <div className="field">
+                  <label htmlFor="beds">Beds</label>
+                  <select id="beds" value={beds} onChange={(e) => setBeds(e.target.value)}>
+                    <option value="">Any</option>
+                    <option value="1">1+</option>
+                    <option value="2">2+</option>
+                    <option value="3">3+</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="baths">Baths</label>
+                  <select id="baths" value={baths} onChange={(e) => setBaths(e.target.value)}>
+                    <option value="">Any</option>
+                    <option value="1">1+</option>
+                    <option value="2">2+</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="ptype">Property type</label>
+                  <select id="ptype" value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
+                    <option value="">Any</option>
+                    <option value="multifamily">Multifamily</option>
+                    <option value="single_family">Single family</option>
+                    <option value="condo">Condo</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="sort">Sort</label>
+                  <select
+                    id="sort"
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value as typeof sort)}
+                  >
+                    <option value="rent_asc">Rent: low to high</option>
+                    <option value="rent_desc">Rent: high to low</option>
+                    <option value="cashback">Verified cashback</option>
+                  </select>
+                </div>
               </div>
-              <div className="field">
-                <label htmlFor="baths">Baths</label>
-                <select id="baths" value={baths} onChange={(e) => setBaths(e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="1">1+</option>
-                  <option value="2">2+</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="ptype">Property type</label>
-                <select id="ptype" value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="multifamily">Multifamily</option>
-                  <option value="single_family">Single family</option>
-                  <option value="condo">Condo</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="sort">Sort</label>
-                <select
-                  id="sort"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as typeof sort)}
-                >
-                  <option value="rent_asc">Rent: low to high</option>
-                  <option value="rent_desc">Rent: high to low</option>
-                  <option value="cashback">Verified cashback</option>
-                </select>
-              </div>
-            </div>
+            )}
           </>
         )}
 
-        {catalogEmpty ? (
-          <InventoryWaitlist initialCity={queryApplied || query} />
-        ) : catalogErrored ? null : mapMode ? (
+        {catalogErrored ? null : mapMode ? (
           <div className="dwel-map-workspace" data-testid="listings-map-workspace">
             <div className="dwel-map-workspace__map">
               <ListingMap
@@ -318,46 +334,55 @@ export function ListingsPage() {
                 selectedListingId={selectedListingId}
                 onSelectListing={selectListing}
                 styleUrl={styleUrl}
+                searchQuery={queryApplied || query}
               />
             </div>
             <aside className="dwel-map-workspace__rail" aria-label="Matching homes">
-              {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}
-              {!error && listings === null && (
-                <div className="listing-grid">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="skeleton" style={{ height: '12rem' }} />
-                  ))}
-                </div>
-              )}
-              {!error && listings && listings.length > 0 && (
+              {catalogEmpty ? (
+                <InventoryWaitlist initialCity={queryApplied || query} />
+              ) : (
                 <>
-                  <div className="dwel-map-workspace__cards">
-                    {listings.map((listing) => (
-                      <ListingCard
-                        key={listing.id}
-                        listing={listing}
-                        selected={listing.id === selectedListingId}
-                        onSelect={selectListing}
-                        compact
-                      />
-                    ))}
-                  </div>
-                  {listings.length < total && (
-                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                      <button
-                        type="button"
-                        className="btn btn-outline"
-                        onClick={() => void loadMore()}
-                        disabled={loadingMore}
-                      >
-                        {loadingMore ? 'Loading…' : 'Load more'}
-                      </button>
+                  {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}
+                  {!error && listings === null && (
+                    <div className="listing-grid">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="skeleton" style={{ height: '12rem' }} />
+                      ))}
                     </div>
+                  )}
+                  {!error && listings && listings.length > 0 && (
+                    <>
+                      <div className="dwel-map-workspace__cards">
+                        {listings.map((listing) => (
+                          <ListingCard
+                            key={listing.id}
+                            listing={listing}
+                            selected={listing.id === selectedListingId}
+                            onSelect={selectListing}
+                            compact
+                          />
+                        ))}
+                      </div>
+                      {listings.length < total && (
+                        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => void loadMore()}
+                            disabled={loadingMore}
+                          >
+                            {loadingMore ? 'Loading…' : 'Load more'}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
             </aside>
           </div>
+        ) : catalogEmpty ? (
+          <InventoryWaitlist initialCity={queryApplied || query} />
         ) : (
           <div className="dwel-listings-results" data-testid="listings-list-workspace">
             {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}

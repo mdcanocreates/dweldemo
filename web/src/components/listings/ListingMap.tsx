@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { resolveCityCenter } from '../../lib/cityCenters';
+import type { MapStyleValue } from '../../lib/listingFeatures';
 import { prepareMapPins, type MapPinInput } from '../../lib/mapPins';
 
 export type MapListing = MapPinInput;
@@ -9,20 +11,29 @@ type Props = {
   listings: MapListing[];
   selectedListingId: string | null;
   onSelectListing: (id: string) => void;
-  styleUrl: string;
+  styleUrl: MapStyleValue;
+  /** Optional location query used for city-level centering when pins are absent. */
+  searchQuery?: string;
 };
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
 
-export function ListingMap({ listings, selectedListingId, onSelectListing, styleUrl }: Props) {
+export function ListingMap({
+  listings,
+  selectedListingId,
+  onSelectListing,
+  styleUrl,
+  searchQuery,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const selectRef = useRef(onSelectListing);
   const selectedRef = useRef(selectedListingId);
   const [tileError, setTileError] = useState<string | null>(null);
   const fittedKey = useRef('');
+  const cityKey = useRef('');
 
   useEffect(() => {
     selectRef.current = onSelectListing;
@@ -35,11 +46,17 @@ export function ListingMap({ listings, selectedListingId, onSelectListing, style
   useEffect(() => {
     if (!containerRef.current || !styleUrl) return;
     setTileError(null);
+    const city = resolveCityCenter(searchQuery);
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleUrl,
-      center: [-97.7431, 30.2672],
-      zoom: 3,
+      style: styleUrl as string | maplibregl.StyleSpecification,
+      center: [city.longitude, city.latitude],
+      zoom: city.zoom,
+      attributionControl: {
+        compact: true,
+        customAttribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
     map.on('error', () => {
@@ -48,9 +65,12 @@ export function ListingMap({ listings, selectedListingId, onSelectListing, style
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);
     mapRef.current = map;
+    cityKey.current = '';
+    fittedKey.current = '';
     return () => {
       observer.disconnect();
       fittedKey.current = '';
+      cityKey.current = '';
       map.remove();
       mapRef.current = null;
     };
@@ -101,8 +121,19 @@ export function ListingMap({ listings, selectedListingId, onSelectListing, style
       .sort()
       .join('|');
     const fit = () => {
-      if (markers.length === 0 || fittedKey.current === geographyKey) return;
+      if (markers.length === 0) {
+        const city = resolveCityCenter(searchQuery);
+        const nextCityKey = `${city.name}:${city.latitude}:${city.longitude}:${searchQuery ?? ''}`;
+        if (cityKey.current === nextCityKey) return;
+        cityKey.current = nextCityKey;
+        fittedKey.current = '';
+        const motion = prefersReducedMotion() ? 0 : 400;
+        map.easeTo({ center: [city.longitude, city.latitude], zoom: city.zoom, duration: motion });
+        return;
+      }
+      if (fittedKey.current === geographyKey) return;
       fittedKey.current = geographyKey;
+      cityKey.current = '';
       const motion = prefersReducedMotion() ? 0 : 400;
       if (markers.length === 1) {
         map.easeTo({ center: bounds.getCenter(), zoom: 11, duration: motion });
@@ -123,7 +154,7 @@ export function ListingMap({ listings, selectedListingId, onSelectListing, style
     return () => {
       for (const marker of markers) marker.remove();
     };
-  }, [listings, selectedListingId]);
+  }, [listings, selectedListingId, searchQuery]);
 
   if (!styleUrl) {
     return (
@@ -140,7 +171,9 @@ export function ListingMap({ listings, selectedListingId, onSelectListing, style
       <p className="dwel-map-panel__heading">Homes in this area</p>
       {tileError && <p className="dwel-map-panel__unavailable" role="alert">{tileError}</p>}
       <div ref={containerRef} className="dwel-map-panel__canvas" aria-label="Map of available homes" />
-      <p className="dwel-map-panel__disclaimer">Locations are approximate.</p>
+      <p className="dwel-map-panel__disclaimer">
+        Locations are approximate. Map data © OpenStreetMap contributors.
+      </p>
     </section>
   );
 }

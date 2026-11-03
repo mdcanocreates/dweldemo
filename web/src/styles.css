@@ -1540,7 +1540,8 @@ a.landing-card { display: block; color: inherit; text-decoration: none; }
 }
 .dwel-map-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.85fr) minmax(280px, 0.95fr);
+  /* ~65% map / 35% listing rail */
+  grid-template-columns: minmax(0, 65fr) minmax(280px, 35fr);
   gap: 0;
   width: 100%;
   min-height: min(68dvh, 720px);

@@ -23,9 +23,10 @@ type ListingRow = {
   status: string;
   description: string | null;
   is_demo: boolean;
-  inventory_kind: 'partner' | 'external' | 'demo';
+  inventory_kind: 'partner' | 'external' | 'demo' | 'directory';
   application_fee_cents: number | null;
   reusable_application_eligible: boolean;
+  property_name: string | null;
   line1: string | null;
   line2: string | null;
   city: string | null;
@@ -70,7 +71,8 @@ const LISTING_SELECT = `
     u.bathrooms,
     u.sqft,
     p.property_type,
-    sl.description,
+    p.display_name as property_name,
+    coalesce(sl.description, l.public_description) as description,
     a.line1,
     a.line2,
     a.city,
@@ -133,7 +135,14 @@ function rowToApiShape(
       attribution_text: offer.attribution_text,
     }));
   const cashbackOffer = verifiedOffers.find((offer) => offer.offer_type === 'cashback');
-  const inventoryKind = row.inventory_kind === 'external' ? 'external' : row.inventory_kind === 'demo' ? 'demo' : 'partner';
+  const inventoryKind =
+    row.inventory_kind === 'external'
+      ? 'external'
+      : row.inventory_kind === 'demo'
+        ? 'demo'
+        : row.inventory_kind === 'directory'
+          ? 'directory'
+          : 'partner';
   return {
     id: row.id,
     rent_amount_cents: row.rent_amount_cents,
@@ -142,11 +151,17 @@ function rowToApiShape(
     bathrooms: row.bathrooms,
     sqft: row.sqft,
     property_type: row.property_type,
+    property_name: row.property_name,
     available_on: row.available_on,
     lease_term_months: row.lease_term_months,
     description: row.description,
     inventory_kind: inventoryKind,
-    listing_channel: inventoryKind === 'external' ? 'Listed by external property' : 'Partner listing',
+    listing_channel:
+      inventoryKind === 'directory'
+        ? 'Affordable housing directory · Inquire to confirm availability'
+        : inventoryKind === 'external'
+          ? 'Listed by external property'
+          : 'Partner listing',
     application_fee_cents: row.application_fee_cents,
     reusable_application_eligible: row.reusable_application_eligible,
     // Dwel cashback only from a verified cashback offer. Never invent a percentage from rent.

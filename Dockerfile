@@ -34,6 +34,12 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 # SQL migrations for one-off ECS migrate tasks (not loaded by the API server).
 COPY migrations ./migrations
+# HUD open-data package extract for directory publish / quarantine ops (no Rent.com photos).
+COPY tmp-listing-packages/Dwel_HUD_500_Listings ./package-data/Dwel_HUD_500_Listings
+COPY tmp-listing-packages/Dwel_HUD_500_PM_Emails ./package-data/Dwel_HUD_500_PM_Emails
+COPY tmp-listing-packages/Dwel_Deal_Listings_510 ./package-data/Dwel_Deal_Listings_510
+COPY tmp-listing-packages/Dwel_Deal_Contacts ./package-data/Dwel_Deal_Contacts
+COPY tmp-listing-packages/Dwel_Listings_With_Emails_643 ./package-data/Dwel_Listings_With_Emails_643
 
 RUN addgroup -S rbit && adduser -S rbit -G rbit \
   && chown -R rbit:rbit /app

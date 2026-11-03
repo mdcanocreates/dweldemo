@@ -75,7 +75,8 @@ export type Listing = {
   available_on: string | null;
   lease_term_months: number | null;
   description: string | null;
-  inventory_kind?: 'partner' | 'external' | 'demo' | null;
+  property_name?: string | null;
+  inventory_kind?: 'partner' | 'external' | 'demo' | 'directory' | null;
   listing_channel?: string | null;
   cashback_cents?: number | null;
   offers?: ListingOffer[] | null;
