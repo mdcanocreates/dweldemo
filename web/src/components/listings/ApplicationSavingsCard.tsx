@@ -21,8 +21,11 @@ export function ApplicationSavingsCard({
       )}
       {status === 'unavailable' && (
         <>
-          <p className="dwel-savings-card__empty">See how much you could save</p>
-          <p className="dwel-savings-card__description">One application. More homes.</p>
+          <p className="dwel-savings-card__empty">Savings not estimated yet</p>
+          <p className="dwel-savings-card__description">
+            Heart homes that publish application fees and accept reusable Dwel screening. We never invent a
+            dollar amount.
+          </p>
         </>
       )}
       {ready && estimate && (

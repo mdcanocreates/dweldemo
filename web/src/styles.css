@@ -1823,3 +1823,218 @@ a.landing-card { display: block; color: inherit; text-decoration: none; }
 .lv5-hero-kicker {
   letter-spacing: 0.12em;
 }
+
+.dwel-nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: hsl(var(--secondary));
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.dwel-inventory-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  flex-wrap: wrap;
+}
+.dwel-inventory-tabs button {
+  appearance: none;
+  border: 1px solid hsl(var(--border));
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.dwel-inventory-tabs button span {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: #eef1ef;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+.dwel-inventory-tabs button.is-active {
+  background: hsl(var(--secondary));
+  border-color: hsl(var(--secondary));
+  color: #fff;
+}
+.dwel-inventory-tabs button.is-active span {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.dwel-directory-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  background: #f3f6f4;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.dwel-card-media-wrap {
+  position: relative;
+}
+.dwel-heart-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+.dwel-heart--overlay {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
+}
+.dwel-heart {
+  appearance: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.94);
+  color: hsl(var(--secondary));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(16, 24, 20, 0.12);
+}
+.dwel-heart svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.dwel-heart.is-saved {
+  background: hsl(var(--secondary));
+  color: #fff;
+}
+.dwel-heart-error {
+  font-size: 0.7rem;
+  color: #b42318;
+  background: #fff;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+}
+.landing-card-fallback {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, rgba(246, 248, 247, 0.2), rgba(232, 237, 234, 0.95)),
+    repeating-linear-gradient(
+      -45deg,
+      #f7f9f8 0,
+      #f7f9f8 12px,
+      #eef2f0 12px,
+      #eef2f0 24px
+    );
+}
+.landing-card-fallback__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b747f;
+}
+.landing-card-fallback__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #24312b;
+  max-width: 14rem;
+  line-height: 1.35;
+}
+.landing-card-media--directory,
+.landing-card--directory .landing-card-media {
+  aspect-ratio: 16 / 9;
+}
+.landing-grid--directory {
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+.dwel-detail-hero {
+  position: relative;
+  margin-top: 1rem;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  background: hsl(var(--muted));
+  min-height: 16rem;
+}
+.dwel-detail-hero > img {
+  width: 100%;
+  max-height: 28rem;
+  object-fit: cover;
+  display: block;
+}
+.dwel-detail-hero .landing-card-media {
+  min-height: 16rem;
+}
+.dwel-detail-gallery {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  overflow-x: auto;
+}
+.dwel-detail-gallery button {
+  appearance: none;
+  border: 2px solid transparent;
+  padding: 0;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  width: 4.5rem;
+  height: 3.25rem;
+  cursor: pointer;
+  background: #fff;
+}
+.dwel-detail-gallery button.is-active {
+  border-color: hsl(var(--secondary));
+}
+.dwel-detail-gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dwel-detail-layout {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  grid-template-columns: 1fr minmax(16rem, 20rem);
+}
+.dwel-detail-address {
+  color: hsl(var(--muted-foreground));
+  margin: 0.35rem 0 0;
+}
+.dwel-detail-rent {
+  margin: 0.75rem 0 0;
+  font-size: 1.35rem;
+  font-family: var(--font-d);
+  font-weight: 700;
+}
+.dwel-detail-rent span {
+  font-size: 0.95rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+}
+.dwel-detail-aside {
+  padding: 1.25rem;
+  align-self: start;
+}
+@media (max-width: 900px) {
+  .dwel-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}

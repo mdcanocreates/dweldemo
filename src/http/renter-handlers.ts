@@ -1376,11 +1376,14 @@ export async function handleRemoveSavedListing(
     const body = z.object({ listing_id: z.string().uuid() }).parse(await readJsonBody(req));
     const identity = await requireSession(deps.pool, req);
     const { partyId } = await effectiveRenterPartyId(deps.pool, req, identity);
-    const result = await withTenantContext(
-      deps.pool,
-      { partyId },
-      (client) => removeSavedListing(client, { partyId, listingId: body.listing_id }),
-    );
+    const result = await withTenantContext(deps.pool, { partyId }, async (client) => {
+      const removed = await removeSavedListing(client, {
+        partyId,
+        listingId: body.listing_id,
+      });
+      const savings = await estimateSavedApplicationSavings(client, partyId);
+      return { ...removed, savings };
+    });
     sendJson(res, 200, result);
   } catch (err) {
     if (err instanceof z.ZodError) {

@@ -5,6 +5,7 @@ import App from './App';
 import { AuthProvider } from './auth';
 import { StagingBanner } from './components/layout/StagingBanner';
 import { configureAnalytics, startEngagementTracking, trackPageview } from './lib/analytics';
+import { SavedHomesProvider } from './savedHomes';
 import './styles.css';
 import './styles/landing-v5.css';
 
@@ -22,8 +23,10 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <HashRouter>
       <AuthProvider>
-        <StagingBanner />
-        <App />
+        <SavedHomesProvider>
+          <StagingBanner />
+          <App />
+        </SavedHomesProvider>
       </AuthProvider>
     </HashRouter>
   </StrictMode>,

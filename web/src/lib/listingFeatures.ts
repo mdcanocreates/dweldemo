@@ -14,6 +14,7 @@ export function mapStyleUrl(): MapStyleValue {
   return osmRasterStyle();
 }
 
+/** Automatic savings UI is on unless explicitly disabled. */
 export function savingsEstimateEnabled(): boolean {
-  return import.meta.env.VITE_DWEL_SAVINGS_ENABLED === 'true';
+  return import.meta.env.VITE_DWEL_SAVINGS_ENABLED !== 'false';
 }

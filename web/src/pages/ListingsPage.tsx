@@ -1,78 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError, type Listing } from '../api';
 import { ApplicationSavingsCard } from '../components/listings/ApplicationSavingsCard';
 import { InventoryWaitlist } from '../components/listings/InventoryWaitlist';
+import { ListingCard } from '../components/listings/ListingCard';
 import { ListingMap, type MapListing } from '../components/listings/ListingMap';
 import { ErrorState, Shell } from '../components/Shell';
-import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
+import { moneyFromCents } from '../format';
 import { useDelayedPending } from '../hooks/useDelayedPending';
 import { mapStyleUrl, savingsEstimateEnabled } from '../lib/listingFeatures';
-import { publishablePublicListings } from '../lib/publicInventory';
+import { partitionPublicInventory, publishablePublicListings } from '../lib/publicInventory';
+import { useSavedHomesContext } from '../savedHomes';
 
-function ListingCard({
-  listing,
-  selected,
-  onSelect,
-  compact = false,
-}: {
-  listing: Listing;
-  selected: boolean;
-  onSelect: (id: string) => void;
-  compact?: boolean;
-}) {
-  const isDirectory = listing.inventory_kind === 'directory';
-  const title = listing.property_name?.trim() || formatAddress(listing);
-  const img = listing.media?.[0]?.url;
-  const offer = !isDirectory ? listing.offers?.[0]?.display_text ?? null : null;
-  const city = [listing.address.city, listing.address.state].filter(Boolean).join(', ');
-  const channel =
-    listing.listing_channel ||
-    (isDirectory ? 'Affordable housing directory · Inquire to confirm availability' : null);
-  return (
-    <article
-      id={`listing-card-${listing.id}`}
-      className={selected ? 'landing-card is-selected' : 'landing-card'}
-      data-testid={`card-listing-${listing.id}`}
-      data-inventory-kind={listing.inventory_kind ?? 'partner'}
-    >
-      <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
-        <div className={compact ? 'landing-card-media landing-card-media--compact' : 'landing-card-media'}>
-          {img ? <img src={img} alt={title} /> : <div className="landing-card-fallback" />}
-          {offer && <span className="landing-card-cash">{offer}</span>}
-          {isDirectory && !offer && <span className="landing-card-cash">Directory</span>}
-        </div>
-        <div className="landing-card-body">
-          <p className="landing-card-meta">
-            {titleCaseType(listing.property_type) ?? 'Home'}
-            {listing.bedrooms != null ? ` · ${formatBedsBaths(listing.bedrooms, listing.bathrooms)}` : ''}
-            {channel ? ` · ${channel}` : ''}
-          </p>
-          <p className="landing-card-title">{title}</p>
-          <p className="landing-card-place">{city}</p>
-          <div className="landing-card-row">
-            <span>
-              {isDirectory
-                ? 'Income-based · availability not confirmed'
-                : `${moneyFromCents(listing.rent_amount_cents)}/mo`}
-            </span>
-          </div>
-          {offer && (
-            <p className="dwel-offer-disclaimer">Offer advertised by property; terms apply.</p>
-          )}
-          {isDirectory && (
-            <p className="dwel-offer-disclaimer">
-              Directory entry only. Contact the property to confirm openings and eligibility.
-            </p>
-          )}
-        </div>
-      </button>
-      <Link className="dwel-listing-open" to={`/listings/${listing.id}`}>
-        {isDirectory ? 'View property →' : 'View home →'}
-      </Link>
-    </article>
-  );
-}
+type InventoryTab = 'rentals' | 'directory';
 
 export function ListingsPage() {
   const [params] = useSearchParams();
@@ -92,15 +32,13 @@ export function ListingsPage() {
   const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('rent_asc');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [inventoryTab, setInventoryTab] = useState<InventoryTab>('rentals');
   const [reloadToken, setReloadToken] = useState(0);
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
   const styleUrl = mapStyleUrl();
   const showDollarEstimate = savingsEstimateEnabled();
-  const catalogEmpty = !error && listings !== null && listings.length === 0;
-  const catalogErrored = Boolean(error);
-  const mapAvailable = Boolean(styleUrl) && !catalogErrored;
-  const mapMode = viewMode === 'map' && mapAvailable;
+  const { estimate, estimateStatus } = useSavedHomesContext();
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +63,8 @@ export function ListingsPage() {
           setSelectedListingId((current) =>
             current && publishable.some((listing) => listing.id === current) ? current : null,
           );
+          const parts = partitionPublicInventory(publishable);
+          setInventoryTab(parts.rentals.length > 0 ? 'rentals' : 'directory');
         }
       } catch (err) {
         if (!cancelled) {
@@ -145,14 +85,34 @@ export function ListingsPage() {
     };
   }, [queryApplied, beds, baths, propertyType, sort, reloadToken]);
 
+  const partitions = useMemo(
+    () => partitionPublicInventory(listings ?? []),
+    [listings],
+  );
+  const visibleListings =
+    inventoryTab === 'rentals' ? partitions.rentals : partitions.directory;
+  const catalogErrored = Boolean(error);
+  const rentalsEmpty = !error && listings !== null && partitions.rentals.length === 0;
+  const directoryEmpty = !error && listings !== null && partitions.directory.length === 0;
+  const visibleEmpty =
+    !error && listings !== null && visibleListings.length === 0;
+  const mapAvailable = Boolean(styleUrl) && !catalogErrored;
+  const mapMode = viewMode === 'map' && mapAvailable;
+
   const matchLabel =
     listings === null || error
       ? null
-      : catalogEmpty
-        ? null
-        : total === 1
-          ? '1 home matches your search'
-          : `${total} homes match your search`;
+      : inventoryTab === 'rentals'
+        ? partitions.rentals.length === 0
+          ? null
+          : partitions.rentals.length === 1
+            ? '1 rental matches your search'
+            : `${partitions.rentals.length} rentals match your search`
+        : partitions.directory.length === 0
+          ? null
+          : partitions.directory.length === 1
+            ? '1 directory property'
+            : `${partitions.directory.length} directory properties`;
 
   function runSearch() {
     setQueryApplied(query);
@@ -189,27 +149,30 @@ export function ListingsPage() {
     }
   }
 
-  const mapListings: MapListing[] = (listings ?? []).flatMap((listing) => {
+  const mapListings: MapListing[] = visibleListings.flatMap((listing) => {
     const location = listing.map_location;
     if (!location) return [];
-    return [{
-      id: listing.id,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      priceLabel:
-        listing.inventory_kind === 'directory'
-          ? 'Dir'
-          : moneyFromCents(listing.rent_amount_cents),
-    }];
+    return [
+      {
+        id: listing.id,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        priceLabel:
+          listing.inventory_kind === 'directory'
+            ? 'Dir'
+            : moneyFromCents(listing.rent_amount_cents),
+      },
+    ];
   });
 
-  const savingsStatus = catalogEmpty || !showDollarEstimate
-    ? 'unavailable'
-    : error
-      ? 'error'
-      : initialLoading
-        ? 'loading'
-        : 'unavailable';
+  const savingsCardStatus =
+    !showDollarEstimate
+      ? 'unavailable'
+      : error
+        ? 'error'
+        : initialLoading
+          ? 'loading'
+          : estimateStatus;
 
   return (
     <Shell fullBleed={mapMode}>
@@ -217,7 +180,8 @@ export function ListingsPage() {
       <div
         className={mapMode ? 'dwel-listings-shell dwel-listings-shell--map' : 'dwel-listings-shell'}
         data-view={mapMode ? 'map' : 'list'}
-        data-catalog={catalogEmpty ? 'empty' : 'ready'}
+        data-catalog={visibleEmpty ? 'empty' : 'ready'}
+        data-inventory-tab={inventoryTab}
       >
         <div className="dwel-listings-toolbar">
           <div className="dwel-listings-toolbar__intro">
@@ -234,9 +198,9 @@ export function ListingsPage() {
               </button>
             </div>
           )}
-          {!catalogEmpty && !catalogErrored && showDollarEstimate && (
+          {showDollarEstimate && (
             <div className="dwel-listings-toolbar__savings">
-              <ApplicationSavingsCard estimate={null} status={savingsStatus} />
+              <ApplicationSavingsCard estimate={estimate} status={savingsCardStatus} />
             </div>
           )}
         </div>
@@ -264,6 +228,28 @@ export function ListingsPage() {
 
         {!catalogErrored && (
           <>
+            <div className="dwel-inventory-tabs" role="tablist" aria-label="Inventory type">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={inventoryTab === 'rentals'}
+                className={inventoryTab === 'rentals' ? 'is-active' : undefined}
+                onClick={() => setInventoryTab('rentals')}
+              >
+                Available rentals
+                <span>{partitions.rentals.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={inventoryTab === 'directory'}
+                className={inventoryTab === 'directory' ? 'is-active' : undefined}
+                onClick={() => setInventoryTab('directory')}
+              >
+                Housing directory
+                <span>{partitions.directory.length}</span>
+              </button>
+            </div>
             <div className="search-row">
               <div className="field" style={{ margin: 0 }}>
                 <label htmlFor="loc">Location</label>
@@ -284,7 +270,7 @@ export function ListingsPage() {
                 Search homes
               </button>
             </div>
-            {!catalogEmpty && (
+            {inventoryTab === 'rentals' && !rentalsEmpty && (
               <div className="filter-bar">
                 <div className="field">
                   <label htmlFor="beds">Beds</label>
@@ -326,6 +312,12 @@ export function ListingsPage() {
                 </div>
               </div>
             )}
+            {inventoryTab === 'directory' && !directoryEmpty && (
+              <p className="dwel-directory-banner">
+                Affordable housing directory entries are not confirmed vacant rentals. Availability and
+                eligibility must be verified with each property.
+              </p>
+            )}
           </>
         )}
 
@@ -341,11 +333,14 @@ export function ListingsPage() {
               />
             </div>
             <aside className="dwel-map-workspace__rail" aria-label="Matching homes">
-              {catalogEmpty ? (
-                <InventoryWaitlist initialCity={queryApplied || query} />
+              {visibleEmpty ? (
+                inventoryTab === 'rentals' ? (
+                  <InventoryWaitlist initialCity={queryApplied || query} />
+                ) : (
+                  <p className="muted">No directory properties match this search.</p>
+                )
               ) : (
                 <>
-                  {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}
                   {!error && listings === null && (
                     <div className="listing-grid">
                       {[0, 1, 2].map((i) => (
@@ -353,10 +348,10 @@ export function ListingsPage() {
                       ))}
                     </div>
                   )}
-                  {!error && listings && listings.length > 0 && (
+                  {visibleListings.length > 0 && (
                     <>
                       <div className="dwel-map-workspace__cards">
-                        {listings.map((listing) => (
+                        {visibleListings.map((listing) => (
                           <ListingCard
                             key={listing.id}
                             listing={listing}
@@ -366,7 +361,7 @@ export function ListingsPage() {
                           />
                         ))}
                       </div>
-                      {listings.length < total && (
+                      {listings && listings.length < total && (
                         <div style={{ marginTop: '1rem', textAlign: 'center' }}>
                           <button
                             type="button"
@@ -384,22 +379,32 @@ export function ListingsPage() {
               )}
             </aside>
           </div>
-        ) : catalogEmpty ? (
-          <InventoryWaitlist initialCity={queryApplied || query} />
+        ) : visibleEmpty ? (
+          inventoryTab === 'rentals' ? (
+            <InventoryWaitlist initialCity={queryApplied || query} />
+          ) : (
+            <p className="muted" style={{ marginTop: '1.5rem' }}>
+              No directory properties match this search.
+            </p>
+          )
         ) : (
           <div className="dwel-listings-results" data-testid="listings-list-workspace">
-            {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}
-            {!error && listings === null && (
+            {listings === null && (
               <div className="listing-grid" style={{ marginTop: '1rem' }}>
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="skeleton" style={{ height: '16rem' }} />
                 ))}
               </div>
             )}
-            {!error && listings && listings.length > 0 && (
+            {visibleListings.length > 0 && (
               <>
-                <div className="landing-grid" style={{ marginTop: '1.25rem' }}>
-                  {listings.map((listing) => (
+                <div
+                  className={
+                    inventoryTab === 'directory' ? 'landing-grid landing-grid--directory' : 'landing-grid'
+                  }
+                  style={{ marginTop: '1.25rem' }}
+                >
+                  {visibleListings.map((listing) => (
                     <ListingCard
                       key={listing.id}
                       listing={listing}
@@ -408,7 +413,7 @@ export function ListingsPage() {
                     />
                   ))}
                 </div>
-                {listings.length < total && (
+                {listings && listings.length < total && (
                   <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
                     <button
                       type="button"

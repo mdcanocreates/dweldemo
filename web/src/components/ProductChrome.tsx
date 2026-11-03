@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { useSavedHomesContext } from '../savedHomes';
 import { Footer } from './Footer';
 import { DWEL_FOOTER_LINKS } from '../config/footerLinks';
 
@@ -15,6 +16,7 @@ export function ProductMark({ to = '/' }: { to?: string }) {
 
 export function ProductHeader() {
   const { user, logout } = useAuth();
+  const { savedCount } = useSavedHomesContext();
   const landlord = Boolean(user?.landlordOrgId);
   const broker = Boolean(user?.brokerOrgId);
   const admin = Boolean(
@@ -30,7 +32,10 @@ export function ProductHeader() {
           <NavLink to="/partner" className="landing-nav-partner">
             Dwel Partner
           </NavLink>
-          <NavLink to="/saved">Saved</NavLink>
+          <NavLink to="/saved">
+            Saved
+            {savedCount > 0 ? <span className="dwel-nav-count">{savedCount}</span> : null}
+          </NavLink>
           {user && <NavLink to="/applications">My applications</NavLink>}
           {landlord && <NavLink to="/landlord">Home provider</NavLink>}
           {broker && <NavLink to="/broker">Broker</NavLink>}

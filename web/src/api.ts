@@ -322,6 +322,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ listing_id: listingId }),
     }),
+  unsaveListing: (listingId: string) =>
+    request<{
+      removed: boolean;
+      savings?: {
+        estimate: {
+          eligibleHomes: number;
+          estimatedSavingsCents: number;
+          completeEstimate: boolean;
+        } | null;
+        eligibleSaved: number;
+        savedCount: number;
+      };
+    }>('/v1/renter/saved', {
+      method: 'DELETE',
+      body: JSON.stringify({ listing_id: listingId }),
+    }),
   createListingInquiry: (input: {
     listing_id: string;
     requested_action: 'request_information' | 'ask_availability' | 'schedule_tour';

@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, type Listing, type RenterApplicationSummary } from '../api';
 import { useAuth } from '../auth';
+import { HeartButton } from '../components/listings/HeartButton';
+import { ListingMedia } from '../components/listings/ListingMedia';
 import { applicationStatusLabel } from '../lib/application-status';
 import { InlineSpinner } from '../components/FrogPageLoader';
 import { ErrorState, Shell } from '../components/Shell';
 import { formatAddress, formatBedsBaths, moneyFromCents, titleCaseType } from '../format';
 import { track } from '../lib/analytics';
 import { useDelayedPending } from '../hooks/useDelayedPending';
+import { isDirectoryListing } from '../lib/publicInventory';
+import { useSavedHomesContext } from '../savedHomes';
 
 const TERMINAL_STATUS = new Set(['declined', 'withdrawn', 'closed']);
 
@@ -15,6 +19,7 @@ export function ListingDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { toggleSave, isSaved, estimate } = useSavedHomesContext();
   const [listing, setListing] = useState<Listing | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -105,26 +110,29 @@ export function ListingDetailPage() {
     return <Shell>{showInline ? <InlineSpinner label="Loading this home…" /> : null}</Shell>;
   }
 
-  const title = formatAddress(listing);
+  const directory = isDirectoryListing(listing);
+  const title = listing.property_name?.trim() || formatAddress(listing);
   const media = listing.media?.filter((item) => item.url) ?? [];
   const hero = media[photoIndex]?.url ?? media[0]?.url;
 
   async function saveHome() {
     setSavedNote(null);
+    const wasSaved = isSaved(listing!.id);
     try {
-      const saved = await api.saveListing(listing!.id);
-      const savings = saved.savings;
-      if (savings?.estimate?.completeEstimate) {
+      await toggleSave(listing!);
+      if (wasSaved) {
+        setSavedNote('Removed from saved homes. The savings estimate updates automatically.');
+      } else if (estimate?.completeEstimate) {
         setSavedNote(
-          `Saved. Estimated application-fee savings across ${savings.estimate.eligibleHomes} eligible saved homes: ${moneyFromCents(savings.estimate.estimatedSavingsCents)}.`,
+          `Saved. Estimated application-fee savings use only verified reusable-screening fees across eligible saved homes.`,
         );
       } else {
         setSavedNote(
-          `Saved to your account.${savings ? ` ${savings.savedCount} saved · Estimate unavailable until participating fees are verified.` : ''}`,
+          'Saved. A dollar estimate appears only when participating application fees are verified.',
         );
       }
     } catch (err) {
-      setSavedNote(err instanceof ApiError ? err.message : 'Could not save this home.');
+      setSavedNote(err instanceof ApiError ? err.message : 'Could not update saved homes.');
     }
   }
 
@@ -153,57 +161,60 @@ export function ListingDetailPage() {
       <Link to="/listings" style={{ fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>
         ← Back to homes
       </Link>
-      <div
-        style={{
-          marginTop: '1rem',
-          borderRadius: '1.5rem',
-          overflow: 'hidden',
-          background: 'hsl(var(--muted))',
-          minHeight: '16rem',
-        }}
-      >
+      <div className="dwel-detail-hero">
         {hero ? (
-          <img src={hero} alt={title} style={{ width: '100%', maxHeight: '28rem', objectFit: 'cover' }} />
-        ) : null}
+          <img src={hero} alt={title} loading="eager" />
+        ) : (
+          <ListingMedia title={title} imageUrl={null} kind={directory ? 'directory' : 'rental'} />
+        )}
+        <HeartButton listing={listing} className="dwel-heart--overlay dwel-heart--detail" />
       </div>
       {media.length > 1 && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }} data-testid="listing-gallery">
+        <div className="dwel-detail-gallery" data-testid="listing-gallery">
           {media.map((item, index) => (
             <button
               key={item.url}
               type="button"
-              className="btn btn-outline"
+              className={photoIndex === index ? 'is-active' : undefined}
               aria-label={`Photo ${index + 1}`}
               onClick={() => setPhotoIndex(index)}
             >
-              {index + 1}
+              <img src={item.url} alt="" loading="lazy" />
             </button>
           ))}
         </div>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gap: '1.5rem',
-          marginTop: '1.5rem',
-          gridTemplateColumns: '1fr minmax(16rem, 20rem)',
-        }}
-      >
+      <div className="dwel-detail-layout">
         <div>
           <p className="section-eyebrow">
-            {listing.property_type ? titleCaseType(listing.property_type) : 'Home'} ·{' '}
-            {listing.address.city}
+            {directory
+              ? 'Affordable housing directory'
+              : listing.property_type
+                ? titleCaseType(listing.property_type)
+                : 'Home'}{' '}
+            · {listing.address.city}
           </p>
           <h1 className="section-title">{title}</h1>
-          <p style={{ fontSize: '1.35rem', fontFamily: 'var(--font-d)', fontWeight: 700 }}>
-            {moneyFromCents(listing.rent_amount_cents)}
-            <span style={{ fontSize: '0.95rem', color: 'hsl(var(--muted-foreground))' }}>/mo</span>
+          <p className="dwel-detail-address">
+            {[listing.address.line1, listing.address.city, listing.address.state, listing.address.postal_code]
+              .filter(Boolean)
+              .join(', ')}
           </p>
-          <p style={{ color: 'hsl(var(--muted-foreground))' }}>
-            {formatBedsBaths(listing.bedrooms, listing.bathrooms)}
-          </p>
-          {listing.available_on && (
+          {directory ? (
+            <p className="dwel-detail-rent">Income-based · availability not confirmed</p>
+          ) : (
+            <p className="dwel-detail-rent">
+              {moneyFromCents(listing.rent_amount_cents)}
+              <span>/mo</span>
+            </p>
+          )}
+          {!directory && listing.bedrooms != null && (
+            <p style={{ color: 'hsl(var(--muted-foreground))' }}>
+              {formatBedsBaths(listing.bedrooms, listing.bathrooms)}
+            </p>
+          )}
+          {!directory && listing.available_on && (
             <p style={{ color: 'hsl(var(--muted-foreground))' }}>Available {listing.available_on}</p>
           )}
           {listing.description && (
@@ -211,9 +222,13 @@ export function ListingDetailPage() {
           )}
         </div>
 
-        <aside className="card" style={{ padding: '1.25rem', alignSelf: 'start' }}>
+        <aside className="card dwel-detail-aside">
           <p className="section-eyebrow">Next step</p>
-          {listing.offers?.[0] ? (
+          {directory ? (
+            <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.9rem' }}>
+              Directory entry only. Saving does not contact the property or confirm vacancy.
+            </p>
+          ) : listing.offers?.[0] ? (
             <>
               <p style={{ fontWeight: 700 }}>{listing.offers[0].display_text}</p>
               <p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '0.85rem' }}>
@@ -225,34 +240,30 @@ export function ListingDetailPage() {
               {listing.listing_channel ?? 'Partner listing'}. Saving does not contact the leasing office.
             </p>
           )}
-          {applicationLookup === 'failed' && (
+          {applicationLookup === 'failed' && !directory && (
             <p>
               Could not check whether you already applied. Submitting again reuses an open
               application for this home instead of creating a second one.
             </p>
           )}
-          {user && (
-            <>
-              <button
-                type="button"
-                className="btn btn-outline"
-                style={{ width: '100%', marginTop: '0.75rem' }}
-                onClick={() => void saveHome()}
-              >
-                Save this home
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline"
-                style={{ width: '100%', marginTop: '0.5rem' }}
-                onClick={() => void requestInfo()}
-              >
-                Request information
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ width: '100%', marginTop: '0.75rem' }}
+            onClick={() => void saveHome()}
+          >
+            {isSaved(listing.id) ? 'Remove from saved' : 'Save this home'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ width: '100%', marginTop: '0.5rem' }}
+            onClick={() => void requestInfo()}
+          >
+            Request information
+          </button>
           {savedNote && <p>{savedNote}</p>}
-          {existing ? (
+          {!directory && existing ? (
             <>
               <p style={{ fontWeight: 700 }}>
                 You applied.{' '}
@@ -267,7 +278,7 @@ export function ListingDetailPage() {
                 View your application
               </Link>
             </>
-          ) : (
+          ) : !directory ? (
             <button
               type="button"
               className="btn btn-primary"
@@ -276,7 +287,7 @@ export function ListingDetailPage() {
             >
               Start application
             </button>
-          )}
+          ) : null}
           <Link
             to="/applications"
             style={{ display: 'inline-block', marginTop: '0.85rem', fontWeight: 700 }}
