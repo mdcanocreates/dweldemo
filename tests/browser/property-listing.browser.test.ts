@@ -177,17 +177,25 @@ describe('property listing browser journey', () => {
     await page.goto(`${origin}/#/listings`);
     await see(page, '410 Catalog Lane');
     await see(page, 'See how much you could save');
-    await see(page, 'The map is turned off until a map style is configured.');
+    expect(await page.getByTestId('listings-list-workspace').count()).toBe(1);
     expect(await page.getByText('900 Draft Road').count()).toBe(0);
+    await page.getByRole('contentinfo').getByRole('link', { name: 'Terms', exact: true }).waitFor({ state: 'visible' });
     await page.getByRole('button', { name: /410 Catalog Lane/ }).click();
     await page.locator('.landing-card.is-selected').waitFor({ state: 'visible' });
-    await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.getByTestId('listings-map-workspace').waitFor({ state: 'visible' });
+    await see(page, 'The map is turned off until a map style is configured.');
     await see(page, 'Locations are approximate');
-    const fits = await page.evaluate(
+    const desktopFits = await page.evaluate(
       'document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1',
     );
-    expect(fits).toBe(true);
+    expect(desktopFits).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await see(page, 'Locations are approximate');
+    const mobileFits = await page.evaluate(
+      'document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1',
+    );
+    expect(mobileFits).toBe(true);
     await page.getByRole('button', { name: 'List', exact: true }).click();
     await see(page, '410 Catalog Lane');
     await page.setViewportSize({ width: 1280, height: 800 });

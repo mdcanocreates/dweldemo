@@ -12,10 +12,12 @@ function ListingCard({
   listing,
   selected,
   onSelect,
+  compact = false,
 }: {
   listing: Listing;
   selected: boolean;
   onSelect: (id: string) => void;
+  compact?: boolean;
 }) {
   const title = formatAddress(listing);
   const img = listing.media?.[0]?.url;
@@ -28,7 +30,7 @@ function ListingCard({
       data-testid={`card-listing-${listing.id}`}
     >
       <button type="button" className="dwel-listing-select" onClick={() => onSelect(listing.id)}>
-        <div className="landing-card-media">
+        <div className={compact ? 'landing-card-media landing-card-media--compact' : 'landing-card-media'}>
           {img ? <img src={img} alt={title} /> : <div className="landing-card-fallback" />}
           {cash > 0 && <span className="landing-card-cash">{moneyFromCents(cash)} back</span>}
         </div>
@@ -68,11 +70,12 @@ export function ListingsPage() {
   const [propertyType, setPropertyType] = useState('');
   const [sort, setSort] = useState<'cashback' | 'rent_asc' | 'rent_desc'>('cashback');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const limit = 20;
   const showFrog = useDelayedPending(initialLoading || searchPending || loadingMore, 400);
   const styleUrl = mapStyleUrl();
   const showDollarEstimate = savingsEstimateEnabled();
+  const mapMode = viewMode === 'map';
 
   useEffect(() => {
     let cancelled = false;
@@ -166,12 +169,39 @@ export function ListingsPage() {
     }];
   });
 
+  const savingsStatus = !showDollarEstimate
+    ? 'unavailable'
+    : error
+      ? 'error'
+      : initialLoading
+        ? 'loading'
+        : 'unavailable';
+
   return (
-    <Shell>
+    <Shell fullBleed={mapMode}>
       {showFrog ? <p className="muted">Loading homes…</p> : null}
-      <div className="listings-page-wash">
-        {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
-        <h1 className="section-title">Find a home</h1>
+      <div
+        className={mapMode ? 'dwel-listings-shell dwel-listings-shell--map' : 'dwel-listings-shell'}
+        data-view={viewMode}
+      >
+        <div className="dwel-listings-toolbar">
+          <div className="dwel-listings-toolbar__intro">
+            {matchLabel && <p className="listings-match-count">{matchLabel}</p>}
+            <h1 className="section-title">Find a home</h1>
+          </div>
+          <div className="dwel-listings-toolbar__modes" role="group" aria-label="List or map">
+            <button type="button" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}>
+              List
+            </button>
+            <button type="button" aria-pressed={viewMode === 'map'} onClick={() => setViewMode('map')}>
+              Map
+            </button>
+          </div>
+          <div className="dwel-listings-toolbar__savings">
+            <ApplicationSavingsCard estimate={null} status={savingsStatus} />
+          </div>
+        </div>
+
         <div className="search-row">
           <div className="field" style={{ margin: 0 }}>
             <label htmlFor="loc">Location</label>
@@ -232,29 +262,63 @@ export function ListingsPage() {
             </select>
           </div>
         </div>
-        <div className="dwel-listings-toggle" role="group" aria-label="Map or list">
-          <button type="button" aria-pressed={mobileView === 'list'} onClick={() => setMobileView('list')}>
-            List
-          </button>
-          <button type="button" aria-pressed={mobileView === 'map'} onClick={() => setMobileView('map')}>
-            Map
-          </button>
-        </div>
 
-        <div className="dwel-listings-layout" data-view={mobileView}>
-          <aside className="dwel-listings-sidebar">
-            <ApplicationSavingsCard
-              estimate={null}
-              status={!showDollarEstimate ? 'unavailable' : error ? 'error' : initialLoading ? 'loading' : 'unavailable'}
-            />
-            <ListingMap
-              listings={mapListings}
-              selectedListingId={selectedListingId}
-              onSelectListing={selectListing}
-              styleUrl={styleUrl}
-            />
-          </aside>
-          <div className="dwel-listings-results">
+        {mapMode ? (
+          <div className="dwel-map-workspace" data-testid="listings-map-workspace">
+            <div className="dwel-map-workspace__map">
+              <ListingMap
+                listings={mapListings}
+                selectedListingId={selectedListingId}
+                onSelectListing={selectListing}
+                styleUrl={styleUrl}
+              />
+            </div>
+            <aside className="dwel-map-workspace__rail" aria-label="Matching homes">
+              {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}
+              {!error && listings === null && (
+                <div className="listing-grid">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="skeleton" style={{ height: '12rem' }} />
+                  ))}
+                </div>
+              )}
+              {!error && listings && listings.length === 0 && (
+                <div className="empty-state" data-testid="listings-empty">
+                  No homes match your search. Adjust your filters or check back — new listings are added
+                  daily.
+                </div>
+              )}
+              {!error && listings && listings.length > 0 && (
+                <>
+                  <div className="dwel-map-workspace__cards">
+                    {listings.map((listing) => (
+                      <ListingCard
+                        key={listing.id}
+                        listing={listing}
+                        selected={listing.id === selectedListingId}
+                        onSelect={selectListing}
+                        compact
+                      />
+                    ))}
+                  </div>
+                  {listings.length < total && (
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={() => void loadMore()}
+                        disabled={loadingMore}
+                      >
+                        {loadingMore ? 'Loading…' : 'Load more'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </aside>
+          </div>
+        ) : (
+          <div className="dwel-listings-results" data-testid="listings-list-workspace">
             {error && <ErrorState title="Listings unavailable">{error}</ErrorState>}
             {!error && listings === null && (
               <div className="listing-grid" style={{ marginTop: '1rem' }}>
@@ -296,7 +360,7 @@ export function ListingsPage() {
               </>
             )}
           </div>
-        </div>
+        )}
       </div>
     </Shell>
   );
