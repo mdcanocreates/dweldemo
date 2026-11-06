@@ -23,6 +23,7 @@ export function ListingMedia({ title, imageUrl, compact = false, kind, badge }: 
         alt={title}
         loading="lazy"
         decoding="async"
+        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
       />
       {badge ? <span className="landing-card-cash">{badge}</span> : null}

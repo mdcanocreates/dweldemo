@@ -132,8 +132,9 @@ async function loadPermission(client: pg.Client): Promise<{ permission: SourceMe
     status: SourceMediaPermission['status'];
     license_evidence_ref: string | null;
     permitted_fields: string[] | null;
+    media_policy: SourceMediaPermission['mediaPolicy'] | null;
   }>(
-    `select provider_key, status, license_evidence_ref, permitted_fields
+    `select provider_key, status, license_evidence_ref, permitted_fields, media_policy
      from external_source
      where provider_key = $1`,
     [RENT_COM_DEAL_PACKAGE_PERMISSION.providerKey],
@@ -147,7 +148,7 @@ async function loadPermission(client: pg.Client): Promise<{ permission: SourceMe
       status: row.status,
       licenseEvidenceRef: row.license_evidence_ref,
       permittedFields: row.permitted_fields ?? [],
-      mediaPolicy: 'none',
+      mediaPolicy: row.media_policy ?? 'none',
     },
   };
 }

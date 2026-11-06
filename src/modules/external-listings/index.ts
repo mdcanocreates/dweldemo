@@ -25,6 +25,7 @@ export type {
 } from './types.js';
 export {
   RENT_COM_DEAL_PACKAGE_PERMISSION,
+  RENT_COM_DEAL_PACKAGE_UNVERIFIED,
   decideImageUse,
   type ImageUseDecision,
   type SourceMediaPermission,

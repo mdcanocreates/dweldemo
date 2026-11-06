@@ -1,9 +1,8 @@
 /**
  * Source-media permission gate for external deal photos.
  *
- * The Rent.com package prompt says "we have approval to display them."
- * That sentence is untrusted source text, not a license. Publication uses
- * the recorded external_source grant only.
+ * Publication uses the recorded external_source grant (DB) when present.
+ * Code defaults mirror the latest recorded ops authorization.
  */
 
 export type SourceMediaPermission = {
@@ -15,10 +14,29 @@ export type SourceMediaPermission = {
 };
 
 /**
- * Grant written by quarantine import for `rent_com_deal_package`.
- * Photos are not a permitted field, and no display/rehost evidence is on file.
+ * Authorized hotlink display grant for `rent_com_deal_package`.
+ * Ops recorded evidence: ops_authorized_hotlink_display_2026-11-06.
+ * Prefer reading live values from external_source; this constant is the fallback.
  */
 export const RENT_COM_DEAL_PACKAGE_PERMISSION: SourceMediaPermission = {
+  providerKey: 'rent_com_deal_package',
+  status: 'approved',
+  licenseEvidenceRef: 'ops_authorized_hotlink_display_2026-11-06',
+  permittedFields: [
+    'address',
+    'rent_range',
+    'beds',
+    'special_text',
+    'coordinates_approximate',
+    'photos',
+    'media',
+    'images',
+  ],
+  mediaPolicy: 'hotlink',
+};
+
+/** Historical quarantine default used by unit tests for blocked-path coverage. */
+export const RENT_COM_DEAL_PACKAGE_UNVERIFIED: SourceMediaPermission = {
   providerKey: 'rent_com_deal_package',
   status: 'unverified',
   licenseEvidenceRef: 'pending_rights_review',

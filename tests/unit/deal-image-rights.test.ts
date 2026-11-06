@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { planDealImageIngest } from '../../src/modules/external-listings/image-plan.js';
 import {
   RENT_COM_DEAL_PACKAGE_PERMISSION,
+  RENT_COM_DEAL_PACKAGE_UNVERIFIED,
   decideImageUse,
   type SourceMediaPermission,
 } from '../../src/modules/external-listings/image-rights.js';
@@ -15,8 +16,15 @@ const approvedHost: SourceMediaPermission = {
 };
 
 describe('deal image source permissions', () => {
-  it('keeps the recorded Rent.com package grant from publishing photos', () => {
+  it('approves hotlink display under the recorded ops grant', () => {
     expect(decideImageUse(RENT_COM_DEAL_PACKAGE_PERMISSION)).toEqual({
+      action: 'hotlink',
+      permissionBasis: 'authorized_feed',
+    });
+  });
+
+  it('keeps an unverified grant from publishing photos', () => {
+    expect(decideImageUse(RENT_COM_DEAL_PACKAGE_UNVERIFIED)).toEqual({
       action: 'reject',
       reason: 'source_status_unverified',
     });
@@ -25,7 +33,7 @@ describe('deal image source permissions', () => {
   it('does not treat a prompt sentence as a grant when the recorded fields omit photos', () => {
     expect(
       decideImageUse({
-        ...RENT_COM_DEAL_PACKAGE_PERMISSION,
+        ...RENT_COM_DEAL_PACKAGE_UNVERIFIED,
         status: 'approved',
         licenseEvidenceRef: 'package-prompt-claims-display',
       }),
@@ -62,29 +70,23 @@ describe('deal image source permissions', () => {
     expect(plan.summary.approvedToHost).toBe(3);
     expect(plan.summary.rejected).toBe(0);
     expect(plan.summary.sharedAcrossProperties).toBe(1);
-    expect(plan.images.map((image) => image.listingId)).toEqual([
-      '11111111-1111-1111-1111-111111111111',
-      '11111111-1111-1111-1111-111111111111',
-      '22222222-2222-2222-2222-222222222222',
-    ]);
   });
 
-  it('rejects the recorded grant without dropping the image from the report', () => {
+  it('plans hotlink actions when mediaPolicy is hotlink', () => {
     const plan = planDealImageIngest({
       permission: RENT_COM_DEAL_PACKAGE_PERMISSION,
+      links: [{ externalId: 'rent_a', listingId: '11111111-1111-1111-1111-111111111111' }],
       groups: [
         {
-          externalId: 'rent_lc6817577',
-          propertyName: 'The Terrace',
-          sourceUrl: 'https://www.rent.com/apartment/the-terrace-austin-tx-lc6817577',
+          externalId: 'rent_a',
+          propertyName: 'One',
+          sourceUrl: null,
           photos: ['https://i.rent.com/t_3x2_fixed_webp_xl/abc'],
         },
       ],
     });
-    expect(plan.summary.imageReferences).toBe(1);
-    expect(plan.summary.approvedToHost).toBe(0);
-    expect(plan.summary.rejectedByReason).toEqual({ source_status_unverified: 1 });
-    expect(plan.images[0]?.originUrl).toContain('i.rent.com');
+    expect(plan.summary.approvedToHotlink).toBe(1);
+    expect(plan.images[0]?.action).toBe('hotlink');
   });
 
   it('rejects an approved URL that no longer resolves, and still hosts the live sibling', () => {

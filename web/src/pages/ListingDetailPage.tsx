@@ -160,7 +160,13 @@ export function ListingDetailPage() {
       </Link>
       <div className={visibleHero ? 'dwel-detail-hero' : 'dwel-detail-hero dwel-detail-hero--text'}>
         {visibleHero ? (
-          <img src={visibleHero} alt={title} loading="eager" onError={() => setHeroFailed(true)} />
+          <img
+            src={visibleHero}
+            alt={title}
+            loading="eager"
+            referrerPolicy="no-referrer"
+            onError={() => setHeroFailed(true)}
+          />
         ) : (
           <div className="dwel-detail-hero-fallback">
             <p className="font-display">{title}</p>
@@ -182,7 +188,7 @@ export function ListingDetailPage() {
                 setPhotoIndex(index);
               }}
             >
-              <img src={item.url} alt="" loading="lazy" />
+              <img src={item.url} alt="" loading="lazy" referrerPolicy="no-referrer" />
             </button>
           ))}
         </div>

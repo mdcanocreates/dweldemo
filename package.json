@@ -32,7 +32,8 @@
     "ops:publish-hud-directory": "tsx src/scripts/publish-hud-directory.ts",
     "ops:publish-deal-profiles": "tsx src/scripts/publish-deal-profiles.ts",
     "ops:refresh-deal-marketplace": "tsx src/scripts/refresh-deal-marketplace.ts",
-    "ops:ingest-deal-images": "tsx src/scripts/ingest-deal-property-images.ts"
+    "ops:ingest-deal-images": "tsx src/scripts/ingest-deal-property-images.ts",
+    "ops:publish-hotlink-deal-media": "tsx src/scripts/publish-hotlink-deal-media.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.758.0",
